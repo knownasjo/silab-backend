@@ -24,7 +24,7 @@ export const CGetClassCollaborators = async (
   next: NextFunction
 ) => {
   try {
-    const id = req.params.id;
+    const id = req.params.id.toString();
 
     const resData = await SGetCollaborators(id);
 

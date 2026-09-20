@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import { errorHandler } from "./middleware/error.middleware";
 import AuthRoute from "../src/routes/auth.route";
@@ -15,7 +17,9 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-app.listen(3000);
+app.get("/", (_req, res) => {
+  res.json({ status: true, message: "SILAB API is running" });
+});
 
 app.use("/auth", AuthRoute);
 app.use("/subject", SubjectRoute);
@@ -27,3 +31,9 @@ app.use("/announcement", AnnouncementRoute);
 app.use("/collaborator", CollaboratorRoute);
 
 app.use(errorHandler);
+
+const PORT = Number(process.env.PORT) || 3000;
+
+app.listen(PORT, () => {
+  console.log(`SILAB API listening on port ${PORT}`);
+});
