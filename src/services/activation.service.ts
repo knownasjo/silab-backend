@@ -8,7 +8,9 @@ import {
 } from "../utils/HttpErrors/HttptErrors";
 import {
   IAddActivationRequestBody,
+  IAvailableClass,
   IGetActivationResponseBody,
+  IUpdateActivationRequestBody,
 } from "../interfaces/activation.interface";
 import { Prisma } from "@prisma/client";
 
@@ -85,6 +87,7 @@ export const SGetAllActivations = async (
       include: {
         user: {
           select: {
+            id: true,
             nim: true,
             fullname: true,
           },
@@ -98,13 +101,59 @@ export const SGetAllActivations = async (
       },
     });
 
-    const data: IGetActivationResponseBody[] = activationsData.map((data) => ({
-      id: data.id,
-      nim: data.user.nim,
-      student: data.user.fullname,
-      status: data.status,
-      subjects: [data.subject],
-    }));
+    const subjectIds = [...new Set(activationsData.map((a) => a.subjectId))];
+
+    const classesData = await db.mst_class.findMany({
+      where: {
+        subjectId: { in: subjectIds },
+        deleted_at: null,
+      },
+      include: {
+        participants: {
+          where: { deleted_at: null },
+          select: { userId: true },
+        },
+      },
+    });
+
+    const data: IGetActivationResponseBody[] = activationsData.map(
+      (activation) => {
+        const classesOfSubject = classesData.filter(
+          (c) => c.subjectId === activation.subjectId
+        );
+
+        const enrolledClass = classesOfSubject.find((c) =>
+          c.participants.some((p) => p.userId === activation.userId)
+        );
+
+        const availableClasses: IAvailableClass[] = classesOfSubject.map(
+          (c) => ({
+            id: c.id,
+            name: c.name,
+            day: c.day,
+            session_time: `${c.startAt} - ${c.endAt}`,
+            room: c.room,
+            quota: c.quota,
+            registered_students: c.participants.length,
+            is_full: c.participants.length >= c.quota,
+          })
+        );
+
+        return {
+          id: activation.id,
+          user_id: activation.userId,
+          nim: activation.user.nim,
+          student: activation.user.fullname,
+          status: activation.status,
+          subject_id: activation.subjectId,
+          subjects: [activation.subject],
+          registered_class: enrolledClass
+            ? { id: enrolledClass.id, name: enrolledClass.name }
+            : null,
+          available_classes: availableClasses,
+        };
+      }
+    );
 
     return {
       status: true,
@@ -116,12 +165,21 @@ export const SGetAllActivations = async (
   }
 };
 
+/**
+ * Menandai pembayaran lunas.
+ *
+ * Bila body menyertakan classId, mahasiswa sekaligus didaftarkan ke kelas
+ * tersebut. Bila tidak, perilakunya sama seperti sebelumnya — hanya mengubah
+ * status pembayaran, dan mahasiswa memilih kelasnya sendiri lewat
+ * POST /class/registration (jalur aplikasi mobile).
+ */
 export const SUpdateActivationPaymentStatus = async (
   req: Request
 ): Promise<IBaseResponse> => {
   try {
     const user = req.user;
     const id = req.params.id.toString();
+    const { classId } = req.body as IUpdateActivationRequestBody;
 
     if (user?.role !== "LABORAN")
       throw new UnauthorizedError("User not allowed!");
@@ -134,18 +192,70 @@ export const SUpdateActivationPaymentStatus = async (
 
     if (!isActivationExist) throw new NotFoundError("Activation not found!");
 
-    await db.trn_activations.update({
-      where: {
-        id,
-      },
-      data: {
+    if (!classId) {
+      await db.trn_activations.update({
+        where: { id },
+        data: {
+          status: true,
+          updated_at: new Date(),
+        },
+      });
+
+      return {
         status: true,
+        message: "Payment status updated",
+      };
+    }
+
+    const classData = await db.mst_class.findFirst({
+      where: {
+        id: classId,
+        deleted_at: null,
+      },
+      include: {
+        participants: {
+          where: { deleted_at: null },
+          select: { userId: true },
+        },
       },
     });
 
+    if (!classData) throw new NotFoundError("Class not found!");
+
+    if (classData.subjectId !== isActivationExist.subjectId)
+      throw new ConflictError(
+        "Class does not belong to the activated subject!"
+      );
+
+    const isAlreadyEnrolled = classData.participants.some(
+      (p) => p.userId === isActivationExist.userId
+    );
+
+    if (isAlreadyEnrolled)
+      throw new ConflictError("Student is already registered in this class!");
+
+    if (classData.participants.length >= classData.quota)
+      throw new ConflictError("Class quota is full!");
+
+    await db.$transaction([
+      db.trn_activations.update({
+        where: { id },
+        data: {
+          status: true,
+          updated_at: new Date(),
+        },
+      }),
+      db.trn_class_participants.create({
+        data: {
+          classId: classId,
+          userId: isActivationExist.userId,
+        },
+      }),
+    ]);
+
     return {
       status: true,
-      message: "Success",
+      message: `Payment confirmed and student registered to class ${classData.name}`,
     };
   } catch (error) {
     throw error;
