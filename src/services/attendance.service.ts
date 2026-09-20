@@ -29,10 +29,10 @@ export const SAddAttendance = async (
     const user = req.user;
     const { token } = body;
 
-    if (!token) throw new BadRequestError("Token is required!");
+    if (!token) throw new BadRequestError("Token presensi wajib diisi!");
 
     if (user?.role !== "MAHASISWA")
-      throw new UnauthorizedError("Only students can submit attendance!");
+      throw new UnauthorizedError("Hanya mahasiswa yang dapat melakukan presensi!");
 
     const meeting = await db.trn_meetings.findFirst({
       where: {
@@ -42,13 +42,13 @@ export const SAddAttendance = async (
       },
     });
 
-    if (!meeting) throw new NotFoundError("Meeting not found!");
+    if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
 
     if (!meeting.status)
-      throw new ForbiddenError("Attendance session is not open!");
+      throw new ForbiddenError("Sesi presensi belum dibuka!");
 
     if (meeting.token !== token)
-      throw new BadRequestError("Invalid attendance token!");
+      throw new BadRequestError("Token presensi tidak valid!");
 
     const isClassParticipant = await db.trn_class_participants.findFirst({
       where: {
@@ -59,7 +59,7 @@ export const SAddAttendance = async (
     });
 
     if (!isClassParticipant)
-      throw new ForbiddenError("You are not registered in this class!");
+      throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
 
     const existingAttendance = await db.trn_meeting_participants.findUnique({
       where: {
@@ -71,7 +71,7 @@ export const SAddAttendance = async (
     });
 
     if (existingAttendance)
-      throw new ConflictError("You have already submitted attendance!");
+      throw new ConflictError("Anda sudah melakukan presensi untuk pertemuan ini!");
 
     const attendance = await db.trn_meeting_participants.create({
       data: {
@@ -83,7 +83,7 @@ export const SAddAttendance = async (
 
     return {
       status: true,
-      message: "Attendance recorded",
+      message: "Presensi berhasil dicatat",
       data: {
         meeting_id: meeting.id,
         meeting_name: meeting.name,
@@ -113,10 +113,10 @@ export const SUpdateAttendanceManually = async (
     const { status } = body;
 
     if (typeof status !== "boolean")
-      throw new BadRequestError("Field 'status' must be true or false!");
+      throw new BadRequestError("Status kehadiran harus berupa true atau false!");
 
     if (user?.role !== "LABORAN" && user?.role !== "ASISTEN")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const meeting = await db.trn_meetings.findFirst({
       where: {
@@ -125,7 +125,7 @@ export const SUpdateAttendanceManually = async (
       },
     });
 
-    if (!meeting) throw new NotFoundError("Meeting not found!");
+    if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
 
     const student = await db.mst_user.findUnique({
       where: {
@@ -133,7 +133,7 @@ export const SUpdateAttendanceManually = async (
       },
     });
 
-    if (!student) throw new NotFoundError("Student not found!");
+    if (!student) throw new NotFoundError("Mahasiswa tidak ditemukan!");
 
     const isClassParticipant = await db.trn_class_participants.findFirst({
       where: {
@@ -144,7 +144,7 @@ export const SUpdateAttendanceManually = async (
     });
 
     if (!isClassParticipant)
-      throw new ForbiddenError("Student is not registered in this class!");
+      throw new ForbiddenError("Mahasiswa tidak terdaftar di kelas ini!");
 
     const attendance = await db.trn_meeting_participants.upsert({
       where: {
@@ -166,8 +166,8 @@ export const SUpdateAttendanceManually = async (
     return {
       status: true,
       message: status
-        ? "Student marked as attended"
-        : "Student marked as absent",
+        ? "Mahasiswa ditandai hadir"
+        : "Mahasiswa ditandai tidak hadir",
       data: {
         meeting_id: meeting.id,
         meeting_name: meeting.name,
@@ -196,7 +196,7 @@ export const SResetAttendance = async (
     const user = req.user;
 
     if (user?.role !== "LABORAN" && user?.role !== "ASISTEN")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const attendance = await db.trn_meeting_participants.findUnique({
       where: {
@@ -207,7 +207,7 @@ export const SResetAttendance = async (
       },
     });
 
-    if (!attendance) throw new NotFoundError("Attendance record not found!");
+    if (!attendance) throw new NotFoundError("Catatan presensi tidak ditemukan!");
 
     await db.trn_meeting_participants.delete({
       where: {
@@ -220,7 +220,7 @@ export const SResetAttendance = async (
 
     return {
       status: true,
-      message: "Attendance record removed",
+      message: "Catatan presensi berhasil dihapus",
     };
   } catch (error) {
     throw error;

@@ -2,6 +2,7 @@ import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import db from "../prisma/client.prisma";
 import {
+  BadRequestError,
   ConflictError,
   NotFoundError,
   UnauthorizedError,
@@ -23,7 +24,7 @@ export const SAddStudentActivation = async (
     const { subjectIds } = body;
 
     if (user?.role !== "MAHASISWA")
-      throw new UnauthorizedError("User is not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const existingActivations = await db.trn_activations.findMany({
       where: {
@@ -37,7 +38,7 @@ export const SAddStudentActivation = async (
     if (existingActivations.length > 0) {
       const alreadyActivatedIds = existingActivations.map((a) => a.subjectId);
       throw new ConflictError(
-        `Already activated current subjects : ${alreadyActivatedIds.join(", ")}`
+        `Mata kuliah berikut sudah pernah didaftarkan: ${alreadyActivatedIds.join(", ")}`
       );
     }
 
@@ -51,7 +52,7 @@ export const SAddStudentActivation = async (
 
     return {
       status: true,
-      message: "Activation added",
+      message: "Pendaftaran mata kuliah berhasil",
     };
   } catch (error) {
     throw error;
@@ -157,7 +158,7 @@ export const SGetAllActivations = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {
@@ -166,12 +167,16 @@ export const SGetAllActivations = async (
 };
 
 /**
- * Menandai pembayaran lunas.
+ * Mengubah status pembayaran.
  *
- * Bila body menyertakan classId, mahasiswa sekaligus didaftarkan ke kelas
- * tersebut. Bila tidak, perilakunya sama seperti sebelumnya — hanya mengubah
- * status pembayaran, dan mahasiswa memilih kelasnya sendiri lewat
- * POST /class/registration (jalur aplikasi mobile).
+ * Body:
+ *   status  (opsional, default true) — true berarti lunas, false membatalkan
+ *   classId (opsional) — bila diisi saat status true, mahasiswa sekaligus
+ *                        didaftarkan ke kelas tersebut
+ *
+ * Tanpa classId, perilakunya sama seperti sebelumnya: hanya mengubah status,
+ * dan mahasiswa memilih kelasnya sendiri lewat POST /class/registration
+ * (jalur aplikasi mobile).
  */
 export const SUpdateActivationPaymentStatus = async (
   req: Request
@@ -179,10 +184,12 @@ export const SUpdateActivationPaymentStatus = async (
   try {
     const user = req.user;
     const id = req.params.id.toString();
-    const { classId } = req.body as IUpdateActivationRequestBody;
+    const { classId, status } = req.body as IUpdateActivationRequestBody;
 
     if (user?.role !== "LABORAN")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
+
+    const newStatus = typeof status === "boolean" ? status : true;
 
     const isActivationExist = await db.trn_activations.findUnique({
       where: {
@@ -190,7 +197,27 @@ export const SUpdateActivationPaymentStatus = async (
       },
     });
 
-    if (!isActivationExist) throw new NotFoundError("Activation not found!");
+    if (!isActivationExist) throw new NotFoundError("Data aktivasi tidak ditemukan!");
+
+    if (!newStatus) {
+      if (classId)
+        throw new BadRequestError(
+          "Tidak bisa mendaftarkan kelas saat status diubah menjadi belum bayar!"
+        );
+
+      await db.trn_activations.update({
+        where: { id },
+        data: {
+          status: false,
+          updated_at: new Date(),
+        },
+      });
+
+      return {
+        status: true,
+        message: "Status pembayaran diubah menjadi belum bayar",
+      };
+    }
 
     if (!classId) {
       await db.trn_activations.update({
@@ -203,7 +230,7 @@ export const SUpdateActivationPaymentStatus = async (
 
       return {
         status: true,
-        message: "Payment status updated",
+        message: "Status pembayaran berhasil diperbarui",
       };
     }
 
@@ -220,11 +247,11 @@ export const SUpdateActivationPaymentStatus = async (
       },
     });
 
-    if (!classData) throw new NotFoundError("Class not found!");
+    if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
 
     if (classData.subjectId !== isActivationExist.subjectId)
       throw new ConflictError(
-        "Class does not belong to the activated subject!"
+        "Kelas tidak termasuk dalam mata kuliah yang didaftarkan!"
       );
 
     const isAlreadyEnrolled = classData.participants.some(
@@ -232,10 +259,10 @@ export const SUpdateActivationPaymentStatus = async (
     );
 
     if (isAlreadyEnrolled)
-      throw new ConflictError("Student is already registered in this class!");
+      throw new ConflictError("Mahasiswa sudah terdaftar di kelas ini!");
 
     if (classData.participants.length >= classData.quota)
-      throw new ConflictError("Class quota is full!");
+      throw new ConflictError("Kuota kelas sudah penuh!");
 
     await db.$transaction([
       db.trn_activations.update({
@@ -255,7 +282,125 @@ export const SUpdateActivationPaymentStatus = async (
 
     return {
       status: true,
-      message: `Payment confirmed and student registered to class ${classData.name}`,
+      message: `Pembayaran dikonfirmasi dan mahasiswa didaftarkan ke kelas ${classData.name}`,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Memindahkan mahasiswa dari satu kelas praktikum ke kelas lain pada mata
+ * kuliah yang sama. Dipakai saat terjadi salah daftar.
+ *
+ * Pemindahan ditolak bila mahasiswa sudah punya catatan presensi di kelas
+ * lama. Dalam alur normal hal ini tidak terjadi, karena pendaftaran ditutup
+ * sebelum praktikum dimulai. Bila tetap terjadi, laboran harus menghapus
+ * catatan presensinya lebih dulu, supaya tidak ada data kehadiran yang
+ * hilang tanpa sepengetahuan siapa pun.
+ */
+export const SUpdateStudentClass = async (
+  req: Request
+): Promise<IBaseResponse> => {
+  try {
+    const user = req.user;
+    const id = req.params.id.toString();
+    const { classId } = req.body as IUpdateActivationRequestBody;
+
+    if (user?.role !== "LABORAN")
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
+
+    if (!classId) throw new BadRequestError("Kelas tujuan wajib dipilih!");
+
+    const activation = await db.trn_activations.findUnique({
+      where: { id },
+    });
+
+    if (!activation) throw new NotFoundError("Data aktivasi tidak ditemukan!");
+
+    if (!activation.status)
+      throw new ConflictError(
+        "Tidak bisa memindahkan kelas sebelum pembayaran dikonfirmasi!"
+      );
+
+    const targetClass = await db.mst_class.findFirst({
+      where: {
+        id: classId,
+        deleted_at: null,
+      },
+      include: {
+        participants: {
+          where: { deleted_at: null },
+          select: { userId: true },
+        },
+      },
+    });
+
+    if (!targetClass) throw new NotFoundError("Kelas tujuan tidak ditemukan!");
+
+    if (targetClass.subjectId !== activation.subjectId)
+      throw new ConflictError(
+        "Kelas tujuan tidak termasuk dalam mata kuliah yang didaftarkan!"
+      );
+
+    const currentEnrollment = await db.trn_class_participants.findFirst({
+      where: {
+        userId: activation.userId,
+        deleted_at: null,
+        class: {
+          subjectId: activation.subjectId,
+        },
+      },
+      include: {
+        class: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    if (!currentEnrollment)
+      throw new NotFoundError("Mahasiswa belum terdaftar di kelas mana pun!");
+
+    if (currentEnrollment.classId === classId)
+      throw new ConflictError("Mahasiswa sudah berada di kelas ini!");
+
+    if (targetClass.participants.length >= targetClass.quota)
+      throw new ConflictError("Kuota kelas tujuan sudah penuh!");
+
+    const existingAttendances = await db.trn_meeting_participants.findMany({
+      where: {
+        userId: activation.userId,
+        meeting: {
+          classId: currentEnrollment.classId,
+        },
+      },
+    });
+
+    if (existingAttendances.length > 0)
+      throw new ConflictError(
+        `Mahasiswa sudah memiliki ${existingAttendances.length} catatan presensi di kelas ${currentEnrollment.class.name}. Hapus catatan presensinya terlebih dahulu sebelum memindahkan kelas.`
+      );
+
+    await db.$transaction([
+      db.trn_class_participants.delete({
+        where: {
+          classId_userId: {
+            classId: currentEnrollment.classId,
+            userId: activation.userId,
+          },
+        },
+      }),
+      db.trn_class_participants.create({
+        data: {
+          classId: classId,
+          userId: activation.userId,
+        },
+      }),
+    ]);
+
+    return {
+      status: true,
+      message: `Mahasiswa dipindahkan dari kelas ${currentEnrollment.class.name} ke kelas ${targetClass.name}`,
     };
   } catch (error) {
     throw error;

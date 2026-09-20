@@ -21,7 +21,7 @@ export const SAddClassMeeting = async (
     const user = req.user;
 
     if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const isClassExist = await db.mst_class.findUnique({
       where: {
@@ -29,7 +29,7 @@ export const SAddClassMeeting = async (
       },
     });
 
-    if (!isClassExist) throw new NotFoundError("Class not found!");
+    if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
 
     await db.trn_meetings.create({
       data: {
@@ -41,7 +41,7 @@ export const SAddClassMeeting = async (
 
     return {
       status: true,
-      message: "Class meeting added",
+      message: "Pertemuan berhasil ditambahkan",
     };
   } catch (error) {
     throw error;
@@ -61,7 +61,7 @@ export const SGetAllClassMeeting = async (
       },
     });
 
-    if (!isClassExist) throw new NotFoundError("Class not found!");
+    if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
 
     const meetingsData = await db.trn_meetings.findMany({
       where: {
@@ -134,7 +134,7 @@ export const SGetAllClassMeeting = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {
@@ -151,7 +151,7 @@ export const SUpdateMeetingStatus = async (
     const user = req.user;
 
     if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const meeting = await db.trn_meetings.findFirst({
       where: {
@@ -160,7 +160,7 @@ export const SUpdateMeetingStatus = async (
       },
     });
 
-    if (!meeting) throw new NotFoundError("Meeting not found!");
+    if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
 
     await db.trn_meetings.update({
       where: {
@@ -175,8 +175,8 @@ export const SUpdateMeetingStatus = async (
     return {
       status: true,
       message: status
-        ? "Attendance session opened"
-        : "Attendance session closed",
+        ? "Sesi presensi dibuka"
+        : "Sesi presensi ditutup",
     };
   } catch (error) {
     throw error;

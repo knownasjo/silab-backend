@@ -4,6 +4,7 @@ export interface IAddActivationRequestBody {
 
 export interface IUpdateActivationRequestBody {
   classId?: string;
+  status?: boolean;
 }
 
 export interface IGetActivationResponseBody {

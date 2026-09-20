@@ -3,6 +3,7 @@ import {
   SAddStudentActivation,
   SGetAllActivations,
   SUpdateActivationPaymentStatus,
+  SUpdateStudentClass,
 } from "../services/activation.service";
 
 export const CAddActivation = async (
@@ -40,6 +41,20 @@ export const CUpdateActivationPaymentStatus = async (
 ) => {
   try {
     const resData = await SUpdateActivationPaymentStatus(req);
+
+    res.status(200).json(resData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const CUpdateStudentClass = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SUpdateStudentClass(req);
 
     res.status(200).json(resData);
   } catch (error) {
