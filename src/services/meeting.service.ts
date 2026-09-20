@@ -108,7 +108,7 @@ export const SGetAllClassMeeting = async (
           student_id: participant.user.id,
           student_name: participant.user.fullname,
           nim: participant.user.nim,
-          submitted_at: null,
+          submitted_at: null as string | null,
           is_attended: false,
         }));
 
@@ -118,12 +118,14 @@ export const SGetAllClassMeeting = async (
           );
           if (student) {
             student.is_attended = meetingParticipant.status;
+            student.submitted_at = meetingParticipant.createdAt.toISOString();
           }
         });
 
         return {
           id: meeting.id,
           meeting_name: meeting.name,
+          is_open: meeting.status,
           token: user?.role === "MAHASISWA" ? undefined : meeting.token,
           students: user?.role === "MAHASISWA" ? undefined : studentsInClass,
         };
@@ -134,6 +136,47 @@ export const SGetAllClassMeeting = async (
       status: true,
       message: "Success",
       data,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const SUpdateMeetingStatus = async (
+  meetingId: string,
+  status: boolean,
+  req: Request
+): Promise<IBaseResponse> => {
+  try {
+    const user = req.user;
+
+    if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
+      throw new UnauthorizedError("User not allowed!");
+
+    const meeting = await db.trn_meetings.findFirst({
+      where: {
+        id: meetingId,
+        deleted_at: null,
+      },
+    });
+
+    if (!meeting) throw new NotFoundError("Meeting not found!");
+
+    await db.trn_meetings.update({
+      where: {
+        id: meetingId,
+      },
+      data: {
+        status: status,
+        updated_at: new Date(),
+      },
+    });
+
+    return {
+      status: true,
+      message: status
+        ? "Attendance session opened"
+        : "Attendance session closed",
     };
   } catch (error) {
     throw error;

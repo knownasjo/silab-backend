@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 dotenv.config();
+
 import express from "express";
 import { errorHandler } from "./middleware/error.middleware";
 import AuthRoute from "../src/routes/auth.route";
@@ -10,6 +11,7 @@ import MeetingRoute from "../src/routes/meeting.route";
 import UserRoute from "../src/routes/user.route";
 import AnnouncementRoute from "../src/routes/announcement.route";
 import CollaboratorRoute from "../src/routes/collaborator.route";
+import AttendanceRoute from "../src/routes/attendance.route";
 import cors from "cors";
 
 const app = express();
@@ -20,6 +22,8 @@ app.use(cors());
 app.get("/", (_req, res) => {
   res.json({ status: true, message: "SILAB API is running" });
 });
+
+app.use("/subject/classes", AttendanceRoute);
 
 app.use("/auth", AuthRoute);
 app.use("/subject", SubjectRoute);
