@@ -36,7 +36,8 @@
                   ""
                 ],
                 "type": "text/javascript",
-                "packages": {}
+                "packages": {},
+                "requests": {}
               }
             },
             {
@@ -46,7 +47,8 @@
                   ""
                 ],
                 "type": "text/javascript",
-                "packages": {}
+                "packages": {},
+                "requests": {}
               }
             }
           ],
@@ -55,7 +57,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"nim\" : \"2000016069\",\r\n    \"password\" : \"firoos18\"\r\n}",
+              "raw": "{\r\n  \"nim\": \"2000016104\",\r\n  \"password\": \"mahasiswa004\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -82,7 +84,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"email\" : \"mahasiswa001@webmail.uad.ac.id\",\r\n    \"nim\" : \"2000016099\",\r\n    \"fullname\" : \"Mahasiswa001\",\r\n    \"password\" : \"mahasiswa001\",\r\n    \"confirmPassword\" : \"mahasiswa001\"\r\n}",
+              "raw": "{\r\n    \"email\" : \"mahasiswa005@webmail.uad.ac.id\",\r\n    \"nim\" : \"2000016105\",\r\n    \"fullname\" : \"Mahasiswa005\",\r\n    \"password\" : \"mahasiswa005\",\r\n    \"confirmPassword\" : \"mahasiswa005\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -548,7 +550,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"subjectIds\" : [\"22f284b9-7c59-4121-a395-dcd109e5097f\"]\r\n}",
+              "raw": "{\r\n    \"subjectIds\" : [\"3406e520-8b34-4ddb-839f-ce46230ef779\"]\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -621,14 +623,23 @@
             },
             "method": "PUT",
             "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"classId\": \"eb4e960d-439e-4b06-b4ab-df26aeccda29\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
             "url": {
-              "raw": "{{baseUrl}}/activation/f30531cc-e854-47f0-8e38-5f2628c00a9a",
+              "raw": "{{baseUrl}}/activation/9c86e410-429b-46a0-93e1-174a36635265",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "activation",
-                "f30531cc-e854-47f0-8e38-5f2628c00a9a"
+                "9c86e410-429b-46a0-93e1-174a36635265"
               ]
             }
           },
@@ -707,16 +718,154 @@
         {
           "name": "Open Attendance Session",
           "request": {
-            "method": "GET",
-            "header": []
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenLaboran}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer <token>",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/meeting/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meeting",
+                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
+                "status"
+              ]
+            }
           },
           "response": []
         },
         {
           "name": "Presensi Scan QR",
           "request": {
-            "method": "GET",
-            "header": []
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenMahasiswa}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"S8Bxpm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/subject/classes/652fb265-0d30-45c6-90eb-b37b1c3f3127/meetings/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/attendances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "subject",
+                "classes",
+                "652fb265-0d30-45c6-90eb-b37b1c3f3127",
+                "meetings",
+                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
+                "attendances"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Ubah Presensi Manual",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenLaboran}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": true }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/meeting/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/attendances/32f6e8e2-44cd-4047-9be5-a6e18934e5f6",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meeting",
+                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
+                "attendances",
+                "32f6e8e2-44cd-4047-9be5-a6e18934e5f6"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Hapus Presensi",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessTokenLaboran}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meeting/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/attendances/32f6e8e2-44cd-4047-9be5-a6e18934e5f6",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meeting",
+                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
+                "attendances",
+                "32f6e8e2-44cd-4047-9be5-a6e18934e5f6"
+              ]
+            }
           },
           "response": []
         }
