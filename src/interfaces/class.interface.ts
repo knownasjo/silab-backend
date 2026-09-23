@@ -54,3 +54,20 @@ export interface IGetAllClassByPaidActivationsResponseBody {
 export interface IClassRegistrationRequestBody {
   classIds: string[];
 }
+
+export interface IGetClassmateResponseBody {
+  name: string;
+  is_me: boolean;
+}
+
+export interface IGetMyClassResponseBody {
+  id: string;
+  subject_id: string;
+  subject_name: string;
+  subject_class: string;
+  semester: string;
+  lecturer: string;
+  day: string;
+  session_time: string;
+  room: string;
+}

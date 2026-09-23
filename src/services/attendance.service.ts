@@ -14,10 +14,12 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
+import { checkQrToken } from "../utils/QrToken/qr.token";
 
 /**
  * Presensi oleh mahasiswa lewat scan QR.
  * Jalur endpoint sengaja dibuat sama dengan yang dipanggil aplikasi Flutter.
+ * Token di QR berganti setiap beberapa detik (lihat utils/QrToken).
  */
 export const SAddAttendance = async (
   classId: string,
@@ -26,10 +28,15 @@ export const SAddAttendance = async (
   req: Request
 ): Promise<IBaseResponse<IAddAttendanceResponseBody>> => {
   try {
+    // Dicatat sebelum query database, supaya lambatnya database tidak
+    // membuat token yang dipindai tepat waktu dianggap kedaluwarsa.
+    const receivedAt = Date.now();
+
     const user = req.user;
     const { token } = body;
 
-    if (!token) throw new BadRequestError("Token presensi wajib diisi!");
+    if (typeof token !== "string" || !token)
+      throw new BadRequestError("Token presensi wajib diisi!");
 
     if (user?.role !== "MAHASISWA")
       throw new UnauthorizedError("Hanya mahasiswa yang dapat melakukan presensi!");
@@ -47,7 +54,14 @@ export const SAddAttendance = async (
     if (!meeting.status)
       throw new ForbiddenError("Sesi presensi belum dibuka!");
 
-    if (meeting.token !== token)
+    const tokenStatus = checkQrToken(meeting.id, token, receivedAt);
+
+    if (tokenStatus === "EXPIRED")
+      throw new BadRequestError(
+        "QR sudah kedaluwarsa, silakan scan ulang QR di layar!"
+      );
+
+    if (tokenStatus === "INVALID")
       throw new BadRequestError("Token presensi tidak valid!");
 
     const isClassParticipant = await db.trn_class_participants.findFirst({

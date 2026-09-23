@@ -5,6 +5,8 @@ import {
   SGetAllClassByPaidActivations,
   SGetAllClasses,
   SGetClassById,
+  SGetClassmates,
+  SGetMyClasses,
 } from "../services/class.service";
 
 export const CAddClass = async (
@@ -74,6 +76,34 @@ export const CClassRegistration = async (
     const resData = await SClassRegistration(req.body, req);
 
     res.status(201).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CGetMyClasses = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SGetMyClasses(req);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CGetClassmates = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SGetClassmates(req.params.id.toString(), req);
+
+    res.status(200).json(resData);
   } catch (error: any) {
     next(error);
   }

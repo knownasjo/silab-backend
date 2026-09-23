@@ -13,6 +13,7 @@ export interface IGetActivationResponseBody {
   nim: string;
   student: string;
   status: boolean;
+  created_at: string;
   subject_id: string;
   subjects: IStudentActivationPaymentStatus[];
   registered_class: IRegisteredClass | null;

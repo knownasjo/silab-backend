@@ -6,6 +6,8 @@ import {
   CGetAllClassByPaidActivations,
   CGetAllClasses,
   CGetClassById,
+  CGetClassmates,
+  CGetMyClasses,
 } from "../controller/class.controller";
 
 const router = Router();
@@ -18,6 +20,10 @@ router.get("/registration", MAuthUser(), CGetAllClassByPaidActivations);
 
 router.post("/registration", MAuthUser(), CClassRegistration);
 
+router.get("/me", MAuthUser(), CGetMyClasses);
+
 router.get("/:id", MAuthUser(), CGetClassById);
+
+router.get("/:id/classmates", MAuthUser(), CGetClassmates);
 
 export default router;

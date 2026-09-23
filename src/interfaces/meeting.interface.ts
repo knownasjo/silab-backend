@@ -6,8 +6,18 @@ export interface IAddClassMeetingRequestBody {
 export interface IGetAllClassMeetingResponseBody {
   id: string;
   meeting_name: string;
-  token?: string;
+  is_open: boolean;
+  /** Hanya untuk laboran/asisten/dosen. */
   students?: IMeetingParticipants[];
+  /** Hanya untuk mahasiswa: status presensinya sendiri. */
+  submitted_at?: string | null;
+  is_attended?: boolean;
+}
+
+export interface IGetMeetingQrTokenResponseBody {
+  token: string;
+  period_seconds: number;
+  expires_in_ms: number;
 }
 
 export interface IMeetingParticipants {

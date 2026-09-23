@@ -17,6 +17,14 @@ export interface IUserLoginResponseBody {
   refreshToken: string;
 }
 
+export interface IRefreshTokenRequestBody {
+  refreshToken: string;
+}
+
+export interface IRefreshTokenResponseBody {
+  accessToken: string;
+}
+
 export interface IUserRegisterRequestBody {
   nim: string;
   fullname: string;

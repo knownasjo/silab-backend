@@ -1,6 +1,12 @@
 import { UserRole } from "@prisma/client";
-import { CreateRefreshToken, CreateToken } from "../helper/jwt.helper";
 import {
+  CreateRefreshToken,
+  CreateToken,
+  VerifyRefreshToken,
+} from "../helper/jwt.helper";
+import {
+  IRefreshTokenRequestBody,
+  IRefreshTokenResponseBody,
   IUserLoginRequestBody,
   IUserLoginResponseBody,
   IUserRegisterRequestBody,
@@ -8,6 +14,7 @@ import {
 import { IBaseResponse } from "../interfaces/global.interface";
 import db from "../prisma/client.prisma";
 import {
+  BadRequestError,
   ConflictError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
@@ -48,6 +55,41 @@ export const SUserLogin = async (
   } catch (error: any) {
     throw error;
   }
+};
+
+/**
+ * Menukar refresh token (berlaku 1 hari sejak login) dengan access token baru
+ * (15 menit), supaya web dan mobile tidak perlu login ulang setiap 15 menit.
+ * Refresh token tidak diperpanjang, jadi sesi tetap berakhir 1 hari setelah
+ * login.
+ */
+export const SRefreshAccessToken = async (
+  body: IRefreshTokenRequestBody
+): Promise<IBaseResponse<IRefreshTokenResponseBody>> => {
+  const refreshToken = body?.refreshToken;
+
+  if (typeof refreshToken !== "string" || !refreshToken)
+    throw new BadRequestError("Refresh token wajib dikirim!");
+
+  const userId = VerifyRefreshToken(refreshToken);
+
+  const user = userId
+    ? await db.mst_user.findUnique({
+        where: { id: userId },
+        select: { id: true },
+      })
+    : null;
+
+  if (!user)
+    throw new UnauthorizedError("Sesi berakhir, silakan login kembali!");
+
+  return {
+    status: true,
+    message: "Token berhasil diperbarui",
+    data: {
+      accessToken: CreateToken({ id: user.id }),
+    },
+  };
 };
 
 export const SRegisterUser = async (

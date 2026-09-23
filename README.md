@@ -33,6 +33,7 @@ DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres?pgbouncer=true"
 DIRECT_URL="postgresql://...pooler.supabase.com:5432/postgres"
 JWT_SECRET=...
 JWT_REFRESH_SECRET=...
+QR_TOKEN_PERIOD_SECONDS=10   # opsional, bawaan 10
 ```
 
 `DATABASE_URL` dan `DIRECT_URL` dibaca Prisma lewat `schema.prisma`, bukan oleh
@@ -40,7 +41,8 @@ kode aplikasi. `src/app.ts` memanggil `dotenv.config()` di baris paling atas —
 ini wajib, karena `client.prisma.ts` membuat `PrismaClient` saat modulnya
 di-import.
 
-Hanya `JWT_SECRET` dan `JWT_REFRESH_SECRET` yang dibaca langsung oleh kode.
+Yang dibaca langsung oleh kode (lewat `src/config/env.config.ts`) hanya
+`JWT_SECRET`, `JWT_REFRESH_SECRET`, dan `QR_TOKEN_PERIOD_SECONDS`.
 
 ## Sejarah proyek
 
@@ -53,8 +55,8 @@ Tiga generasi kode:
 3. **Backend ini** (Mei 2025–sekarang) — dibangun ulang dari nol karena
    generasi 2 hilang. Endpoint berbentuk tunggal.
 
-Aplikasi mobile Flutter (`silab-mobile`) masih menunjuk ke generasi 2 yang sudah
-mati, jadi saat ini tidak berfungsi.
+Aplikasi mobile Flutter (`silab-mobile`) sudah disambungkan ke backend ini;
+lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
 
 ## Alur bisnis
 
@@ -65,11 +67,15 @@ mati, jadi saat ini tidak berfungsi.
 4. Asisten/laboran membuat pertemuan (`POST /meeting`) — token 6 karakter
    digenerate otomatis
 5. Asisten/laboran membuka sesi presensi (`PUT /meeting/:id/status`)
-6. Mahasiswa scan QR berisi token → presensi tercatat
+6. Asisten/laboran menampilkan QR (`GET /meeting/:id/qr`); token di dalamnya
+   berganti setiap 10 detik
+7. Mahasiswa scan QR berisi token → presensi tercatat
 
 Jalur alternatif (dipakai aplikasi mobile): setelah lunas, mahasiswa memilih
 kelasnya sendiri lewat `GET /class/registration` → `POST /class/registration`.
-Jalur ini tetap ada dan tidak dihapus.
+Aturannya sama dengan saat laboran menetapkan kelas dari web: mata kuliahnya
+harus sudah lunas, satu kelas per mata kuliah, dan kuota belum penuh. Mata
+kuliah yang sudah punya kelas tidak ditawarkan lagi.
 
 Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
@@ -78,6 +84,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | Method | Path | Role |
 |---|---|---|
 | POST | `/auth/login` | publik |
+| POST | `/auth/refresh` | publik (dengan refresh token) |
 | POST | `/auth/register` | publik |
 | GET | `/auth/me` | login |
 | POST | `/subject` | LABORAN |
@@ -87,13 +94,16 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/class` | login |
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
+| GET | `/class/me` | MAHASISWA |
 | GET | `/class/:id` | login |
+| GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri) |
 | POST | `/activation` | MAHASISWA |
 | GET | `/activation?status=&name=` | login |
 | PUT | `/activation/:id` | LABORAN |
 | PUT | `/activation/:id/class` | LABORAN |
 | POST | `/meeting` | ASISTEN, LABORAN |
 | GET | `/meeting/:classId` | login |
+| GET | `/meeting/:id/qr` | ASISTEN, LABORAN |
 | PUT | `/meeting/:id/status` | ASISTEN, LABORAN |
 | PUT | `/meeting/:id/attendances/:userId` | ASISTEN, LABORAN |
 | DELETE | `/meeting/:id/attendances/:userId` | ASISTEN, LABORAN |
@@ -117,13 +127,88 @@ Body: { "token": "S8Bxpm" }
 → 201
 ```
 
-Jalur ini sengaja dibuat identik dengan yang dipanggil aplikasi Flutter
-(`classes_api_service.dart`, fungsi `addUserAttendance`), supaya mobile
-berpeluang tersambung kembali cukup dengan mengubah `baseUrl` di `main.dart`.
+Jalur ini sama dengan yang dipanggil aplikasi Flutter
+(`classes_api_service.dart`, fungsi `addUserAttendance`).
 
 Urutan validasi: token wajib ada → role MAHASISWA → pertemuan milik kelas itu →
-sesi sedang dibuka → token cocok → mahasiswa peserta kelas → belum pernah
-presensi.
+sesi sedang dibuka → token QR masih berlaku → mahasiswa peserta kelas → belum
+pernah presensi.
+
+### QR presensi berganti setiap 10 detik
+
+Tujuannya mencegah titip absen lewat foto QR yang diteruskan ke teman yang
+tidak hadir. Kodenya ada di `src/utils/QrToken/qr.token.ts`.
+
+- **Pola TOTP (RFC 6238).** Token tidak disimpan di database. Token dihitung
+  dari `HMAC-SHA256(kunci, "<meetingId>:<nomor periode>")`, dengan nomor
+  periode = `floor(waktu / 10 detik)`, lalu diubah menjadi 6 karakter
+  alfanumerik (62^6 ≈ 5,7 × 10^10 kemungkinan). Tidak perlu cron, dan QR
+  yang tampil pasti cocok dengan validasi karena keduanya dihitung dari jam
+  server yang sama.
+- **Kunci HMAC** diturunkan dari `JWT_SECRET`
+  (`HMAC-SHA256(JWT_SECRET, "silab-qr-token")`), jadi tidak perlu variabel
+  `.env` baru. Siapa pun yang tahu `JWT_SECRET` memang sudah bisa memalsukan
+  login, sehingga ini tidak menambah celah.
+- **Masa berlaku.** Token periode sekarang dan satu periode sebelumnya sama-sama
+  diterima, supaya mahasiswa yang memindai tepat sebelum QR berganti tidak
+  ditolak. Sejak QR tampil, token berlaku 10–20 detik.
+- **Pesan tolak.** Token yang sah dalam 10 menit terakhir dijawab "QR sudah
+  kedaluwarsa, silakan scan ulang QR di layar!". Token lain dijawab "Token
+  presensi tidak valid!".
+- **Waktu penerimaan** dicatat sebelum query database, supaya lambatnya
+  database tidak membuat scan yang tepat waktu dianggap kedaluwarsa.
+- `GET /meeting/:id/qr` hanya melayani sesi yang sedang dibuka dan
+  mengembalikan `{ token, period_seconds, expires_in_ms }`. Sisa waktu dihitung
+  server, jadi frontend tidak bergantung pada jam laptop.
+- Kolom `trn_meetings.token` masih diisi saat pertemuan dibuat (kolomnya
+  wajib), tetapi **tidak lagi dipakai untuk validasi** dan tidak lagi dikirim
+  oleh `GET /meeting/:classId`.
+- Aplikasi Flutter tidak perlu diubah: QR tetap hanya berisi token, dan
+  aplikasi mengirim apa pun yang dipindai.
+
+### Endpoint untuk aplikasi mobile
+
+Aplikasi mobile khusus mahasiswa. Semua data datang dari endpoint yang sama
+dengan web; yang ditambahkan hanya data "milik saya":
+
+| Kebutuhan layar mobile | Endpoint |
+|---|---|
+| Login, tolak akun non-mahasiswa | `POST /auth/login` lalu `GET /auth/me` (sekarang ikut mengirim `nim`) |
+| Tetap masuk setelah 15 menit | `POST /auth/refresh` |
+| Kelas terdaftar & jadwal | `GET /class/me` (baru) — jadwal dikelompokkan per hari di aplikasi |
+| Tab Classmates | `GET /class/:id/classmates` (baru) — hanya `name` dan `is_me`, urut nama; mahasiswa yang bukan peserta kelas ditolak 403 |
+| Status presensi per pertemuan | `GET /meeting/:classId` — untuk mahasiswa berisi `is_open`, `submitted_at`, `is_attended` miliknya sendiri, dan ditolak bila bukan peserta kelas |
+| Daftar mata kuliah | `GET /subject` |
+| Daftar & status pembayaran | `POST /activation`, `GET /activation` (sekarang ikut mengirim `created_at`) |
+| Pilih kelas | `GET /class/registration`, `POST /class/registration` |
+| Pengumuman | `GET /announcement`, `GET /announcement/:id` |
+| Presensi QR | `POST /subject/classes/:classId/meetings/:meetingId/attendances` |
+
+`app.listen(PORT)` mendengarkan di semua antarmuka jaringan, jadi HP di Wi-Fi
+yang sama bisa memanggil `http://<IP-laptop>:3000` (izinkan port 3000 di
+firewall bila perlu).
+
+### Sesi login dan refresh token
+
+Login mengembalikan `accessToken` (15 menit) dan `refreshToken` (1 hari).
+Saat access token kedaluwarsa, middleware membalas **400 `jwt expired`**; web
+dan mobile memakai pesan itu sebagai tanda untuk memanggil:
+
+```
+POST /auth/refresh   { "refreshToken": "..." }   ->   { "accessToken": "..." }
+```
+
+- 400 "Refresh token wajib dikirim!" bila body kosong.
+- 401 "Sesi berakhir, silakan login kembali!" bila refresh token tidak sah,
+  sudah kedaluwarsa, atau penggunanya sudah dihapus. Access token tidak bisa
+  dipakai sebagai refresh token karena ditandatangani dengan secret lain
+  (`JWT_SECRET` vs `JWT_REFRESH_SECRET`).
+- Refresh token **tidak diperpanjang**, jadi sesi berakhir paling lambat 1 hari
+  setelah login.
+
+Web menyimpan refresh token di cookie `httpOnly` dan memperbaruinya lewat server
+action; mobile memperbaruinya di `ApiClient` lalu mengulang permintaan.
+Dengan begitu QR di layar asisten tidak hilang di tengah sesi.
 
 ### Aturan lain yang sudah diberlakukan
 
@@ -136,6 +221,8 @@ presensi.
   lama. Laboran harus menghapus presensinya dulu lewat
   `DELETE /meeting/:id/attendances/:userId`.
 - **Hapus pengumuman bersifat soft delete** — `deleted_at` diisi, baris tetap ada.
+- **`GET /meeting/:classId` diurutkan menurut `createdAt` naik**, supaya urutan
+  pertemuan stabil di dropdown dan kolom rekap presensi.
 
 ## Bahasa pesan
 
@@ -178,16 +265,24 @@ Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
 4. **Mahasiswa yang status bayarnya dibatalkan tetap berada di kelas.**
 5. **Tidak ada endpoint "kelas yang saya ampu"** untuk asisten. `GET /class`
    mengembalikan semua kelas tanpa penyaring peran.
+6. **QR yang berganti hanya menghentikan titip absen tertunda** (lewat foto).
+   Siaran langsung, misalnya teman di kelas melakukan video call lalu
+   mahasiswa yang absen memindai dari layar saat itu juga, tetap bisa lolos.
+7. **Titip akun tidak tercegah.** Mahasiswa yang absen bisa memberikan NIM dan
+   password ke teman yang hadir, lalu teman itu memindai dari HP-nya sendiri.
+   Penangkalnya adalah membatasi satu perangkat untuk satu akun per pertemuan,
+   yang butuh perubahan di aplikasi mobile.
+8. **Refresh token tidak bisa dicabut.** Token tidak disimpan di database,
+   jadi Keluar hanya menghapusnya dari perangkat. Refresh token yang dicuri
+   tetap berlaku sampai habis masanya (paling lama 1 hari). Pencabutan butuh
+   tabel sesi.
 
 ## Pekerjaan yang masih tersisa
 
+- [ ] Folder `node_modules/` ikut ter-commit (6.407 file), termasuk Prisma client
+      hasil generate yang berubah setiap kali lokasi repo berbeda
 - [ ] Batasi role pada `POST /collaborator`
 - [ ] Seragamkan pesan lima service sisanya ke bahasa Indonesia
-- [ ] Endpoint yang dibutuhkan mobile tapi belum ada: `GET /registrations/me`,
-      `GET /users/schedules/me`
-- [ ] Verifikasi bentuk JSON respons terhadap entity `freezed` di Flutter
-      sebelum mencoba menyambungkan mobile
-- [ ] Frontend: halaman Rekap PDF masih bermasalah (lihat README frontend)
 
 ## Catatan lain
 

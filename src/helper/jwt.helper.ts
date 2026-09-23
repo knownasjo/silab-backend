@@ -16,6 +16,23 @@ export const CreateRefreshToken = (payload: IJWTPayload) =>
     algorithm: "HS256",
   });
 
+/**
+ * Mengembalikan id pengguna bila refresh token sah dan belum kedaluwarsa,
+ * atau null bila tidak. Access token tidak lolos di sini karena ditandatangani
+ * dengan secret yang berbeda.
+ */
+export const VerifyRefreshToken = (token: string): string | null => {
+  try {
+    const { id } = jwt.verify(token, env.JWT.REFRESH_SECRET, {
+      algorithms: ["HS256"],
+    }) as IJWTPayload;
+
+    return typeof id === "string" ? id : null;
+  } catch {
+    return null;
+  }
+};
+
 export const VerifyToken = async (token: string): Promise<IJWTUserPayload> => {
   try {
     const tokenData: IJWTPayload = jwt.verify(

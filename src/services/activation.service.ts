@@ -146,6 +146,7 @@ export const SGetAllActivations = async (
           nim: activation.user.nim,
           student: activation.user.fullname,
           status: activation.status,
+          created_at: activation.createdAt.toISOString(),
           subject_id: activation.subjectId,
           subjects: [activation.subject],
           registered_class: enrolledClass

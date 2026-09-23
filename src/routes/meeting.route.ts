@@ -3,6 +3,7 @@ import { MAuthUser } from "../middleware/auth.middleware";
 import {
   CAddClassMeeting,
   CGetAllClassMeeting,
+  CGetMeetingQrToken,
   CUpdateMeetingStatus,
 } from "../controller/meeting.controller";
 import {
@@ -15,6 +16,8 @@ const router = Router();
 router.post("/", MAuthUser(), CAddClassMeeting);
 
 router.get("/:id", MAuthUser(), CGetAllClassMeeting);
+
+router.get("/:id/qr", MAuthUser(), CGetMeetingQrToken);
 
 router.put("/:id/status", MAuthUser(), CUpdateMeetingStatus);
 

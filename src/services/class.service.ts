@@ -5,12 +5,16 @@ import {
   IGetAllClassByPaidActivationsResponseBody,
   IGetClassByIdResponseBody,
   IGetClassResponseBody,
+  IGetClassmateResponseBody,
+  IGetMyClassResponseBody,
 } from "../interfaces/class.interface";
 import { IBaseResponse } from "../interfaces/global.interface";
 import db from "../prisma/client.prisma";
 import {
   UnauthorizedError,
+  BadRequestError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
 } from "../utils/HttpErrors/HttptErrors";
 import { Request } from "express";
@@ -170,7 +174,13 @@ export const SGetAllClassByPaidActivations = async (
       },
     });
 
-    const subjectIds = studentActivation.map((data) => data.subjectId);
+    // Mata kuliah yang sudah punya kelas (dipilih sendiri atau ditetapkan
+    // laboran) tidak ditawarkan lagi.
+    const enrolledSubjectIds = await getEnrolledSubjectIds(user.id);
+
+    const subjectIds = studentActivation
+      .map((data) => data.subjectId)
+      .filter((subjectId) => !enrolledSubjectIds.includes(subjectId));
 
     const availableClass = await db.mst_class.findMany({
       where: {
@@ -181,7 +191,9 @@ export const SGetAllClassByPaidActivations = async (
       },
       include: {
         subject: true,
-        participants: true,
+        participants: {
+          where: { deleted_at: null },
+        },
       },
     });
 
@@ -207,48 +219,198 @@ export const SGetAllClassByPaidActivations = async (
   }
 };
 
+/**
+ * Mahasiswa memilih kelas sendiri (jalur aplikasi mobile). Aturannya sama
+ * dengan saat laboran menetapkan kelas dari web: mata kuliahnya harus sudah
+ * lunas, satu kelas per mata kuliah, dan kuota kelas belum penuh.
+ */
 export const SClassRegistration = async (
   body: IClassRegistrationRequestBody,
   req: Request
 ): Promise<IBaseResponse> => {
-  try {
-    const user = req.user;
-    const { classIds } = body;
+  const user = req.user;
+  const { classIds } = body;
 
-    if (user?.role !== "MAHASISWA")
-      throw new UnauthorizedError("User not allowed!");
+  if (user?.role !== "MAHASISWA")
+    throw new UnauthorizedError("Anda tidak memiliki akses!");
 
-    const registeredClass = await db.trn_class_participants.findMany({
-      where: {
-        userId: user?.id,
-        classId: {
-          in: classIds,
+  if (
+    !Array.isArray(classIds) ||
+    classIds.length === 0 ||
+    classIds.some((classId) => typeof classId !== "string")
+  )
+    throw new BadRequestError("Pilih minimal satu kelas!");
+
+  const classes = await db.mst_class.findMany({
+    where: {
+      id: { in: classIds },
+      deleted_at: null,
+    },
+    include: {
+      subject: { select: { subject_name: true } },
+      participants: {
+        where: { deleted_at: null },
+        select: { userId: true },
+      },
+    },
+  });
+
+  if (classes.length !== new Set(classIds).size)
+    throw new NotFoundError("Kelas tidak ditemukan!");
+
+  const subjectIds = classes.map((c) => c.subjectId);
+
+  if (new Set(subjectIds).size !== subjectIds.length)
+    throw new BadRequestError("Pilih satu kelas untuk setiap mata kuliah!");
+
+  const paidActivations = await db.trn_activations.findMany({
+    where: {
+      userId: user.id,
+      subjectId: { in: subjectIds },
+      status: true,
+      deleted_at: null,
+    },
+    select: { subjectId: true },
+  });
+
+  const unpaidClass = classes.find(
+    (c) => !paidActivations.some((a) => a.subjectId === c.subjectId)
+  );
+
+  if (unpaidClass)
+    throw new ForbiddenError(
+      `Pembayaran praktikum ${unpaidClass.subject.subject_name} belum dikonfirmasi!`
+    );
+
+  const existingEnrollment = await db.trn_class_participants.findFirst({
+    where: {
+      userId: user.id,
+      deleted_at: null,
+      class: { subjectId: { in: subjectIds }, deleted_at: null },
+    },
+    include: {
+      class: { include: { subject: { select: { subject_name: true } } } },
+    },
+  });
+
+  if (existingEnrollment)
+    throw new ConflictError(
+      `Anda sudah terdaftar di kelas ${existingEnrollment.class.name} untuk ${existingEnrollment.class.subject.subject_name}!`
+    );
+
+  const fullClass = classes.find((c) => c.participants.length >= c.quota);
+
+  if (fullClass)
+    throw new ConflictError(
+      `Kelas ${fullClass.name} ${fullClass.subject.subject_name} sudah penuh!`
+    );
+
+  await db.trn_class_participants.createMany({
+    data: classes.map((c) => ({ userId: user.id, classId: c.id })),
+  });
+
+  return {
+    status: true,
+    message: "Berhasil terdaftar di kelas yang dipilih",
+  };
+};
+
+/** Kelas yang diikuti mahasiswa, urut menurut hari lalu jam mulai. */
+export const SGetMyClasses = async (
+  req: Request
+): Promise<IBaseResponse<IGetMyClassResponseBody[]>> => {
+  const user = req.user;
+
+  if (user?.role !== "MAHASISWA")
+    throw new UnauthorizedError("Anda tidak memiliki akses!");
+
+  const enrollments = await db.trn_class_participants.findMany({
+    where: {
+      userId: user.id,
+      deleted_at: null,
+      class: { deleted_at: null },
+    },
+    include: {
+      class: {
+        include: {
+          subject: {
+            include: { lecturer: { select: { fullname: true } } },
+          },
         },
       },
-    });
+    },
+    orderBy: [{ class: { day: "asc" } }, { class: { startAt: "asc" } }],
+  });
 
-    if (registeredClass.length > 0) {
-      const alreadyRegisteredClassIds = registeredClass.map((a) => a.classId);
-      throw new ConflictError(
-        `Already activated current class(es) : ${alreadyRegisteredClassIds.join(
-          ", "
-        )}`
-      );
-    }
+  const data: IGetMyClassResponseBody[] = enrollments.map(
+    ({ class: classData }) => ({
+      id: classData.id,
+      subject_id: classData.subjectId,
+      subject_name: classData.subject.subject_name,
+      subject_class: classData.name,
+      semester: classData.subject.semester,
+      lecturer: classData.subject.lecturer.fullname,
+      day: classData.day,
+      session_time: `${classData.startAt} - ${classData.endAt}`,
+      room: classData.room,
+    })
+  );
 
-    await db.trn_class_participants.createMany({
-      data: classIds.map((classId) => ({
-        userId: user?.id!,
-        classId,
-      })),
-      skipDuplicates: true,
-    });
+  return {
+    status: true,
+    message: "Berhasil",
+    data,
+  };
+};
 
-    return {
-      status: true,
-      message: "Registered to selected class",
-    };
-  } catch (error) {
-    throw error;
-  }
+const getEnrolledSubjectIds = async (userId: string): Promise<string[]> => {
+  const enrollments = await db.trn_class_participants.findMany({
+    where: {
+      userId,
+      deleted_at: null,
+      class: { deleted_at: null },
+    },
+    select: { class: { select: { subjectId: true } } },
+  });
+
+  return enrollments.map((e) => e.class.subjectId);
+};
+
+/**
+ * Teman sekelas untuk tab Classmates di aplikasi mobile. Hanya nama yang
+ * dikirim; mahasiswa hanya bisa melihat kelas yang ia ikuti.
+ */
+export const SGetClassmates = async (
+  classId: string,
+  req: Request
+): Promise<IBaseResponse<IGetClassmateResponseBody[]>> => {
+  const user = req.user;
+
+  const classData = await db.mst_class.findFirst({
+    where: { id: classId, deleted_at: null },
+    select: { id: true },
+  });
+
+  if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  const participants = await db.trn_class_participants.findMany({
+    where: { classId: classData.id, deleted_at: null },
+    select: { userId: true, user: { select: { fullname: true } } },
+    orderBy: { user: { fullname: "asc" } },
+  });
+
+  if (
+    user?.role === "MAHASISWA" &&
+    !participants.some((participant) => participant.userId === user.id)
+  )
+    throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
+
+  return {
+    status: true,
+    message: "Berhasil",
+    data: participants.map((participant) => ({
+      name: participant.user.fullname,
+      is_me: participant.userId === user?.id,
+    })),
+  };
 };

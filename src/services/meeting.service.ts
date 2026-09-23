@@ -3,13 +3,16 @@ import { IBaseResponse } from "../interfaces/global.interface";
 import {
   IAddClassMeetingRequestBody,
   IGetAllClassMeetingResponseBody,
+  IGetMeetingQrTokenResponseBody,
 } from "../interfaces/meeting.interface";
 import db from "../prisma/client.prisma";
 import { generateToken } from "../utils/GenerateMeetingToken/generate.token";
 import {
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
+import { getCurrentQrToken } from "../utils/QrToken/qr.token";
 
 export const SAddClassMeeting = async (
   body: IAddClassMeetingRequestBody,
@@ -63,10 +66,24 @@ export const SGetAllClassMeeting = async (
 
     if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
 
+    const isStudent = user?.role === "MAHASISWA";
+
+    if (isStudent) {
+      const isClassParticipant = await db.trn_class_participants.findFirst({
+        where: { classId: isClassExist.id, userId: user.id, deleted_at: null },
+      });
+
+      if (!isClassParticipant)
+        throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
+    }
+
     const meetingsData = await db.trn_meetings.findMany({
       where: {
         classId: isClassExist.id,
         deleted_at: null,
+      },
+      orderBy: {
+        createdAt: "asc",
       },
       include: {
         participants: {
@@ -86,24 +103,42 @@ export const SGetAllClassMeeting = async (
       },
     });
 
-    const classParticipants = await db.trn_class_participants.findMany({
-      where: {
-        classId: isClassExist.id,
-        deleted_at: null,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            nim: true,
-            fullname: true,
+    // Daftar seluruh peserta hanya dibutuhkan untuk tampilan laboran/asisten.
+    const classParticipants = isStudent
+      ? []
+      : await db.trn_class_participants.findMany({
+          where: {
+            classId: isClassExist.id,
+            deleted_at: null,
           },
-        },
-      },
-    });
+          include: {
+            user: {
+              select: {
+                id: true,
+                nim: true,
+                fullname: true,
+              },
+            },
+          },
+        });
 
     const data: IGetAllClassMeetingResponseBody[] = meetingsData.map(
       (meeting) => {
+        // Mahasiswa hanya menerima status presensinya sendiri.
+        if (isStudent) {
+          const ownRecord = meeting.participants.find(
+            (p) => p.userId === user.id
+          );
+
+          return {
+            id: meeting.id,
+            meeting_name: meeting.name,
+            is_open: meeting.status,
+            submitted_at: ownRecord?.createdAt.toISOString() ?? null,
+            is_attended: ownRecord?.status ?? false,
+          };
+        }
+
         const studentsInClass = classParticipants.map((participant) => ({
           student_id: participant.user.id,
           student_name: participant.user.fullname,
@@ -126,8 +161,7 @@ export const SGetAllClassMeeting = async (
           id: meeting.id,
           meeting_name: meeting.name,
           is_open: meeting.status,
-          token: user?.role === "MAHASISWA" ? undefined : meeting.token,
-          students: user?.role === "MAHASISWA" ? undefined : studentsInClass,
+          students: studentsInClass,
         };
       }
     );
@@ -136,6 +170,51 @@ export const SGetAllClassMeeting = async (
       status: true,
       message: "Berhasil",
       data,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Token QR yang sedang berlaku untuk ditampilkan asisten/laboran.
+ * `expires_in_ms` dihitung server, sehingga frontend tidak bergantung pada
+ * jam laptop yang mungkin tidak tepat.
+ */
+export const SGetMeetingQrToken = async (
+  meetingId: string,
+  req: Request
+): Promise<IBaseResponse<IGetMeetingQrTokenResponseBody>> => {
+  try {
+    const user = req.user;
+
+    if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
+
+    const meeting = await db.trn_meetings.findFirst({
+      where: {
+        id: meetingId,
+        deleted_at: null,
+      },
+    });
+
+    if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
+
+    if (!meeting.status)
+      throw new ForbiddenError("Sesi presensi belum dibuka!");
+
+    const { token, periodSeconds, expiresInMs } = getCurrentQrToken(
+      meeting.id
+    );
+
+    return {
+      status: true,
+      message: "Berhasil",
+      data: {
+        token,
+        period_seconds: periodSeconds,
+        expires_in_ms: expiresInMs,
+      },
     };
   } catch (error) {
     throw error;

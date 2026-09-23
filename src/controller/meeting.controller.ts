@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import {
   SAddClassMeeting,
   SGetAllClassMeeting,
+  SGetMeetingQrToken,
   SUpdateMeetingStatus,
 } from "../services/meeting.service";
 
@@ -28,6 +29,22 @@ export const CGetAllClassMeeting = async (
     const classId = req.params.id.toString();
 
     const resData = await SGetAllClassMeeting(classId, req);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CGetMeetingQrToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const meetingId = req.params.id.toString();
+
+    const resData = await SGetMeetingQrToken(meetingId, req);
 
     res.status(200).json(resData);
   } catch (error: any) {

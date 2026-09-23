@@ -1,5 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import { SUserLogin, SRegisterUser } from "../services/auth.service";
+import {
+  SUserLogin,
+  SRegisterUser,
+  SRefreshAccessToken,
+} from "../services/auth.service";
 
 export const CUserLogin = async (
   req: Request,
@@ -8,6 +12,20 @@ export const CUserLogin = async (
 ) => {
   try {
     const resData = await SUserLogin(req.body);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CRefreshAccessToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SRefreshAccessToken(req.body);
 
     res.status(200).json(resData);
   } catch (error: any) {
@@ -40,6 +58,7 @@ export const CUserMe = async (
       message: "Success get user data!",
       data: {
         id: req?.user?.id,
+        nim: req.user?.nim,
         name: req.user?.fullname,
         email: req.user?.email,
         role: req.user?.role,
