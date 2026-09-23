@@ -13,6 +13,7 @@ import {
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { getCurrentQrToken } from "../utils/QrToken/qr.token";
+import { publishClassEvent } from "../utils/ClassEvents/class.events";
 
 export const SAddClassMeeting = async (
   body: IAddClassMeetingRequestBody,
@@ -34,13 +35,15 @@ export const SAddClassMeeting = async (
 
     if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
 
-    await db.trn_meetings.create({
+    const meeting = await db.trn_meetings.create({
       data: {
         classId: classId,
         name: meetingName,
         token: generateToken(),
       },
     });
+
+    publishClassEvent(meeting.classId, "meeting", meeting.id);
 
     return {
       status: true,
@@ -243,6 +246,8 @@ export const SUpdateMeetingStatus = async (
         updated_at: new Date(),
       },
     });
+
+    publishClassEvent(meeting.classId, "meeting", meeting.id);
 
     return {
       status: true,

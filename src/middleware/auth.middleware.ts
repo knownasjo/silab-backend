@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { IJWTUserPayload } from "../interfaces/auth.interface";
 import { env } from "../config/env.config";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import db from "../prisma/client.prisma";
 
 export const MAuthUser = () => {
@@ -14,7 +14,7 @@ export const MAuthUser = () => {
       const userData = jwt.verify(
         authorization.split(" ")[1],
         env.JWT.SECRET
-      ) as IJWTUserPayload;
+      ) as IJWTUserPayload & JwtPayload;
 
       if (!userData) throw Error("Unauthorize!");
 
@@ -25,6 +25,7 @@ export const MAuthUser = () => {
       if (!user) throw Error("User not found in middleware!");
 
       req.user = user;
+      req.tokenExpiresAt = userData.exp ? userData.exp * 1000 : undefined;
       next();
     } catch (error: any) {
       res.status(400).json({

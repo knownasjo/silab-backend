@@ -5,6 +5,7 @@ declare global {
   namespace Express {
     export interface Request {
       user?: mst_user;
+      tokenExpiresAt?: number;
     }
   }
 }

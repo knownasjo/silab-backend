@@ -8,6 +8,7 @@ import {
   CGetClassById,
   CGetClassmates,
   CGetMyClasses,
+  CStreamClassEvents,
 } from "../controller/class.controller";
 
 const router = Router();
@@ -25,5 +26,7 @@ router.get("/me", MAuthUser(), CGetMyClasses);
 router.get("/:id", MAuthUser(), CGetClassById);
 
 router.get("/:id/classmates", MAuthUser(), CGetClassmates);
+
+router.get("/:id/events", MAuthUser(), CStreamClassEvents);
 
 export default router;

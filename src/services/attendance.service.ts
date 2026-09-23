@@ -15,6 +15,7 @@ import {
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { checkQrToken } from "../utils/QrToken/qr.token";
+import { publishClassEvent } from "../utils/ClassEvents/class.events";
 
 export const SAddAttendance = async (
   classId: string,
@@ -87,6 +88,8 @@ export const SAddAttendance = async (
         status: true,
       },
     });
+
+    publishClassEvent(classId, "attendance", meetingId, user.id);
 
     return {
       status: true,
@@ -165,6 +168,8 @@ export const SUpdateAttendanceManually = async (
       },
     });
 
+    publishClassEvent(meeting.classId, "attendance", meeting.id, student.id);
+
     return {
       status: true,
       message: status
@@ -203,6 +208,9 @@ export const SResetAttendance = async (
           userId: userId,
         },
       },
+      include: {
+        meeting: { select: { classId: true } },
+      },
     });
 
     if (!attendance) throw new NotFoundError("Catatan presensi tidak ditemukan!");
@@ -215,6 +223,8 @@ export const SResetAttendance = async (
         },
       },
     });
+
+    publishClassEvent(attendance.meeting.classId, "attendance", meetingId, userId);
 
     return {
       status: true,

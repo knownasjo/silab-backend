@@ -18,6 +18,7 @@ import {
   NotFoundError,
 } from "../utils/HttpErrors/HttptErrors";
 import { Request } from "express";
+import { IClassEventSubscriber } from "../utils/ClassEvents/class.events";
 
 export const SAddClass = async (
   body: IAddClassRequestBody,
@@ -401,4 +402,37 @@ export const SGetClassmates = async (
       is_me: participant.userId === user?.id,
     })),
   };
+};
+
+export const SGetClassEventSubscriber = async (
+  classId: string,
+  req: Request
+): Promise<IClassEventSubscriber> => {
+  const user = req.user;
+
+  if (!user) throw new UnauthorizedError("Anda tidak memiliki akses!");
+
+  const classData = await db.mst_class.findFirst({
+    where: { id: classId, deleted_at: null },
+    select: { id: true },
+  });
+
+  if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  if (user.role === "MAHASISWA") {
+    const isClassParticipant = await db.trn_class_participants.findFirst({
+      where: { classId: classData.id, userId: user.id, deleted_at: null },
+      select: { userId: true },
+    });
+
+    if (!isClassParticipant)
+      throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
+
+    return { userId: user.id, isStaff: false };
+  }
+
+  if (user.role !== "LABORAN" && user.role !== "ASISTEN")
+    throw new UnauthorizedError("Anda tidak memiliki akses!");
+
+  return { userId: user.id, isStaff: true };
 };

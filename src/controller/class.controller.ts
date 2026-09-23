@@ -5,9 +5,11 @@ import {
   SGetAllClassByPaidActivations,
   SGetAllClasses,
   SGetClassById,
+  SGetClassEventSubscriber,
   SGetClassmates,
   SGetMyClasses,
 } from "../services/class.service";
+import { openClassEventStream } from "../utils/ClassEvents/class.events";
 
 export const CAddClass = async (
   req: Request,
@@ -104,6 +106,22 @@ export const CGetClassmates = async (
     const resData = await SGetClassmates(req.params.id.toString(), req);
 
     res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CStreamClassEvents = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const classId = req.params.id.toString();
+
+    const subscriber = await SGetClassEventSubscriber(classId, req);
+
+    openClassEventStream(classId, subscriber, res, req.tokenExpiresAt);
   } catch (error: any) {
     next(error);
   }

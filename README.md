@@ -97,6 +97,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/class/me` | MAHASISWA |
 | GET | `/class/:id` | login |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri) |
+| GET | `/class/:id/events` | login (MAHASISWA hanya kelasnya sendiri); stream SSE |
 | POST | `/activation` | MAHASISWA |
 | GET | `/activation?status=&name=` | login |
 | PUT | `/activation/:id` | LABORAN |
@@ -210,6 +211,32 @@ Web menyimpan refresh token di cookie `httpOnly` dan memperbaruinya lewat server
 action; mobile memperbaruinya di `ApiClient` lalu mengulang permintaan.
 Dengan begitu QR di layar asisten tidak hilang di tengah sesi.
 
+### Pembaruan real-time (SSE)
+
+`GET /class/:id/events` membuka stream Server-Sent Events untuk satu kelas.
+Web admin (detail kelas dan rekap presensi) dan Detail Kelas di mobile
+memakainya supaya tampilan ikut berubah tanpa refresh.
+
+| Event | Dikirim saat | Penerima |
+|---|---|---|
+| `ready` | stream baru tersambung | pembuka stream |
+| `meeting` | pertemuan ditambah, sesi presensi dibuka atau ditutup | semua yang membuka kelas itu |
+| `attendance` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/asisten, dan mahasiswa yang presensinya berubah |
+| `ping` | setiap 25 detik | semua, untuk menjaga koneksi |
+
+- Isi event hanya `{ "meeting_id": "..." }`. Klien lalu memanggil ulang
+  `GET /meeting/:classId`, jadi aturan akses data tetap sama dengan endpoint
+  biasa dan mahasiswa tidak pernah menerima data presensi orang lain.
+- Token dikirim lewat header `Authorization` seperti endpoint lain. Server
+  menutup stream saat access token habis; klien memperbarui token lalu
+  tersambung lagi.
+- Klien tersambung ulang otomatis (jeda 1, 2, 4, ... paling lama 30 detik) bila
+  koneksi putus, termasuk saat nodemon memulai ulang backend, atau bila tidak
+  ada data selama 60 detik. Setiap kali tersambung (event `ready`) data dimuat
+  ulang, sehingga perubahan selama koneksi putus tidak terlewat.
+- Daftar pendengar ada di `src/utils/ClassEvents/class.events.ts`; event
+  dikirim dari service `attendance` dan `meeting` setelah data tersimpan.
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
@@ -279,6 +306,11 @@ Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
    jadi Keluar hanya menghapusnya dari perangkat. Refresh token yang dicuri
    tetap berlaku sampai habis masanya (paling lama 1 hari). Pencabutan butuh
    tabel sesi.
+9. **Pembaruan real-time hanya untuk satu proses server.** Pendengar SSE
+   disimpan di memori, jadi bila backend dijalankan lebih dari satu instance,
+   event dari satu instance tidak sampai ke klien yang tersambung ke instance
+   lain. Hosting serverless yang memutus koneksi panjang juga tidak cocok.
+   Solusinya Redis pub/sub atau `LISTEN/NOTIFY` Postgres di antara instance.
 
 ## Pekerjaan yang masih tersisa
 
