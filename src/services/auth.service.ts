@@ -32,11 +32,11 @@ export const SUserLogin = async (
       },
     });
 
-    if (!userData) throw new UnauthorizedError("Email or password invalid!");
+    if (!userData) throw new UnauthorizedError("NIM atau password salah!");
 
     const isPassSame = await bcrypt.compare(password, userData.password);
 
-    if (!isPassSame) throw new UnauthorizedError("Email or password invalid!");
+    if (!isPassSame) throw new UnauthorizedError("NIM atau password salah!");
 
     const accessToken = CreateToken({
       id: userData.id,

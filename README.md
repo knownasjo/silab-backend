@@ -230,7 +230,10 @@ Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
 dan sebagian `announcement`.
 
 Belum: `auth`, `subject`, `class`, `user`, `collaborator`. Jadi login masih
-menjawab "Login Successful".
+menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
+menjawab "NIM atau password salah!" (sebelumnya "Email or password invalid!",
+padahal login memakai NIM), dan `POST /auth/refresh` sudah berbahasa
+Indonesia.
 
 ## Akun uji
 
