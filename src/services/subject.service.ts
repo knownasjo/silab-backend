@@ -10,6 +10,7 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
+import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
 export const SAddSubject = async (
   body: IAddSubjectRequestBody,
@@ -29,7 +30,7 @@ export const SAddSubject = async (
 
     if (isSubjectExist) throw new ConflictError("Subject already exist");
 
-    await db.mst_subject.create({
+    const subject = await db.mst_subject.create({
       data: {
         semester,
         subject_code,
@@ -38,6 +39,8 @@ export const SAddSubject = async (
         created_by: req.user?.id!,
       },
     });
+
+    publishRealtimeEvent("subject", { subject_id: subject.id });
 
     return {
       status: true,

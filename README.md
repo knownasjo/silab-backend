@@ -97,7 +97,6 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/class/me` | MAHASISWA |
 | GET | `/class/:id` | login |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri) |
-| GET | `/class/:id/events` | login (MAHASISWA hanya kelasnya sendiri); stream SSE |
 | POST | `/activation` | MAHASISWA |
 | GET | `/activation?status=&name=` | login |
 | PUT | `/activation/:id` | LABORAN |
@@ -118,6 +117,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | DELETE | `/announcement/:id` | LABORAN |
 | POST | `/collaborator` | **tanpa batas role** |
 | GET | `/collaborator/:id` | login |
+| GET | `/events` | login; stream SSE real-time |
 
 ### Endpoint presensi (inti skripsi)
 
@@ -213,29 +213,40 @@ Dengan begitu QR di layar asisten tidak hilang di tengah sesi.
 
 ### Pembaruan real-time (SSE)
 
-`GET /class/:id/events` membuka stream Server-Sent Events untuk satu kelas.
-Web admin (detail kelas dan rekap presensi) dan Detail Kelas di mobile
-memakainya supaya tampilan ikut berubah tanpa refresh.
+`GET /events` membuka satu stream Server-Sent Events per pengguna. Web admin
+dan aplikasi mobile membukanya sekali setelah login, lalu memuat ulang data
+yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 
-| Event | Dikirim saat | Penerima |
-|---|---|---|
-| `ready` | stream baru tersambung | pembuka stream |
-| `meeting` | pertemuan ditambah, sesi presensi dibuka atau ditutup | semua yang membuka kelas itu |
-| `attendance` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/asisten, dan mahasiswa yang presensinya berubah |
-| `ping` | setiap 25 detik | semua, untuk menjaga koneksi |
+| Event | Isi | Dikirim saat | Penerima |
+|---|---|---|---|
+| `ready` | `{}` | stream baru tersambung | pembuka stream |
+| `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
+| `subject` | `subject_id` | mata kuliah ditambah | semua |
+| `class` | `class_id` (+ `action: "created"` untuk kelas baru) | kelas baru, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah | semua |
+| `activation` | `{}` | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas | laboran/asisten, dan mahasiswa yang bersangkutan |
+| `meeting` | `class_id`, `meeting_id` | pertemuan ditambah, sesi presensi dibuka/ditutup | laboran/asisten, dan peserta kelas itu |
+| `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/asisten, dan mahasiswa yang presensinya berubah |
+| `ping` | `{}` | setiap 25 detik | semua, untuk menjaga koneksi |
 
-- Isi event hanya `{ "meeting_id": "..." }`. Klien lalu memanggil ulang
-  `GET /meeting/:classId`, jadi aturan akses data tetap sama dengan endpoint
-  biasa dan mahasiswa tidak pernah menerima data presensi orang lain.
+- Event hanya memberi tahu **apa** yang berubah, bukan datanya. Klien memanggil
+  ulang endpoint biasa (`GET /announcement`, `/activation`, `/class/me`,
+  `/meeting/:classId`, dan seterusnya), jadi aturan akses data tetap sama dan
+  mahasiswa tidak pernah menerima data mahasiswa lain.
+- Laboran, asisten, dan dosen menerima semua event. Mahasiswa hanya menerima
+  event umum, event miliknya sendiri, dan event pertemuan kelas yang ia ikuti.
 - Token dikirim lewat header `Authorization` seperti endpoint lain. Server
   menutup stream saat access token habis; klien memperbarui token lalu
   tersambung lagi.
 - Klien tersambung ulang otomatis (jeda 1, 2, 4, ... paling lama 30 detik) bila
   koneksi putus, termasuk saat nodemon memulai ulang backend, atau bila tidak
-  ada data selama 60 detik. Setiap kali tersambung (event `ready`) data dimuat
-  ulang, sehingga perubahan selama koneksi putus tidak terlewat.
-- Daftar pendengar ada di `src/utils/ClassEvents/class.events.ts`; event
-  dikirim dari service `attendance` dan `meeting` setelah data tersimpan.
+  ada data selama 60 detik. Setiap kali tersambung ulang (event `ready`) data
+  dimuat ulang, sehingga perubahan selama koneksi putus tidak terlewat.
+- Pengiriman event ada di `src/utils/RealtimeEvents/realtime.events.ts`,
+  dipanggil dari service setelah data tersimpan.
+- `GET /announcement` dan `GET /activation` diurutkan dari yang terbaru.
+  Sebelumnya urutannya mengikuti urutan fisik tabel, sehingga pengumuman baru
+  muncul di halaman terakhir carousel dan baris aktivasi berpindah posisi
+  setiap kali diperbarui.
 
 ### Aturan lain yang sudah diberlakukan
 

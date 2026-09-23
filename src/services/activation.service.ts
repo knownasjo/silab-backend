@@ -14,6 +14,7 @@ import {
   IUpdateActivationRequestBody,
 } from "../interfaces/activation.interface";
 import { Prisma } from "@prisma/client";
+import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
 export const SAddStudentActivation = async (
   body: IAddActivationRequestBody,
@@ -49,6 +50,8 @@ export const SAddStudentActivation = async (
       })),
       skipDuplicates: true,
     });
+
+    publishRealtimeEvent("activation", {}, [user.id]);
 
     return {
       status: true,
@@ -100,6 +103,7 @@ export const SGetAllActivations = async (
           },
         },
       },
+      orderBy: { createdAt: "desc" },
     });
 
     const subjectIds = [...new Set(activationsData.map((a) => a.subjectId))];
@@ -202,6 +206,8 @@ export const SUpdateActivationPaymentStatus = async (
         },
       });
 
+      publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
+
       return {
         status: true,
         message: "Status pembayaran diubah menjadi belum bayar",
@@ -216,6 +222,8 @@ export const SUpdateActivationPaymentStatus = async (
           updated_at: new Date(),
         },
       });
+
+      publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
       return {
         status: true,
@@ -268,6 +276,9 @@ export const SUpdateActivationPaymentStatus = async (
         },
       }),
     ]);
+
+    publishRealtimeEvent("class", { class_id: classId });
+    publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
     return {
       status: true,
@@ -376,6 +387,10 @@ export const SUpdateStudentClass = async (
         },
       }),
     ]);
+
+    publishRealtimeEvent("class", { class_id: currentEnrollment.classId });
+    publishRealtimeEvent("class", { class_id: classId });
+    publishRealtimeEvent("activation", {}, [activation.userId]);
 
     return {
       status: true,

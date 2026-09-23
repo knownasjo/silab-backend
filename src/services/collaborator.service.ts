@@ -5,6 +5,7 @@ import {
 import { IBaseResponse } from "../interfaces/global.interface";
 import db from "../prisma/client.prisma";
 import { NotFoundError } from "../utils/HttpErrors/HttptErrors";
+import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
 export const SAddCollaborator = async (
   body: IAddCollaboratorRequestBody
@@ -38,6 +39,8 @@ export const SAddCollaborator = async (
       })),
       skipDuplicates: true,
     });
+
+    publishRealtimeEvent("class", { class_id: classId });
 
     return {
       status: true,

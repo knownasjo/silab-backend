@@ -13,7 +13,7 @@ import {
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { getCurrentQrToken } from "../utils/QrToken/qr.token";
-import { publishClassEvent } from "../utils/ClassEvents/class.events";
+import { publishClassMembersEvent } from "../utils/RealtimeEvents/realtime.events";
 
 export const SAddClassMeeting = async (
   body: IAddClassMeetingRequestBody,
@@ -43,7 +43,10 @@ export const SAddClassMeeting = async (
       },
     });
 
-    publishClassEvent(meeting.classId, "meeting", meeting.id);
+    void publishClassMembersEvent(meeting.classId, "meeting", {
+      class_id: meeting.classId,
+      meeting_id: meeting.id,
+    });
 
     return {
       status: true,
@@ -247,7 +250,10 @@ export const SUpdateMeetingStatus = async (
       },
     });
 
-    publishClassEvent(meeting.classId, "meeting", meeting.id);
+    void publishClassMembersEvent(meeting.classId, "meeting", {
+      class_id: meeting.classId,
+      meeting_id: meeting.id,
+    });
 
     return {
       status: true,

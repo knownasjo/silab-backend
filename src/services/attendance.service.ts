@@ -15,7 +15,7 @@ import {
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { checkQrToken } from "../utils/QrToken/qr.token";
-import { publishClassEvent } from "../utils/ClassEvents/class.events";
+import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
 export const SAddAttendance = async (
   classId: string,
@@ -89,7 +89,11 @@ export const SAddAttendance = async (
       },
     });
 
-    publishClassEvent(classId, "attendance", meetingId, user.id);
+    publishRealtimeEvent(
+      "attendance",
+      { class_id: meeting.classId, meeting_id: meeting.id },
+      [user.id]
+    );
 
     return {
       status: true,
@@ -168,7 +172,11 @@ export const SUpdateAttendanceManually = async (
       },
     });
 
-    publishClassEvent(meeting.classId, "attendance", meeting.id, student.id);
+    publishRealtimeEvent(
+      "attendance",
+      { class_id: meeting.classId, meeting_id: meeting.id },
+      [student.id]
+    );
 
     return {
       status: true,
@@ -224,7 +232,11 @@ export const SResetAttendance = async (
       },
     });
 
-    publishClassEvent(attendance.meeting.classId, "attendance", meetingId, userId);
+    publishRealtimeEvent(
+      "attendance",
+      { class_id: attendance.meeting.classId, meeting_id: meetingId },
+      [userId]
+    );
 
     return {
       status: true,

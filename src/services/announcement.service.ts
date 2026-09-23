@@ -11,6 +11,7 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
+import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
 const MAX_BODY_LENGTH = 200;
 const MAX_TITLE_LENGTH = 150;
@@ -49,13 +50,18 @@ export const SAddAnnouncement = async (
     if (!Object.values(AnnouncementTypeEnum).includes(type))
       throw new BadRequestError("Jenis pengumuman tidak valid!");
 
-    await db.mst_announcement.create({
+    const announcement = await db.mst_announcement.create({
       data: {
         type: type,
         title: cleanTitle,
         body: cleanBody,
         author: user.id,
       },
+    });
+
+    publishRealtimeEvent("announcement", {
+      announcement_id: announcement.id,
+      action: "created",
     });
 
     return {
@@ -76,6 +82,7 @@ export const SGetAllAnnouncements = async (): Promise<
         deleted_at: null,
       },
       include: { announcementAuthor: { select: { fullname: true } } },
+      orderBy: { createdAt: "desc" },
     });
 
     const data: IGetAllAnnouncementsResponseBody[] = announcementData.map(
@@ -184,6 +191,11 @@ export const SUpdateAnnouncement = async (
       },
     });
 
+    publishRealtimeEvent("announcement", {
+      announcement_id: id,
+      action: "updated",
+    });
+
     return {
       status: true,
       message: "Pengumuman berhasil diperbarui",
@@ -217,6 +229,11 @@ export const SDeleteAnnouncement = async (
       data: {
         deleted_at: new Date(),
       },
+    });
+
+    publishRealtimeEvent("announcement", {
+      announcement_id: id,
+      action: "deleted",
     });
 
     return {
