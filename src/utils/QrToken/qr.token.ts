@@ -1,27 +1,13 @@
 import crypto from "crypto";
 import { env } from "../../config/env.config";
 
-/**
- * Token QR presensi yang berganti otomatis, dengan pola TOTP (RFC 6238).
- *
- * Token tidak disimpan di database. Token dihitung dari
- * HMAC-SHA256(kunci server, "<meetingId>:<nomor periode>"), dengan
- * nomor periode = floor(waktu / panjang periode). Tanpa kunci server, token
- * berikutnya tidak bisa ditebak, sehingga foto QR hanya berlaku sebentar.
- * Karena QR yang ditampilkan dan validasinya sama-sama dihitung dari jam
- * server, keduanya tidak mungkin berbeda.
- */
-
 const ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const TOKEN_LENGTH = 6;
-const TOKEN_SPACE = ALPHABET.length ** TOKEN_LENGTH; // 62^6 ≈ 5,7 × 10^10
+const TOKEN_SPACE = ALPHABET.length ** TOKEN_LENGTH;
 
-/** Token yang lebih tua dari ini dianggap tidak valid, bukan kedaluwarsa. */
 const EXPIRED_LOOKBACK_MS = 10 * 60 * 1000;
 
-// Kunci turunan dari JWT_SECRET, supaya kunci HMAC QR terpisah dari kunci
-// penanda tangan JWT tanpa perlu variabel .env baru.
 const qrKey = crypto
   .createHmac("sha256", env.JWT.SECRET)
   .update("silab-qr-token")
@@ -37,7 +23,6 @@ const tokenForStep = (meetingId: string, step: number): string => {
     .update(`${meetingId}:${step}`)
     .digest();
 
-  // 48 bit pertama cukup untuk 62^6 kemungkinan dan masih aman sebagai number.
   let value = digest.readUIntBE(0, 6) % TOKEN_SPACE;
   let token = "";
 
@@ -68,11 +53,6 @@ export const getCurrentQrToken = (meetingId: string, now = Date.now()) => {
 
 export type QrTokenStatus = "VALID" | "EXPIRED" | "INVALID";
 
-/**
- * Token periode sekarang dan satu periode sebelumnya sama-sama sah, supaya
- * mahasiswa yang memindai tepat sebelum QR berganti tidak ditolak. Jadi
- * sejak QR tampil, token berlaku antara 1 sampai 2 periode.
- */
 export const checkQrToken = (
   meetingId: string,
   token: string,

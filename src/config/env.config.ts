@@ -6,7 +6,6 @@ export const env = {
     REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "jwt-refresh-secret",
   },
   QR: {
-    // Lama satu token QR presensi berlaku sebelum berganti. Opsional.
     PERIOD_SECONDS: qrPeriodSeconds > 0 ? qrPeriodSeconds : 10,
   },
 };

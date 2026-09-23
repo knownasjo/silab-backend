@@ -57,12 +57,6 @@ export const SUserLogin = async (
   }
 };
 
-/**
- * Menukar refresh token (berlaku 1 hari sejak login) dengan access token baru
- * (15 menit), supaya web dan mobile tidak perlu login ulang setiap 15 menit.
- * Refresh token tidak diperpanjang, jadi sesi tetap berakhir 1 hari setelah
- * login.
- */
 export const SRefreshAccessToken = async (
   body: IRefreshTokenRequestBody
 ): Promise<IBaseResponse<IRefreshTokenResponseBody>> => {

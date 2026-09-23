@@ -193,11 +193,6 @@ export const SUpdateAnnouncement = async (
   }
 };
 
-/**
- * Menghapus pengumuman secara soft delete: barisnya tetap tersimpan di
- * database dengan deleted_at terisi, dan seluruh query pengumuman sudah
- * menyaring deleted_at: null sehingga tidak lagi tampil.
- */
 export const SDeleteAnnouncement = async (
   id: string,
   req: Request

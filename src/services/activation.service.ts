@@ -167,18 +167,6 @@ export const SGetAllActivations = async (
   }
 };
 
-/**
- * Mengubah status pembayaran.
- *
- * Body:
- *   status  (opsional, default true) — true berarti lunas, false membatalkan
- *   classId (opsional) — bila diisi saat status true, mahasiswa sekaligus
- *                        didaftarkan ke kelas tersebut
- *
- * Tanpa classId, perilakunya sama seperti sebelumnya: hanya mengubah status,
- * dan mahasiswa memilih kelasnya sendiri lewat POST /class/registration
- * (jalur aplikasi mobile).
- */
 export const SUpdateActivationPaymentStatus = async (
   req: Request
 ): Promise<IBaseResponse> => {
@@ -290,16 +278,6 @@ export const SUpdateActivationPaymentStatus = async (
   }
 };
 
-/**
- * Memindahkan mahasiswa dari satu kelas praktikum ke kelas lain pada mata
- * kuliah yang sama. Dipakai saat terjadi salah daftar.
- *
- * Pemindahan ditolak bila mahasiswa sudah punya catatan presensi di kelas
- * lama. Dalam alur normal hal ini tidak terjadi, karena pendaftaran ditutup
- * sebelum praktikum dimulai. Bila tetap terjadi, laboran harus menghapus
- * catatan presensinya lebih dulu, supaya tidak ada data kehadiran yang
- * hilang tanpa sepengetahuan siapa pun.
- */
 export const SUpdateStudentClass = async (
   req: Request
 ): Promise<IBaseResponse> => {

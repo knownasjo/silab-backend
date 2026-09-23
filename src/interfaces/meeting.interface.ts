@@ -7,9 +7,7 @@ export interface IGetAllClassMeetingResponseBody {
   id: string;
   meeting_name: string;
   is_open: boolean;
-  /** Hanya untuk laboran/asisten/dosen. */
   students?: IMeetingParticipants[];
-  /** Hanya untuk mahasiswa: status presensinya sendiri. */
   submitted_at?: string | null;
   is_attended?: boolean;
 }

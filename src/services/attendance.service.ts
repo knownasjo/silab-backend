@@ -16,11 +16,6 @@ import {
 } from "../utils/HttpErrors/HttptErrors";
 import { checkQrToken } from "../utils/QrToken/qr.token";
 
-/**
- * Presensi oleh mahasiswa lewat scan QR.
- * Jalur endpoint sengaja dibuat sama dengan yang dipanggil aplikasi Flutter.
- * Token di QR berganti setiap beberapa detik (lihat utils/QrToken).
- */
 export const SAddAttendance = async (
   classId: string,
   meetingId: string,
@@ -28,8 +23,6 @@ export const SAddAttendance = async (
   req: Request
 ): Promise<IBaseResponse<IAddAttendanceResponseBody>> => {
   try {
-    // Dicatat sebelum query database, supaya lambatnya database tidak
-    // membuat token yang dipindai tepat waktu dianggap kedaluwarsa.
     const receivedAt = Date.now();
 
     const user = req.user;
@@ -111,11 +104,6 @@ export const SAddAttendance = async (
   }
 };
 
-/**
- * Ubah status kehadiran seorang mahasiswa secara manual.
- * Dipakai laboran/asisten saat scan gagal atau perlu koreksi.
- * Membuat catatan baru bila belum ada, memperbarui bila sudah ada.
- */
 export const SUpdateAttendanceManually = async (
   meetingId: string,
   userId: string,
@@ -197,10 +185,6 @@ export const SUpdateAttendanceManually = async (
   }
 };
 
-/**
- * Hapus catatan kehadiran seorang mahasiswa pada satu pertemuan,
- * mengembalikannya ke keadaan "Belum Presensi".
- */
 export const SResetAttendance = async (
   meetingId: string,
   userId: string,

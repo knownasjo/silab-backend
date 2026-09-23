@@ -174,8 +174,6 @@ export const SGetAllClassByPaidActivations = async (
       },
     });
 
-    // Mata kuliah yang sudah punya kelas (dipilih sendiri atau ditetapkan
-    // laboran) tidak ditawarkan lagi.
     const enrolledSubjectIds = await getEnrolledSubjectIds(user.id);
 
     const subjectIds = studentActivation
@@ -219,11 +217,6 @@ export const SGetAllClassByPaidActivations = async (
   }
 };
 
-/**
- * Mahasiswa memilih kelas sendiri (jalur aplikasi mobile). Aturannya sama
- * dengan saat laboran menetapkan kelas dari web: mata kuliahnya harus sudah
- * lunas, satu kelas per mata kuliah, dan kuota kelas belum penuh.
- */
 export const SClassRegistration = async (
   body: IClassRegistrationRequestBody,
   req: Request
@@ -315,7 +308,6 @@ export const SClassRegistration = async (
   };
 };
 
-/** Kelas yang diikuti mahasiswa, urut menurut hari lalu jam mulai. */
 export const SGetMyClasses = async (
   req: Request
 ): Promise<IBaseResponse<IGetMyClassResponseBody[]>> => {
@@ -376,10 +368,6 @@ const getEnrolledSubjectIds = async (userId: string): Promise<string[]> => {
   return enrollments.map((e) => e.class.subjectId);
 };
 
-/**
- * Teman sekelas untuk tab Classmates di aplikasi mobile. Hanya nama yang
- * dikirim; mahasiswa hanya bisa melihat kelas yang ia ikuti.
- */
 export const SGetClassmates = async (
   classId: string,
   req: Request

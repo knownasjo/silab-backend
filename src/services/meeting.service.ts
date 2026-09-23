@@ -103,7 +103,6 @@ export const SGetAllClassMeeting = async (
       },
     });
 
-    // Daftar seluruh peserta hanya dibutuhkan untuk tampilan laboran/asisten.
     const classParticipants = isStudent
       ? []
       : await db.trn_class_participants.findMany({
@@ -124,7 +123,6 @@ export const SGetAllClassMeeting = async (
 
     const data: IGetAllClassMeetingResponseBody[] = meetingsData.map(
       (meeting) => {
-        // Mahasiswa hanya menerima status presensinya sendiri.
         if (isStudent) {
           const ownRecord = meeting.participants.find(
             (p) => p.userId === user.id
@@ -176,11 +174,6 @@ export const SGetAllClassMeeting = async (
   }
 };
 
-/**
- * Token QR yang sedang berlaku untuk ditampilkan asisten/laboran.
- * `expires_in_ms` dihitung server, sehingga frontend tidak bergantung pada
- * jam laptop yang mungkin tidak tepat.
- */
 export const SGetMeetingQrToken = async (
   meetingId: string,
   req: Request
