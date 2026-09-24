@@ -25,3 +25,14 @@ export interface ICreateUserResponseBody {
   fullname: string;
   role: string;
 }
+
+export interface IResetUserPasswordRequestBody {
+  password: string;
+}
+
+export interface IResetUserPasswordResponseBody {
+  id: string;
+  nim: string;
+  fullname: string;
+  role: string;
+}

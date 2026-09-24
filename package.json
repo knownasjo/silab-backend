@@ -6,7 +6,8 @@
     "dev": "nodemon src/app.ts",
     "build": "prisma generate && tsc",
     "postinstall": "prisma generate",
-    "start": "node ./dist/app.js"
+    "start": "node ./dist/app.js",
+    "hapus-akun": "ts-node src/scripts/delete-student.ts"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma"

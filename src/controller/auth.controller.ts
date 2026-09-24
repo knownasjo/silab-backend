@@ -5,6 +5,8 @@ import {
   SRefreshAccessToken,
   SVerifyRegistration,
   SResendRegistrationCode,
+  SForgotPassword,
+  SResetPassword,
 } from "../services/auth.service";
 
 export const CUserLogin = async (
@@ -70,6 +72,34 @@ export const CResendRegistrationCode = async (
 ) => {
   try {
     const resData = await SResendRegistrationCode(req.body);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CForgotPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SForgotPassword(req.body);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CResetPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SResetPassword(req.body);
 
     res.status(200).json(resData);
   } catch (error: any) {

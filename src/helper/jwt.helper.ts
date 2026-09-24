@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import db from "../prisma/client.prisma";
 import { IJWTPayload } from "../interfaces/jwt.interface";
 import { env } from "../config/env.config";
@@ -16,17 +16,28 @@ export const CreateRefreshToken = (payload: IJWTPayload) =>
     algorithm: "HS256",
   });
 
-export const VerifyRefreshToken = (token: string): string | null => {
+export const VerifyRefreshToken = (
+  token: string
+): { id: string; issuedAt?: number } | null => {
   try {
-    const { id } = jwt.verify(token, env.JWT.REFRESH_SECRET, {
+    const { id, iat } = jwt.verify(token, env.JWT.REFRESH_SECRET, {
       algorithms: ["HS256"],
-    }) as IJWTPayload;
+    }) as IJWTPayload & JwtPayload;
 
-    return typeof id === "string" ? id : null;
+    return typeof id === "string" ? { id, issuedAt: iat } : null;
   } catch {
     return null;
   }
 };
+
+export const passwordChangeTime = () =>
+  new Date(Math.floor(Date.now() / 1000) * 1000);
+
+export const isIssuedBeforePasswordChange = (
+  issuedAt: number | undefined,
+  passwordChangedAt: Date | null
+) =>
+  !!passwordChangedAt && (issuedAt ?? 0) * 1000 < passwordChangedAt.getTime();
 
 export const VerifyToken = async (token: string): Promise<IJWTUserPayload> => {
   try {

@@ -1,5 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import { SCreateUser, SGetUser } from "../services/user.service";
+import {
+  SCreateUser,
+  SGetUser,
+  SResetUserPassword,
+} from "../services/user.service";
 
 export const CGetUser = async (
   req: Request,
@@ -26,6 +30,20 @@ export const CCreateUser = async (
     const resData = await SCreateUser(req);
 
     res.status(201).json(resData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const CResetUserPassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SResetUserPassword(req);
+
+    res.status(200).json(resData);
   } catch (error) {
     next(error);
   }

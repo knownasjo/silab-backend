@@ -36,12 +36,13 @@ enum AnnouncementTypes {
 }
 
 model mst_user {
-    id       String   @id @default(uuid())
-    fullname String
-    nim      String   @unique
-    email    String   @unique
-    password String
-    role     UserRole
+    id                  String    @id @default(uuid())
+    fullname            String
+    nim                 String    @unique
+    email               String    @unique
+    password            String
+    role                UserRole
+    password_changed_at DateTime?
 
     subjectLecturer          mst_subject[]              @relation(name: "SubjectLecturer")
     subjectUpdatedBy         mst_subject[]              @relation(name: "SubjectUpdatedBy")
@@ -51,6 +52,7 @@ model mst_user {
     trn_meeting_participants trn_meeting_participants[] @relation(name: "MeetingParticipants")
     mst_announcement         mst_announcement[]         @relation(name: "AnnouncementAuthor")
     trn_class_collaborator   trn_class_collaborator[]   @relation(name: "ClassCollaborators")
+    trn_password_resets      trn_password_resets?       @relation(name: "UserPasswordReset")
 
     @@index([id, nim])
 }
@@ -199,4 +201,16 @@ model trn_registrations {
     expires_at DateTime
     sent_at    DateTime
     created_at DateTime @default(now())
+}
+
+model trn_password_resets {
+    id         String   @id @default(uuid())
+    userId     String   @unique
+    code       String
+    attempts   Int      @default(0)
+    expires_at DateTime
+    sent_at    DateTime
+    created_at DateTime @default(now())
+
+    user mst_user @relation(name: "UserPasswordReset", fields: [userId], references: [id], onDelete: Cascade)
 }

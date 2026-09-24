@@ -1,7 +1,9 @@
 import { Router } from "express";
 import {
+  CForgotPassword,
   CRefreshAccessToken,
   CResendRegistrationCode,
+  CResetPassword,
   CUserLogin,
   CUserMe,
   CUserRegister,
@@ -20,6 +22,10 @@ router.post("/register", CUserRegister);
 router.post("/register/verify", CVerifyRegistration);
 
 router.post("/register/resend", CResendRegistrationCode);
+
+router.post("/password/forgot", CForgotPassword);
+
+router.post("/password/reset", CResetPassword);
 
 router.get("/me", MAuthUser(), CUserMe);
 

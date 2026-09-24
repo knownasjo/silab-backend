@@ -3,6 +3,9 @@ import { IJWTUserPayload } from "../interfaces/auth.interface";
 import { env } from "../config/env.config";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import db from "../prisma/client.prisma";
+import { isIssuedBeforePasswordChange } from "../helper/jwt.helper";
+
+const EXPIRED_TOKEN_MESSAGE = "jwt expired";
 
 export const MAuthUser = () => {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -22,7 +25,11 @@ export const MAuthUser = () => {
         where: { id: userData.id },
       });
 
-      if (!user) throw Error("User not found in middleware!");
+      if (
+        !user ||
+        isIssuedBeforePasswordChange(userData.iat, user.password_changed_at)
+      )
+        throw Error(EXPIRED_TOKEN_MESSAGE);
 
       req.user = user;
       req.tokenExpiresAt = userData.exp ? userData.exp * 1000 : undefined;

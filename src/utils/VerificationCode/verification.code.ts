@@ -41,16 +41,40 @@ const escapeHtml = (value: string) =>
       ]!
   );
 
+export type VerificationPurpose = "registration" | "password-reset";
+
+const MAIL_TEXT: Record<
+  VerificationPurpose,
+  { label: string; subject: string; intro: string; ignore: string }
+> = {
+  registration: {
+    label: "Kode verifikasi",
+    subject: "adalah kode verifikasi SILAB Anda",
+    intro: "Kode verifikasi pendaftaran akun SILAB Anda:",
+    ignore: "Jika Anda tidak merasa mendaftar di SILAB, abaikan email ini.",
+  },
+  "password-reset": {
+    label: "Kode reset password",
+    subject: "adalah kode reset password SILAB Anda",
+    intro: "Kode untuk mengganti password akun SILAB Anda:",
+    ignore:
+      "Jika Anda tidak meminta reset password, abaikan email ini. Password Anda tidak berubah.",
+  },
+};
+
 export const sendVerificationCode = async (
   email: string,
   fullname: string,
-  code: string
+  code: string,
+  purpose: VerificationPurpose = "registration"
 ) => {
+  const content = MAIL_TEXT[purpose];
+
   if (!isMailConfigured()) {
     if (env.IS_PRODUCTION)
       throw new InternalServerError("Layanan email belum dikonfigurasi!");
 
-    console.info(`[SILAB] Kode verifikasi untuk ${email}: ${code}`);
+    console.info(`[SILAB] ${content.label} untuk ${email}: ${code}`);
     return;
   }
 
@@ -60,24 +84,24 @@ export const sendVerificationCode = async (
   try {
     await sendMail({
       to: email,
-      subject: `${code} adalah kode verifikasi SILAB Anda`,
+      subject: `${code} ${content.subject}`,
       text: [
         `Halo ${fullname},`,
         "",
-        "Kode verifikasi pendaftaran akun SILAB Anda:",
+        content.intro,
         "",
         code,
         "",
         `Kode berlaku ${minutes} menit. Jangan berikan kode ini kepada siapa pun.`,
         "",
-        "Jika Anda tidak merasa mendaftar di SILAB, abaikan email ini.",
+        content.ignore,
       ].join("\n"),
       html: `<div style="font-family:Arial,sans-serif;color:#1D1D1D;max-width:480px">
 <p>Halo ${name},</p>
-<p>Kode verifikasi pendaftaran akun SILAB Anda:</p>
+<p>${content.intro}</p>
 <p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#3272CA">${code}</p>
 <p>Kode berlaku ${minutes} menit. Jangan berikan kode ini kepada siapa pun.</p>
-<p style="color:#5E6278;font-size:13px">Jika Anda tidak merasa mendaftar di SILAB, abaikan email ini.</p>
+<p style="color:#5E6278;font-size:13px">${content.ignore}</p>
 </div>`,
     });
   } catch (error) {

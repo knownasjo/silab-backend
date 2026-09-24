@@ -3,6 +3,7 @@ import {
   BadRequestError,
   ConflictError,
   ForbiddenError,
+  NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { IBaseResponse } from "../interfaces/global.interface";
@@ -10,10 +11,14 @@ import {
   ICreateUserRequestBody,
   ICreateUserResponseBody,
   IGetUserResponseBody,
+  IResetUserPasswordRequestBody,
+  IResetUserPasswordResponseBody,
 } from "../interfaces/user.interface";
 import bcrypt from "bcryptjs";
 import db from "../prisma/client.prisma";
 import { UserRole } from "@prisma/client";
+import { passwordChangeTime } from "../helper/jwt.helper";
+import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
 
 export const SGetUser = async (
   req: Request,
@@ -128,5 +133,51 @@ export const SCreateUser = async (
       fullname: user.fullname,
       role: user.role,
     },
+  };
+};
+
+export const SResetUserPassword = async (
+  req: Request
+): Promise<IBaseResponse<IResetUserPasswordResponseBody>> => {
+  if (req.user?.role !== "LABORAN")
+    throw new ForbiddenError(
+      "Hanya laboran yang dapat mengganti password akun lain!"
+    );
+
+  const body: Partial<IResetUserPasswordRequestBody> = req.body ?? {};
+  const account = readText(req.params.account);
+  const password = typeof body.password === "string" ? body.password : "";
+
+  if (password.length < 8)
+    throw new BadRequestError("Password minimal 8 karakter!");
+
+  const target = account
+    ? await db.mst_user.findFirst({
+        where: { OR: [{ id: account }, { nim: account }] },
+        select: { id: true, nim: true, fullname: true, role: true },
+      })
+    : null;
+
+  if (!target) throw new NotFoundError("Akun tidak ditemukan!");
+
+  if (target.role !== UserRole.LABORAN && target.role !== UserRole.DOSEN)
+    throw new ForbiddenError(
+      "Password mahasiswa tidak bisa diganti laboran. Mahasiswa memakai Lupa password di aplikasi SILAB."
+    );
+
+  await db.mst_user.update({
+    where: { id: target.id },
+    data: {
+      password: await bcrypt.hash(password, 10),
+      password_changed_at: passwordChangeTime(),
+    },
+  });
+
+  closeUserStreams(target.id);
+
+  return {
+    status: true,
+    message: `Password ${target.fullname} berhasil diganti`,
+    data: target,
   };
 };

@@ -57,6 +57,12 @@ export const openRealtimeStream = (
   writeEvent(res, "ready");
 };
 
+export const closeUserStreams = (userId: string) => {
+  connections.forEach((connection) => {
+    if (connection.userId === userId) connection.res.end();
+  });
+};
+
 export const publishRealtimeEvent = (
   type: RealtimeEventType,
   data: Record<string, string> = {},

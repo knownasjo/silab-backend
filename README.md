@@ -51,9 +51,10 @@ di-import.
 Yang dibaca langsung oleh kode (lewat `src/config/env.config.ts`) hanya
 `JWT_SECRET`, `JWT_REFRESH_SECRET`, `QR_TOKEN_PERIOD_SECONDS`, dan variabel
 `SMTP_*`/`MAIL_FROM_NAME`. Selama `SMTP_USER`/`SMTP_PASS` kosong dan
-`NODE_ENV` bukan `production`, kode verifikasi pendaftaran hanya dicetak di
-terminal backend (`[SILAB] Kode verifikasi untuk ...`); di `production` tanpa
-SMTP, pendaftaran ditolak dengan pesan "Layanan email belum dikonfigurasi!".
+`NODE_ENV` bukan `production`, kode verifikasi pendaftaran dan kode reset
+password hanya dicetak di terminal backend (`[SILAB] Kode verifikasi untuk ...`
+dan `[SILAB] Kode reset password untuk ...`); di `production` tanpa SMTP,
+permintaan kode ditolak dengan pesan "Layanan email belum dikonfigurasi!".
 
 ## Sejarah proyek
 
@@ -99,6 +100,8 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | POST | `/auth/register` | publik (email kampus, lihat "Pendaftaran akun mahasiswa") |
 | POST | `/auth/register/verify` | publik |
 | POST | `/auth/register/resend` | publik |
+| POST | `/auth/password/forgot` | publik (akun MAHASISWA, lihat "Lupa password") |
+| POST | `/auth/password/reset` | publik |
 | GET | `/auth/me` | login |
 | POST | `/subject` | LABORAN |
 | GET | `/subject` | login |
@@ -122,6 +125,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | DELETE | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
 | POST | `/subject/classes/:classId/meetings/:meetingId/attendances` | MAHASISWA |
 | POST | `/user` | LABORAN (buat akun role apa pun, langsung aktif) |
+| PUT | `/user/:nimAtauId/password` | LABORAN (ganti password akun LABORAN/DOSEN) |
 | GET | `/user/dosen` | login |
 | GET | `/user/mahasiswa?name=` | LABORAN (calon asisten, cari nama/NIM, maks. 20) |
 | POST | `/announcement` | LABORAN |
@@ -221,6 +225,19 @@ POST /auth/refresh   { "refreshToken": "..." }   ->   { "accessToken": "..." }
   (`JWT_SECRET` vs `JWT_REFRESH_SECRET`).
 - Refresh token **tidak diperpanjang**, jadi sesi berakhir paling lambat 1 hari
   setelah login.
+- **Sesi dicabut saat password diganti.** `mst_user.password_changed_at` diisi
+  setiap kali password diganti (lewat Lupa password maupun oleh laboran).
+  Token yang dibuat sebelum waktu itu ditolak: access token dibalas
+  `jwt expired`, refresh token dibalas 401, dan aliran SSE milik akun itu
+  langsung diputus. Waktu itu dibulatkan ke bawah per detik (sama dengan `iat`
+  JWT), jadi login dengan password baru di detik yang sama tetap sah.
+- Access token milik akun yang sudah dihapus juga dibalas `jwt expired`, lalu
+  refresh-nya 401.
+
+Web dan mobile memperlakukan refresh 4xx sebagai sesi berakhir: token
+dihapus lalu pengguna diarahkan ke halaman login (mobile menampilkan "Sesi Anda
+berakhir, silakan masuk kembali."). Dengan pemutusan SSE, perangkat yang sedang
+terbuka kembali ke login sekitar 1–2 detik setelah password diganti.
 
 Web menyimpan refresh token di cookie `httpOnly` dan memperbaruinya lewat server
 action; mobile memperbaruinya di `ApiClient` lalu mengulang permintaan.
@@ -262,6 +279,54 @@ Akun staf dan akun uji dibuat laboran lewat `POST /user` (`Authorization`
 laboran) dengan body `{ email, nim, fullname, password, role }`: email bebas,
 NIM angka, password min. 8, role salah satu `UserRole`. Akun langsung aktif dan
 menggantikan pendaftaran belum terverifikasi dengan email/NIM yang sama.
+Gunakan email asli yang aktif untuk akun laboran dan dosen.
+
+### Lupa password
+
+Mahasiswa mengganti password sendiri dari aplikasi mobile; kodenya dikirim ke
+email akun.
+
+```
+POST /auth/password/forgot  { email }
+  -> 200 { email, expires_in: 600, resend_in: 60 }
+POST /auth/password/reset   { email, code, password, confirmPassword }
+  -> 200 "Password berhasil diubah, silakan masuk."
+```
+
+- Hanya akun **MAHASISWA**. Akun LABORAN/DOSEN dibalas 403 "Reset password akun
+  laboran dan dosen dilakukan oleh laboran."
+- Email belum terdaftar: 404 "Email ini belum terdaftar di SILAB." Pesan ini
+  sengaja jujur, karena halaman Daftar pun sudah memberi tahu email yang
+  terdaftar. Email yang masih menunggu verifikasi: 403 "Akun ini belum
+  diverifikasi, silakan selesaikan pendaftaran." dengan `data: { email }`, dan
+  aplikasi membuka layar verifikasi pendaftaran.
+- Kode disimpan di `trn_password_resets` (satu baris per akun, ikut terhapus
+  bila akunnya dihapus). Aturannya sama dengan kode pendaftaran: 6 angka,
+  berlaku 10 menit, minta ulang (panggil `/forgot` lagi) setelah 60 detik,
+  maksimal 5 kali salah. Kode di-HMAC bersama id akun dengan awalan
+  `password-reset:`, jadi tidak bisa tertukar dengan kode pendaftaran.
+- Isian (6 angka, password min. 8, konfirmasi sama) diperiksa sebelum kode,
+  jadi salah ketik password tidak mengurangi jatah percobaan.
+- Setelah berhasil, permintaan reset dihapus dan semua sesi lama akun itu
+  dicabut (lihat "Sesi login dan refresh token"). Email yang dikirim berjudul
+  "123456 adalah kode reset password SILAB Anda".
+
+Laboran dan dosen yang lupa password menghubungi laboran lain, yang lalu
+mengganti password-nya:
+
+```
+PUT /user/2000016201/password   { "password": "passwordbaru" }
+  -> 200 "Password Dosen001 berhasil diganti"  { id, nim, fullname, role }
+```
+
+`:nimAtauId` boleh NIM atau id akun. Hanya LABORAN yang boleh memanggilnya, dan
+hanya untuk akun LABORAN/DOSEN; akun mahasiswa ditolak 403 agar mahasiswa
+memakai Lupa password. Sesi lama akun itu ikut dicabut. Bila laboran mengganti
+password-nya sendiri lewat endpoint ini, sesinya sendiri juga berakhir.
+
+`trn_registrations` dan `trn_password_resets` memakai Row Level Security seperti
+tabel lain, sehingga tidak bisa dibaca lewat API publik Supabase; backend tetap
+bisa mengaksesnya karena tersambung sebagai `postgres`.
 
 ### Pembaruan real-time (SSE)
 
@@ -374,11 +439,36 @@ Pola password: fullname dalam huruf kecil.
 | 2000016101 | asisten001 | MAHASISWA (asisten Alpro B) |
 | 2000016201 | dosen001 | DOSEN |
 
-Password akun `2000016123` (Jordan) tidak diketahui.
-
 Data uji: kelas `652fb265-0d30-45c6-90eb-b37b1c3f3127` (Algoritma dan
 Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
 (Pertemuan 1).
+
+### Menghapus akun mahasiswa uji
+
+Untuk mengulang uji pendaftaran dengan akun yang sama:
+
+```bash
+npm run hapus-akun 2000016123
+npm run hapus-akun nama2000016123@webmail.uad.ac.id
+```
+
+Script `src/scripts/delete-student.ts` menampilkan ringkasan akun beserta
+aktivasi, kelas, riwayat presensi, dan kelas yang dipegang sebagai asisten,
+lalu baru menghapus setelah diketik `HAPUS` (huruf besar). Semua data itu
+dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
+
+- Hanya untuk akun MAHASISWA. Akun LABORAN dan DOSEN ditolak.
+- Mahasiswa yang masih tercatat di mata kuliah (sebagai dosen, pembuat, atau
+  pengubah) atau sebagai penulis pengumuman juga ditolak sampai data itu
+  dipindah ke akun lain.
+- Jika NIM atau email hanya ada di pendaftaran yang belum diverifikasi,
+  pendaftaran itu yang ditawarkan untuk dihapus.
+- Permintaan reset password akun itu ikut terhapus otomatis.
+- Script berjalan di luar server, jadi tidak mengirim pembaruan real-time.
+  Layar yang sedang terbuka baru berubah setelah di-refresh. Aplikasi yang
+  masih login dengan akun itu kembali ke halaman login pada permintaan
+  berikutnya.
+- Database-nya satu-satunya database SILAB di Supabase. Penghapusan permanen.
 
 ## Batasan yang disadari (untuk bab batasan skripsi)
 
@@ -404,15 +494,18 @@ Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
    password ke teman yang hadir, lalu teman itu memindai dari HP-nya sendiri.
    Penangkalnya adalah membatasi satu perangkat untuk satu akun per pertemuan,
    yang butuh perubahan di aplikasi mobile.
-8. **Refresh token tidak bisa dicabut.** Token tidak disimpan di database,
-   jadi Keluar hanya menghapusnya dari perangkat. Refresh token yang dicuri
-   tetap berlaku sampai habis masanya (paling lama 1 hari). Pencabutan butuh
-   tabel sesi.
+8. **Sesi tidak bisa dicabut satu per satu.** Token tidak disimpan di
+   database, jadi Keluar hanya menghapusnya dari perangkat. Pencabutan hanya
+   bisa sekaligus untuk semua perangkat, yaitu dengan mengganti password.
+   Mencabut satu perangkat saja butuh tabel sesi.
 9. **Pembaruan real-time hanya untuk satu proses server.** Pendengar SSE
    disimpan di memori, jadi bila backend dijalankan lebih dari satu instance,
    event dari satu instance tidak sampai ke klien yang tersambung ke instance
    lain. Hosting serverless yang memutus koneksi panjang juga tidak cocok.
-   Solusinya Redis pub/sub atau `LISTEN/NOTIFY` Postgres di antara instance.
+   Pemutusan SSE saat password diganti juga hanya berlaku di instance yang
+   memprosesnya (instance lain baru menolak sesi itu saat klien tersambung
+   ulang). Solusinya Redis pub/sub atau `LISTEN/NOTIFY` Postgres di antara
+   instance.
 
 ## Pekerjaan yang masih tersisa
 

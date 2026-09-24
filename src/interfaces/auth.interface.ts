@@ -45,3 +45,20 @@ export interface IVerifyRegistrationRequestBody {
 export interface IResendRegistrationRequestBody {
   email: string;
 }
+
+export interface IForgotPasswordRequestBody {
+  email: string;
+}
+
+export interface IPasswordResetCodeResponseBody {
+  email: string;
+  expires_in: number;
+  resend_in: number;
+}
+
+export interface IResetPasswordRequestBody {
+  email: string;
+  code: string;
+  password: string;
+  confirmPassword: string;
+}

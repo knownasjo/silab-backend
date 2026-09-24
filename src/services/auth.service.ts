@@ -3,12 +3,17 @@ import {
   CreateRefreshToken,
   CreateToken,
   VerifyRefreshToken,
+  isIssuedBeforePasswordChange,
+  passwordChangeTime,
 } from "../helper/jwt.helper";
 import {
+  IForgotPasswordRequestBody,
+  IPasswordResetCodeResponseBody,
   IRefreshTokenRequestBody,
   IRefreshTokenResponseBody,
   IRegistrationResponseBody,
   IResendRegistrationRequestBody,
+  IResetPasswordRequestBody,
   IUserLoginRequestBody,
   IUserLoginResponseBody,
   IUserRegisterRequestBody,
@@ -19,6 +24,7 @@ import db from "../prisma/client.prisma";
 import {
   BadRequestError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
   TooManyRequestsError,
   UnauthorizedError,
@@ -33,9 +39,11 @@ import {
   isSameVerificationCode,
   sendVerificationCode,
 } from "../utils/VerificationCode/verification.code";
+import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
 import bcrypt from "bcryptjs";
 
 const CAMPUS_EMAIL = /^[a-z]+(\d{10})@webmail\.uad\.ac\.id$/;
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
 
 const readText = (value: unknown) =>
@@ -65,6 +73,8 @@ const findRegisteredUser = (email: string, nim: string) =>
     },
     select: { email: true },
   });
+
+const resetCodeKey = (userId: string) => `password-reset:${userId}`;
 
 const conflictMessage = (registeredEmail: string, email: string) =>
   registeredEmail.toLowerCase() === email
@@ -126,16 +136,19 @@ export const SRefreshAccessToken = async (
   if (typeof refreshToken !== "string" || !refreshToken)
     throw new BadRequestError("Refresh token wajib dikirim!");
 
-  const userId = VerifyRefreshToken(refreshToken);
+  const token = VerifyRefreshToken(refreshToken);
 
-  const user = userId
+  const user = token
     ? await db.mst_user.findUnique({
-        where: { id: userId },
-        select: { id: true },
+        where: { id: token.id },
+        select: { id: true, password_changed_at: true },
       })
     : null;
 
-  if (!user)
+  if (
+    !user ||
+    isIssuedBeforePasswordChange(token?.issuedAt, user.password_changed_at)
+  )
     throw new UnauthorizedError("Sesi berakhir, silakan login kembali!");
 
   return {
@@ -326,5 +339,145 @@ export const SResendRegistrationCode = async (
       expires_in: CODE_TTL_MS / 1000,
       resend_in: RESEND_COOLDOWN_MS / 1000,
     },
+  };
+};
+
+export const SForgotPassword = async (
+  body: IForgotPasswordRequestBody
+): Promise<IBaseResponse<IPasswordResetCodeResponseBody>> => {
+  const email = readEmail(body?.email);
+
+  if (!EMAIL_FORMAT.test(email))
+    throw new BadRequestError("Format email tidak valid!");
+
+  const user = await db.mst_user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { id: true, email: true, fullname: true, role: true },
+  });
+
+  if (!user) {
+    const registration = await db.trn_registrations.findUnique({
+      where: { email },
+    });
+
+    if (registration)
+      throw new UnverifiedAccountError(
+        "Akun ini belum diverifikasi, silakan selesaikan pendaftaran.",
+        { email: registration.email }
+      );
+
+    throw new NotFoundError("Email ini belum terdaftar di SILAB.");
+  }
+
+  if (user.role !== UserRole.MAHASISWA)
+    throw new ForbiddenError(
+      "Reset password akun laboran dan dosen dilakukan oleh laboran."
+    );
+
+  const previous = await db.trn_password_resets.findUnique({
+    where: { userId: user.id },
+  });
+  const wait = previous && waitMessage(previous.sent_at);
+
+  if (wait) throw new TooManyRequestsError(wait);
+
+  const code = generateVerificationCode();
+  const target = user.email.toLowerCase();
+
+  await sendVerificationCode(target, user.fullname, code, "password-reset");
+
+  const now = Date.now();
+  const data = {
+    code: hashVerificationCode(resetCodeKey(user.id), code),
+    attempts: 0,
+    sent_at: new Date(now),
+    expires_at: new Date(now + CODE_TTL_MS),
+  };
+
+  await db.trn_password_resets.upsert({
+    where: { userId: user.id },
+    create: { userId: user.id, ...data },
+    update: data,
+  });
+
+  return {
+    status: true,
+    message: `Kode reset password dikirim ke ${target}`,
+    data: {
+      email: target,
+      expires_in: CODE_TTL_MS / 1000,
+      resend_in: RESEND_COOLDOWN_MS / 1000,
+    },
+  };
+};
+
+export const SResetPassword = async (
+  body: IResetPasswordRequestBody
+): Promise<IBaseResponse> => {
+  const email = readEmail(body?.email);
+  const code = readText(body?.code);
+  const password = typeof body?.password === "string" ? body.password : "";
+  const confirmPassword =
+    typeof body?.confirmPassword === "string" ? body.confirmPassword : "";
+
+  if (!email || !/^\d{6}$/.test(code))
+    throw new BadRequestError("Masukkan 6 angka kode verifikasi!");
+
+  if (password.length < MIN_PASSWORD_LENGTH)
+    throw new BadRequestError(
+      `Password minimal ${MIN_PASSWORD_LENGTH} karakter!`
+    );
+
+  if (password !== confirmPassword)
+    throw new BadRequestError("Konfirmasi password tidak sama!");
+
+  const reset = await db.trn_password_resets.findFirst({
+    where: { user: { email: { equals: email, mode: "insensitive" } } },
+  });
+
+  if (!reset)
+    throw new NotFoundError(
+      "Permintaan reset password tidak ditemukan, minta kode baru."
+    );
+
+  if (reset.expires_at.getTime() < Date.now())
+    throw new BadRequestError("Kode sudah kedaluwarsa, minta kode baru.");
+
+  const { count } = await db.trn_password_resets.updateMany({
+    where: { id: reset.id, attempts: { lt: MAX_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  });
+
+  if (count === 0)
+    throw new TooManyRequestsError(
+      `Kode salah ${MAX_ATTEMPTS} kali, minta kode baru.`
+    );
+
+  if (!isSameVerificationCode(reset.code, resetCodeKey(reset.userId), code)) {
+    const remaining = MAX_ATTEMPTS - reset.attempts - 1;
+
+    throw new BadRequestError(
+      remaining > 0
+        ? `Kode salah. Sisa ${remaining} percobaan.`
+        : `Kode salah ${MAX_ATTEMPTS} kali, minta kode baru.`
+    );
+  }
+
+  await db.$transaction([
+    db.mst_user.update({
+      where: { id: reset.userId },
+      data: {
+        password: await bcrypt.hash(password, 10),
+        password_changed_at: passwordChangeTime(),
+      },
+    }),
+    db.trn_password_resets.deleteMany({ where: { id: reset.id } }),
+  ]);
+
+  closeUserStreams(reset.userId);
+
+  return {
+    status: true,
+    message: "Password berhasil diubah, silakan masuk.",
   };
 };
