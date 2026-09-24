@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import {
   SAddCollaborator,
   SGetCollaborators,
+  SRemoveCollaborator,
 } from "../services/collaborator.service";
 
 export const CAddCollaborators = async (
@@ -10,9 +11,23 @@ export const CAddCollaborators = async (
   next: NextFunction
 ) => {
   try {
-    const resData = await SAddCollaborator(req.body);
+    const resData = await SAddCollaborator(req);
 
     res.status(201).json(resData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const CRemoveCollaborator = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SRemoveCollaborator(req);
+
+    res.status(200).json(resData);
   } catch (error) {
     next(error);
   }

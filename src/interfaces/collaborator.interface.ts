@@ -4,5 +4,7 @@ export interface IAddCollaboratorRequestBody {
 }
 
 export interface IGetCollaboratorsResponseBody {
+  id: string;
+  nim: string;
   fullname: string;
 }

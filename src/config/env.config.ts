@@ -14,7 +14,7 @@ export const env = {
     HOST: process.env.SMTP_HOST || "smtp.gmail.com",
     PORT: smtpPort > 0 ? smtpPort : 465,
     USER: process.env.SMTP_USER || "",
-    PASS: process.env.SMTP_PASS || "",
+    PASS: (process.env.SMTP_PASS || "").replace(/\s+/g, ""),
     FROM_NAME: process.env.MAIL_FROM_NAME || "SILAB",
   },
 };

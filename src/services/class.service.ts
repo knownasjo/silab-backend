@@ -19,6 +19,7 @@ import {
 } from "../utils/HttpErrors/HttptErrors";
 import { Request } from "express";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import { assertNoAssistantScheduleClash } from "../utils/AssistantRules/assistant.rules";
 
 export const SAddClass = async (
   body: IAddClassRequestBody,
@@ -59,13 +60,20 @@ export const SAddClass = async (
   }
 };
 
-export const SGetAllClasses = async (): Promise<
-  IBaseResponse<IGetClassResponseBody[]>
-> => {
+export const SGetAllClasses = async (
+  req: Request
+): Promise<IBaseResponse<IGetClassResponseBody[]>> => {
   try {
+    const user = req.user;
+
     const classesData = await db.mst_class.findMany({
       where: {
         deleted_at: null,
+        ...(user?.role === "MAHASISWA" && {
+          trn_class_collaborator: {
+            some: { userId: user.id, deletedAt: null },
+          },
+        }),
       },
       include: {
         participants: {
@@ -300,6 +308,8 @@ export const SClassRegistration = async (
     throw new ConflictError(
       `Kelas ${fullClass.name} ${fullClass.subject.subject_name} sudah penuh!`
     );
+
+  await assertNoAssistantScheduleClash(user.id, classes, "Anda pegang");
 
   await db.trn_class_participants.createMany({
     data: classes.map((c) => ({ userId: user.id, classId: c.id })),

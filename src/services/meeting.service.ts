@@ -7,13 +7,13 @@ import {
 } from "../interfaces/meeting.interface";
 import db from "../prisma/client.prisma";
 import { generateToken } from "../utils/GenerateMeetingToken/generate.token";
-import {
-  ForbiddenError,
-  NotFoundError,
-  UnauthorizedError,
-} from "../utils/HttpErrors/HttptErrors";
+import { ForbiddenError, NotFoundError } from "../utils/HttpErrors/HttptErrors";
 import { getCurrentQrToken } from "../utils/QrToken/qr.token";
 import { publishClassMembersEvent } from "../utils/RealtimeEvents/realtime.events";
+import {
+  assertCanManageClass,
+  isClassAssistant,
+} from "../utils/ClassAccess/class.access";
 
 export const SAddClassMeeting = async (
   body: IAddClassMeetingRequestBody,
@@ -24,9 +24,6 @@ export const SAddClassMeeting = async (
 
     const user = req.user;
 
-    if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
-      throw new UnauthorizedError("Anda tidak memiliki akses!");
-
     const isClassExist = await db.mst_class.findUnique({
       where: {
         id: classId,
@@ -34,6 +31,8 @@ export const SAddClassMeeting = async (
     });
 
     if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
+
+    await assertCanManageClass(user, isClassExist.id);
 
     const meeting = await db.trn_meetings.create({
       data: {
@@ -72,14 +71,16 @@ export const SGetAllClassMeeting = async (
 
     if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
 
-    const isStudent = user?.role === "MAHASISWA";
+    let isStudent = false;
 
-    if (isStudent) {
+    if (user?.role === "MAHASISWA") {
       const isClassParticipant = await db.trn_class_participants.findFirst({
         where: { classId: isClassExist.id, userId: user.id, deleted_at: null },
       });
 
-      if (!isClassParticipant)
+      isStudent = Boolean(isClassParticipant);
+
+      if (!isStudent && !(await isClassAssistant(user.id, isClassExist.id)))
         throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
     }
 
@@ -131,7 +132,7 @@ export const SGetAllClassMeeting = async (
       (meeting) => {
         if (isStudent) {
           const ownRecord = meeting.participants.find(
-            (p) => p.userId === user.id
+            (p) => p.userId === user?.id
           );
 
           return {
@@ -187,9 +188,6 @@ export const SGetMeetingQrToken = async (
   try {
     const user = req.user;
 
-    if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
-      throw new UnauthorizedError("Anda tidak memiliki akses!");
-
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
@@ -198,6 +196,8 @@ export const SGetMeetingQrToken = async (
     });
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
+
+    await assertCanManageClass(user, meeting.classId);
 
     if (!meeting.status)
       throw new ForbiddenError("Sesi presensi belum dibuka!");
@@ -228,9 +228,6 @@ export const SUpdateMeetingStatus = async (
   try {
     const user = req.user;
 
-    if (user?.role !== "ASISTEN" && user?.role !== "LABORAN")
-      throw new UnauthorizedError("Anda tidak memiliki akses!");
-
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
@@ -239,6 +236,8 @@ export const SUpdateMeetingStatus = async (
     });
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
+
+    await assertCanManageClass(user, meeting.classId);
 
     await db.trn_meetings.update({
       where: {

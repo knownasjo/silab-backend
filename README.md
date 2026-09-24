@@ -39,7 +39,7 @@ QR_TOKEN_PERIOD_SECONDS=10   # opsional, bawaan 10
 SMTP_HOST=smtp.gmail.com     # opsional, bawaan smtp.gmail.com
 SMTP_PORT=465                # opsional, bawaan 465
 SMTP_USER=alamat@webmail.uad.ac.id
-SMTP_PASS=...                # App Password Google (16 huruf, tanpa spasi)
+SMTP_PASS=...                # App Password Google (16 huruf, spasi diabaikan)
 MAIL_FROM_NAME=SILAB         # opsional
 ```
 
@@ -104,7 +104,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/subject` | login |
 | GET | `/subject/:id` | login |
 | POST | `/class` | LABORAN |
-| GET | `/class` | login |
+| GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten) |
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
@@ -114,23 +114,24 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/activation?status=&name=` | login |
 | PUT | `/activation/:id` | LABORAN |
 | PUT | `/activation/:id/class` | LABORAN |
-| POST | `/meeting` | ASISTEN, LABORAN |
+| POST | `/meeting` | LABORAN, asisten kelas itu |
 | GET | `/meeting/:classId` | login |
-| GET | `/meeting/:id/qr` | ASISTEN, LABORAN |
-| PUT | `/meeting/:id/status` | ASISTEN, LABORAN |
-| PUT | `/meeting/:id/attendances/:userId` | ASISTEN, LABORAN |
-| DELETE | `/meeting/:id/attendances/:userId` | ASISTEN, LABORAN |
+| GET | `/meeting/:id/qr` | LABORAN, asisten kelas itu |
+| PUT | `/meeting/:id/status` | LABORAN, asisten kelas itu |
+| PUT | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
+| DELETE | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
 | POST | `/subject/classes/:classId/meetings/:meetingId/attendances` | MAHASISWA |
 | POST | `/user` | LABORAN (buat akun role apa pun, langsung aktif) |
 | GET | `/user/dosen` | login |
-| GET | `/user/asisten?name=` | login |
+| GET | `/user/mahasiswa?name=` | LABORAN (calon asisten, cari nama/NIM, maks. 20) |
 | POST | `/announcement` | LABORAN |
 | GET | `/announcement` | login |
 | GET | `/announcement/:id` | login |
 | PUT | `/announcement/:id` | LABORAN |
 | DELETE | `/announcement/:id` | LABORAN |
-| POST | `/collaborator` | **tanpa batas role** |
+| POST | `/collaborator` | LABORAN |
 | GET | `/collaborator/:id` | login |
+| DELETE | `/collaborator/:classId/:userId` | LABORAN |
 | GET | `/events` | login; stream SSE real-time |
 
 ### Endpoint presensi (inti skripsi)
@@ -273,18 +274,20 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 | `ready` | `{}` | stream baru tersambung | pembuka stream |
 | `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
 | `subject` | `subject_id` | mata kuliah ditambah | semua |
-| `class` | `class_id` (+ `action: "created"` untuk kelas baru) | kelas baru, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah | semua |
-| `activation` | `{}` | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas | laboran/asisten, dan mahasiswa yang bersangkutan |
-| `meeting` | `class_id`, `meeting_id` | pertemuan ditambah, sesi presensi dibuka/ditutup | laboran/asisten, dan peserta kelas itu |
-| `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/asisten, dan mahasiswa yang presensinya berubah |
+| `class` | `class_id` (+ `action: "created"` untuk kelas baru) | kelas baru, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus | semua |
+| `activation` | `{}` | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas | laboran/dosen, dan mahasiswa yang bersangkutan |
+| `meeting` | `class_id`, `meeting_id` | pertemuan ditambah, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
+| `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |
 | `ping` | `{}` | setiap 25 detik | semua, untuk menjaga koneksi |
 
 - Event hanya memberi tahu **apa** yang berubah, bukan datanya. Klien memanggil
   ulang endpoint biasa (`GET /announcement`, `/activation`, `/class/me`,
   `/meeting/:classId`, dan seterusnya), jadi aturan akses data tetap sama dan
   mahasiswa tidak pernah menerima data mahasiswa lain.
-- Laboran, asisten, dan dosen menerima semua event. Mahasiswa hanya menerima
-  event umum, event miliknya sendiri, dan event pertemuan kelas yang ia ikuti.
+- Laboran dan dosen menerima semua event. Mahasiswa (termasuk asisten) hanya
+  menerima event umum, event miliknya sendiri, event pertemuan kelas yang ia
+  ikuti, dan event pertemuan serta presensi kelas yang ia pegang sebagai
+  asisten (`publishClassMembersEvent`, `publishClassAssistantsEvent`).
 - Token dikirim lewat header `Authorization` seperti endpoint lain. Server
   menutup stream saat access token habis; klien memperbarui token lalu
   tersambung lagi.
@@ -298,6 +301,41 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
   Sebelumnya urutannya mengikuti urutan fisik tabel, sehingga pengumuman baru
   muncul di halaman terakhir carousel dan baris aktivasi berpindah posisi
   setiap kali diperbarui.
+
+### Asisten per kelas
+
+Asisten adalah **mahasiswa biasa** (role `MAHASISWA`) yang ditugaskan laboran
+ke kelas tertentu lewat `trn_class_collaborator`; role `ASISTEN` tidak dipakai
+lagi dan `POST /user` tidak menerimanya. Seleksi asisten tetap di luar sistem.
+
+- `POST /collaborator { classId, collaborators: [userId] }` hanya untuk
+  LABORAN dan menolak dengan pesan jelas bila: akun bukan mahasiswa (400),
+  sudah menjadi asisten kelas itu (409), mahasiswa sedang mengikuti praktikum
+  mata kuliah yang sama (ada aktivasi, 409), atau jadwalnya bentrok (hari sama
+  dan jam tumpang tindih) dengan kelas yang ia ikuti sebagai praktikan maupun
+  kelas lain yang ia pegang (409). Pengecekan jadwal ada di
+  `src/utils/Schedule/schedule.ts`.
+- Aturan yang sama berlaku ke arah sebaliknya
+  (`src/utils/AssistantRules/assistant.rules.ts`): asisten tidak bisa
+  mendaftar praktikum mata kuliah yang ia pegang (`POST /activation`, 409), dan
+  kelas praktikum yang jadwalnya bentrok dengan kelas yang ia pegang ditolak
+  saat ia memilih kelas (`POST /class/registration`), saat laboran menetapkan
+  kelas ketika mengonfirmasi bayar (`PUT /activation/:id` dengan `classId`),
+  dan saat laboran memindah kelasnya (`PUT /activation/:id/class`).
+- `DELETE /collaborator/:classId/:userId` menghapus baris (hard delete), jadi
+  mahasiswa itu bisa ditambahkan lagi nanti. Data presensi yang pernah ia catat
+  tetap ada.
+- Pertemuan, QR, buka/tutup sesi, dan ubah/hapus presensi hanya boleh untuk
+  LABORAN atau asisten kelas itu (`assertCanManageClass` di
+  `src/utils/ClassAccess/class.access.ts`), selain itu 403 "Hanya laboran atau
+  asisten kelas ini yang dapat melakukannya!". Sebelumnya setiap akun ASISTEN
+  bisa mengatur semua kelas.
+- `GET /meeting/:classId`: mahasiswa yang menjadi peserta kelas mendapat
+  tampilan pribadi; asisten kelas itu (yang bukan peserta) mendapat tampilan
+  staf berisi semua mahasiswa.
+- `GET /class` untuk MAHASISWA hanya berisi kelas yang ia pegang. Web memakainya
+  untuk halaman Praktikum asisten dan untuk menolak login mahasiswa yang tidak
+  memegang kelas; mobile memakainya untuk bagian "Asisten Praktikum" di Profil.
 
 ### Aturan lain yang sudah diberlakukan
 
@@ -318,7 +356,7 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
 dan sebagian `announcement`.
 
-Belum: `auth`, `subject`, `class`, `user`, `collaborator`. Jadi login masih
+Belum: `auth`, `subject`, `class`, sebagian `user`. Jadi login masih
 menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
 menjawab "NIM atau password salah!" (sebelumnya "Email or password invalid!",
 padahal login memakai NIM), dan `POST /auth/refresh` sudah berbahasa
@@ -333,7 +371,7 @@ Pola password: fullname dalam huruf kecil.
 | 2000016002 | laboran002 | LABORAN |
 | 2000016001 | laboran001 | LABORAN |
 | 2000016099 | mahasiswa001 | MAHASISWA |
-| 2000016101 | asisten001 | ASISTEN |
+| 2000016101 | asisten001 | MAHASISWA (asisten Alpro B) |
 | 2000016201 | dosen001 | DOSEN |
 
 Password akun `2000016123` (Jordan) tidak diketahui.
@@ -355,8 +393,10 @@ Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
 3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
 4. **Mahasiswa yang status bayarnya dibatalkan tetap berada di kelas.**
-5. **Tidak ada endpoint "kelas yang saya ampu"** untuk asisten. `GET /class`
-   mengembalikan semua kelas tanpa penyaring peran.
+5. **Jadwal kelas tidak diperiksa ulang bila jadwalnya diubah.** Aturan
+   asisten dicek setiap kali asisten ditambahkan atau mahasiswa mendapat
+   kelas, tetapi bila jadwal kelas diubah langsung di database setelah
+   itu, bentrokan baru tidak terdeteksi (belum ada endpoint ubah jadwal).
 6. **QR yang berganti hanya menghentikan titip absen tertunda** (lewat foto).
    Siaran langsung, misalnya teman di kelas melakukan video call lalu
    mahasiswa yang absen memindai dari layar saat itu juga, tetap bisa lolos.
@@ -376,9 +416,6 @@ Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
 
 ## Pekerjaan yang masih tersisa
 
-- [ ] Folder `node_modules/` ikut ter-commit (6.407 file), termasuk Prisma client
-      hasil generate yang berubah setiap kali lokasi repo berbeda
-- [ ] Batasi role pada `POST /collaborator`
 - [ ] Seragamkan pesan lima service sisanya ke bahasa Indonesia
 
 ## Catatan lain

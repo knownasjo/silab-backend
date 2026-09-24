@@ -15,7 +15,8 @@ import {
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { checkQrToken } from "../utils/QrToken/qr.token";
-import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import { publishClassAssistantsEvent } from "../utils/RealtimeEvents/realtime.events";
+import { assertCanManageClass } from "../utils/ClassAccess/class.access";
 
 export const SAddAttendance = async (
   classId: string,
@@ -89,7 +90,8 @@ export const SAddAttendance = async (
       },
     });
 
-    publishRealtimeEvent(
+    void publishClassAssistantsEvent(
+      meeting.classId,
       "attendance",
       { class_id: meeting.classId, meeting_id: meeting.id },
       [user.id]
@@ -124,9 +126,6 @@ export const SUpdateAttendanceManually = async (
     if (typeof status !== "boolean")
       throw new BadRequestError("Status kehadiran harus berupa true atau false!");
 
-    if (user?.role !== "LABORAN" && user?.role !== "ASISTEN")
-      throw new UnauthorizedError("Anda tidak memiliki akses!");
-
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
@@ -135,6 +134,8 @@ export const SUpdateAttendanceManually = async (
     });
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
+
+    await assertCanManageClass(user, meeting.classId);
 
     const student = await db.mst_user.findUnique({
       where: {
@@ -172,7 +173,8 @@ export const SUpdateAttendanceManually = async (
       },
     });
 
-    publishRealtimeEvent(
+    void publishClassAssistantsEvent(
+      meeting.classId,
       "attendance",
       { class_id: meeting.classId, meeting_id: meeting.id },
       [student.id]
@@ -206,9 +208,6 @@ export const SResetAttendance = async (
   try {
     const user = req.user;
 
-    if (user?.role !== "LABORAN" && user?.role !== "ASISTEN")
-      throw new UnauthorizedError("Anda tidak memiliki akses!");
-
     const attendance = await db.trn_meeting_participants.findUnique({
       where: {
         meetingId_userId: {
@@ -223,6 +222,8 @@ export const SResetAttendance = async (
 
     if (!attendance) throw new NotFoundError("Catatan presensi tidak ditemukan!");
 
+    await assertCanManageClass(user, attendance.meeting.classId);
+
     await db.trn_meeting_participants.delete({
       where: {
         meetingId_userId: {
@@ -232,7 +233,8 @@ export const SResetAttendance = async (
       },
     });
 
-    publishRealtimeEvent(
+    void publishClassAssistantsEvent(
+      attendance.meeting.classId,
       "attendance",
       { class_id: attendance.meeting.classId, meeting_id: meetingId },
       [userId]

@@ -8,6 +8,6 @@ router.post("/", MAuthUser(), CCreateUser);
 
 router.get("/dosen", MAuthUser(), CGetUser);
 
-router.get("/asisten", MAuthUser(), CGetUser);
+router.get("/mahasiswa", MAuthUser(), CGetUser);
 
 export default router;

@@ -74,23 +74,49 @@ export const publishRealtimeEvent = (
   });
 };
 
+const findClassAssistantIds = async (classId: string) =>
+  (
+    await db.trn_class_collaborator.findMany({
+      where: { classId, deletedAt: null },
+      select: { userId: true },
+    })
+  ).map((collaborator) => collaborator.userId);
+
 export const publishClassMembersEvent = async (
   classId: string,
   type: RealtimeEventType,
   data: Record<string, string>
 ) => {
   try {
-    const participants = await db.trn_class_participants.findMany({
-      where: { classId, deleted_at: null },
-      select: { userId: true },
-    });
+    const [participants, assistantIds] = await Promise.all([
+      db.trn_class_participants.findMany({
+        where: { classId, deleted_at: null },
+        select: { userId: true },
+      }),
+      findClassAssistantIds(classId),
+    ]);
 
-    publishRealtimeEvent(
-      type,
-      data,
-      participants.map((participant) => participant.userId)
-    );
+    publishRealtimeEvent(type, data, [
+      ...participants.map((participant) => participant.userId),
+      ...assistantIds,
+    ]);
   } catch {
     publishRealtimeEvent(type, data, []);
+  }
+};
+
+export const publishClassAssistantsEvent = async (
+  classId: string,
+  type: RealtimeEventType,
+  data: Record<string, string>,
+  studentIds: string[]
+) => {
+  try {
+    publishRealtimeEvent(type, data, [
+      ...studentIds,
+      ...(await findClassAssistantIds(classId)),
+    ]);
+  } catch {
+    publishRealtimeEvent(type, data, studentIds);
   }
 };

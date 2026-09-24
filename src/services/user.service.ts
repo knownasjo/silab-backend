@@ -21,18 +21,24 @@ export const SGetUser = async (
 ): Promise<IBaseResponse<IGetUserResponseBody[]>> => {
   try {
     const user = req.user;
-    const role = req.path;
+    const role = req.path.split("/").join("").toUpperCase() as UserRole;
+    const keyword = query?.trim();
 
     if (user?.role !== "LABORAN")
       throw new UnauthorizedError("User not allowed!");
 
     const userData = await db.mst_user.findMany({
       where: {
-        fullname: {
-          contains: query,
-        },
-        role: role.split("/").join("").toUpperCase() as UserRole,
+        role,
+        ...(keyword && {
+          OR: [
+            { fullname: { contains: keyword, mode: "insensitive" } },
+            { nim: { contains: keyword } },
+          ],
+        }),
       },
+      orderBy: { fullname: "asc" },
+      ...(role === "MAHASISWA" && { take: 20 }),
     });
 
     const data: IGetUserResponseBody[] = userData.map((data) => ({
@@ -66,7 +72,7 @@ export const SCreateUser = async (
   const fullname = readText(body.fullname).replace(/\s+/g, " ");
   const password = typeof body.password === "string" ? body.password : "";
   const role = readText(body.role).toUpperCase();
-  const roles = Object.values(UserRole) as string[];
+  const roles: string[] = [UserRole.MAHASISWA, UserRole.LABORAN, UserRole.DOSEN];
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new BadRequestError("Format email tidak valid!");

@@ -15,6 +15,10 @@ import {
 } from "../interfaces/activation.interface";
 import { Prisma } from "@prisma/client";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import {
+  assertNoAssistantScheduleClash,
+  assertNotAssistantOfSubjects,
+} from "../utils/AssistantRules/assistant.rules";
 
 export const SAddStudentActivation = async (
   body: IAddActivationRequestBody,
@@ -42,6 +46,8 @@ export const SAddStudentActivation = async (
         `Mata kuliah berikut sudah pernah didaftarkan: ${alreadyActivatedIds.join(", ")}`
       );
     }
+
+    await assertNotAssistantOfSubjects(user.id, subjectIds);
 
     await db.trn_activations.createMany({
       data: subjectIds.map((subjectId) => ({
@@ -237,6 +243,7 @@ export const SUpdateActivationPaymentStatus = async (
         deleted_at: null,
       },
       include: {
+        subject: { select: { subject_name: true } },
         participants: {
           where: { deleted_at: null },
           select: { userId: true },
@@ -260,6 +267,12 @@ export const SUpdateActivationPaymentStatus = async (
 
     if (classData.participants.length >= classData.quota)
       throw new ConflictError("Kuota kelas sudah penuh!");
+
+    await assertNoAssistantScheduleClash(
+      isActivationExist.userId,
+      [classData],
+      "dipegang mahasiswa ini"
+    );
 
     await db.$transaction([
       db.trn_activations.update({
@@ -319,6 +332,7 @@ export const SUpdateStudentClass = async (
         deleted_at: null,
       },
       include: {
+        subject: { select: { subject_name: true } },
         participants: {
           where: { deleted_at: null },
           select: { userId: true },
@@ -356,6 +370,12 @@ export const SUpdateStudentClass = async (
 
     if (targetClass.participants.length >= targetClass.quota)
       throw new ConflictError("Kuota kelas tujuan sudah penuh!");
+
+    await assertNoAssistantScheduleClash(
+      activation.userId,
+      [targetClass],
+      "dipegang mahasiswa ini"
+    );
 
     const existingAttendances = await db.trn_meeting_participants.findMany({
       where: {

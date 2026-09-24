@@ -29,7 +29,7 @@ export const CGetAllClasses = async (
   next: NextFunction
 ) => {
   try {
-    const resData = await SGetAllClasses();
+    const resData = await SGetAllClasses(req);
 
     res.status(200).json(resData);
   } catch (error: any) {
