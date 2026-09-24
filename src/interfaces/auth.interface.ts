@@ -1,5 +1,3 @@
-import { UserRole } from "@prisma/client";
-
 export interface IJWTUserPayload {
   id: string;
   nim: string;
@@ -26,10 +24,24 @@ export interface IRefreshTokenResponseBody {
 }
 
 export interface IUserRegisterRequestBody {
-  nim: string;
   fullname: string;
   email: string;
   password: string;
   confirmPassword: string;
-  role: UserRole;
+}
+
+export interface IRegistrationResponseBody {
+  email: string;
+  nim: string;
+  expires_in: number;
+  resend_in: number;
+}
+
+export interface IVerifyRegistrationRequestBody {
+  email: string;
+  code: string;
+}
+
+export interface IResendRegistrationRequestBody {
+  email: string;
 }

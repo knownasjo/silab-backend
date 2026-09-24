@@ -187,3 +187,16 @@ model trn_class_collaborator {
     @@index([classId])
     @@index([userId])
 }
+
+model trn_registrations {
+    id         String   @id @default(uuid())
+    email      String   @unique
+    nim        String   @unique
+    fullname   String
+    password   String
+    code       String
+    attempts   Int      @default(0)
+    expires_at DateTime
+    sent_at    DateTime
+    created_at DateTime @default(now())
+}

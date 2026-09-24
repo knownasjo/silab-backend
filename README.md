@@ -26,7 +26,9 @@ Gejalanya: `TypeError: Cannot read properties of undefined (reading 'prototype')
 
 ### Environment
 
-File `.env` di root (tidak di-commit):
+File `.env` di root (tidak di-commit; salin dari `.env.example`). Nilai JWT
+bisa dibuat dengan
+`node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`.
 
 ```
 DATABASE_URL="postgresql://...pooler.supabase.com:6543/postgres?pgbouncer=true"
@@ -34,6 +36,11 @@ DIRECT_URL="postgresql://...pooler.supabase.com:5432/postgres"
 JWT_SECRET=...
 JWT_REFRESH_SECRET=...
 QR_TOKEN_PERIOD_SECONDS=10   # opsional, bawaan 10
+SMTP_HOST=smtp.gmail.com     # opsional, bawaan smtp.gmail.com
+SMTP_PORT=465                # opsional, bawaan 465
+SMTP_USER=alamat@webmail.uad.ac.id
+SMTP_PASS=...                # App Password Google (16 huruf, tanpa spasi)
+MAIL_FROM_NAME=SILAB         # opsional
 ```
 
 `DATABASE_URL` dan `DIRECT_URL` dibaca Prisma lewat `schema.prisma`, bukan oleh
@@ -42,7 +49,11 @@ ini wajib, karena `client.prisma.ts` membuat `PrismaClient` saat modulnya
 di-import.
 
 Yang dibaca langsung oleh kode (lewat `src/config/env.config.ts`) hanya
-`JWT_SECRET`, `JWT_REFRESH_SECRET`, dan `QR_TOKEN_PERIOD_SECONDS`.
+`JWT_SECRET`, `JWT_REFRESH_SECRET`, `QR_TOKEN_PERIOD_SECONDS`, dan variabel
+`SMTP_*`/`MAIL_FROM_NAME`. Selama `SMTP_USER`/`SMTP_PASS` kosong dan
+`NODE_ENV` bukan `production`, kode verifikasi pendaftaran hanya dicetak di
+terminal backend (`[SILAB] Kode verifikasi untuk ...`); di `production` tanpa
+SMTP, pendaftaran ditolak dengan pesan "Layanan email belum dikonfigurasi!".
 
 ## Sejarah proyek
 
@@ -85,7 +96,9 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 |---|---|---|
 | POST | `/auth/login` | publik |
 | POST | `/auth/refresh` | publik (dengan refresh token) |
-| POST | `/auth/register` | publik |
+| POST | `/auth/register` | publik (email kampus, lihat "Pendaftaran akun mahasiswa") |
+| POST | `/auth/register/verify` | publik |
+| POST | `/auth/register/resend` | publik |
 | GET | `/auth/me` | login |
 | POST | `/subject` | LABORAN |
 | GET | `/subject` | login |
@@ -108,6 +121,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/meeting/:id/attendances/:userId` | ASISTEN, LABORAN |
 | DELETE | `/meeting/:id/attendances/:userId` | ASISTEN, LABORAN |
 | POST | `/subject/classes/:classId/meetings/:meetingId/attendances` | MAHASISWA |
+| POST | `/user` | LABORAN (buat akun role apa pun, langsung aktif) |
 | GET | `/user/dosen` | login |
 | GET | `/user/asisten?name=` | login |
 | POST | `/announcement` | LABORAN |
@@ -210,6 +224,43 @@ POST /auth/refresh   { "refreshToken": "..." }   ->   { "accessToken": "..." }
 Web menyimpan refresh token di cookie `httpOnly` dan memperbaruinya lewat server
 action; mobile memperbaruinya di `ApiClient` lalu mengulang permintaan.
 Dengan begitu QR di layar asisten tidak hilang di tengah sesi.
+
+### Pendaftaran akun mahasiswa
+
+Mahasiswa mendaftar sendiri dari aplikasi mobile memakai email kampus
+`namadepanNIM@webmail.uad.ac.id`. NIM diambil dari 10 angka sebelum `@`, role
+selalu `MAHASISWA`, dan akun baru dibuat setelah kode dari email dimasukkan.
+
+```
+POST /auth/register         { email, fullname, password, confirmPassword }
+  -> 201 { email, nim, expires_in: 600, resend_in: 60 }
+POST /auth/register/verify  { email, code }   -> 201 { accessToken, refreshToken }
+POST /auth/register/resend  { email }         -> 200 { email, nim, expires_in, resend_in }
+```
+
+- Pendaftaran yang belum diverifikasi disimpan di `trn_registrations`, bukan
+  di `mst_user`, jadi tabel pengguna hanya berisi akun yang sudah terbukti.
+  Password disimpan sebagai hash bcrypt dan kode sebagai HMAC-SHA256.
+- Pendaftaran baru dengan email **atau** NIM yang sama menggantikan pendaftaran
+  yang belum diverifikasi, sehingga orang yang mendaftar memakai NIM orang lain
+  tidak bisa mengunci NIM tersebut. NIM/email baru terkunci setelah verifikasi.
+- Kode 6 angka, berlaku 10 menit. Kirim ulang (lewat `/register` atau
+  `/register/resend`) baru boleh 60 detik setelah kiriman terakhir (429).
+- Maksimal 5 kali salah; percobaan dihitung dengan `updateMany` bersyarat
+  `attempts < 5`, jadi tebakan serentak pun hanya diperiksa 5 kali. Setelah itu
+  harus minta kode baru, yang mengembalikan hitungan ke 0.
+- Login dengan NIM yang masih menunggu verifikasi dan password yang cocok
+  dibalas **403** `Akun belum diverifikasi...` dengan `data: { email }`, supaya
+  aplikasi bisa membuka layar verifikasi.
+- Pesan: 400 format email/nama (3–100 karakter)/password (min. 8)/konfirmasi,
+  409 "Email sudah terdaftar" atau "NIM sudah terdaftar", 404 "Pendaftaran
+  tidak ditemukan", 400 "Kode salah. Sisa n percobaan", 400 "Kode sudah
+  kedaluwarsa".
+
+Akun staf dan akun uji dibuat laboran lewat `POST /user` (`Authorization`
+laboran) dengan body `{ email, nim, fullname, password, role }`: email bebas,
+NIM angka, password min. 8, role salah satu `UserRole`. Akun langsung aktif dan
+menggantikan pendaftaran belum terverifikasi dengan email/NIM yang sama.
 
 ### Pembaruan real-time (SSE)
 
@@ -333,5 +384,3 @@ Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
 ## Catatan lain
 
 - CORS terbuka untuk semua origin (`app.use(cors())`)
-- `POST /auth/register` terbuka tanpa autentikasi dan bisa menentukan `role`
-  sendiri lewat body

@@ -3,6 +3,8 @@ import {
   SUserLogin,
   SRegisterUser,
   SRefreshAccessToken,
+  SVerifyRegistration,
+  SResendRegistrationCode,
 } from "../services/auth.service";
 
 export const CUserLogin = async (
@@ -42,6 +44,34 @@ export const CUserRegister = async (
     const resData = await SRegisterUser(req.body);
 
     res.status(201).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CVerifyRegistration = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SVerifyRegistration(req.body);
+
+    res.status(201).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CResendRegistrationCode = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SResendRegistrationCode(req.body);
+
+    res.status(200).json(resData);
   } catch (error: any) {
     next(error);
   }

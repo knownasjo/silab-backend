@@ -9,3 +9,19 @@ export interface IGetUserResponseBody {
   nim: string;
   fullname: string;
 }
+
+export interface ICreateUserRequestBody {
+  email: string;
+  nim: string;
+  fullname: string;
+  password: string;
+  role: string;
+}
+
+export interface ICreateUserResponseBody {
+  id: string;
+  email: string;
+  nim: string;
+  fullname: string;
+  role: string;
+}

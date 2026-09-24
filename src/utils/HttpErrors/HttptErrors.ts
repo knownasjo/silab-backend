@@ -18,6 +18,12 @@ export class ForbiddenError extends BaseError {
   }
 }
 
+export class UnverifiedAccountError extends BaseError {
+  constructor(message: string, data: { email: string }) {
+    super(message, 403, data);
+  }
+}
+
 export class NotFoundError extends BaseError {
   constructor(message = "Not Found") {
     super(message, 404);
