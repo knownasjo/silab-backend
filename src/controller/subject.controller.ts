@@ -25,7 +25,7 @@ export const CGetAllSubjects = async (
   next: NextFunction
 ) => {
   try {
-    const resData = await SGetSubject();
+    const resData = await SGetSubject(req);
 
     res.status(200).json(resData);
   } catch (error: any) {
@@ -41,7 +41,7 @@ export const CGetSubjectById = async (
   try {
     const subjectId = req.params.id.toString();
 
-    const resData = await SGetSubjectById(subjectId);
+    const resData = await SGetSubjectById(subjectId, req);
 
     res.status(200).json(resData);
   } catch (error) {

@@ -106,21 +106,21 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/auth/me` | login (ganti nama sendiri, lihat "Profil dan ganti password") |
 | PUT | `/auth/me/password` | login (ganti password sendiri) |
 | POST | `/subject` | LABORAN |
-| GET | `/subject` | login |
-| GET | `/subject/:id` | login |
+| GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu) |
+| GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | POST | `/class` | LABORAN |
-| GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten) |
+| GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
-| GET | `/class/:id` | login |
-| GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri) |
+| GET | `/class/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
+| GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri, DOSEN hanya kelas mata kuliah yang ia ampu) |
 | POST | `/activation` | MAHASISWA |
-| GET | `/activation?status=&name=` | login |
+| GET | `/activation?status=&name=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak |
 | PUT | `/activation/:id` | LABORAN |
 | PUT | `/activation/:id/class` | LABORAN |
 | POST | `/meeting` | LABORAN, asisten kelas itu |
-| GET | `/meeting/:classId` | login |
+| GET | `/meeting/:classId` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | GET | `/meeting/:id/qr` | LABORAN, asisten kelas itu |
 | PUT | `/meeting/:id/status` | LABORAN, asisten kelas itu |
 | PUT | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
@@ -128,7 +128,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | POST | `/subject/classes/:classId/meetings/:meetingId/attendances` | MAHASISWA |
 | POST | `/user` | LABORAN (buat akun role apa pun, langsung aktif) |
 | PUT | `/user/:niyAtauId/password` | LABORAN (ganti password akun LABORAN/DOSEN) |
-| GET | `/user/dosen` | login |
+| GET | `/user/dosen` | LABORAN (pilihan dosen pengampu) |
 | GET | `/user/mahasiswa?name=` | LABORAN (calon asisten, cari nama/NIM, maks. 20) |
 | POST | `/announcement` | LABORAN |
 | GET | `/announcement` | login |
@@ -136,13 +136,14 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/announcement/:id` | LABORAN |
 | DELETE | `/announcement/:id` | LABORAN |
 | POST | `/collaborator` | LABORAN |
-| GET | `/collaborator/:id` | login |
+| GET | `/collaborator/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | DELETE | `/collaborator/:classId/:userId` | LABORAN |
 | GET | `/events` | login; stream SSE real-time |
+| GET | `/dashboard/dosen` | DOSEN (angka dashboard, lihat "Akses dosen") |
 
 ### Koleksi Postman
 
-`docs/SILABV2.postman_collection.json` berisi 53 request untuk semua endpoint
+`docs/SILABV2.postman_collection.json` berisi 58 request untuk semua endpoint
 di atas, dikelompokkan per fitur, masing-masing dengan keterangan peran dan
 balasan yang diharapkan. Import ke Postman, lalu:
 
@@ -154,6 +155,9 @@ balasan yang diharapkan. Import ke Postman, lalu:
    Kode dari email diisi manual ke variabel `verificationCode` dan `resetCode`.
 3. Skrip di beberapa request menyimpan id yang dibutuhkan request berikutnya
    (`newStudentId`, `activationId`, `meetingId`, `qrToken`, `announcementId`).
+4. Folder **Dosen** berisi semua yang bisa dibaca dosen: ringkasan dashboard,
+   mata kuliah dan kelas yang diampu, presensi kelas, dan contoh penolakan data
+   pembayaran.
 
 POST/PUT/DELETE mengubah data sungguhan. Akun mahasiswa hasil uji bisa dihapus
 dengan `npm run hapus-akun <NIM>`.
@@ -455,6 +459,45 @@ lagi dan `POST /user` tidak menerimanya. Seleksi asisten tetap di luar sistem.
   untuk halaman Praktikum asisten dan untuk menolak login mahasiswa yang tidak
   memegang kelas; mobile memakainya untuk bagian "Asisten Praktikum" di Profil.
 
+### Akses dosen
+
+Dosen hanya **memantau** mata kuliah yang ia ampu (`mst_subject.lecturer_id`)
+dan tidak bisa mengubah data apa pun. Semua endpoint yang mengubah data tetap
+menolak dosen seperti sebelumnya.
+
+- Daftar mata kuliah (`GET /subject`) dan kelas (`GET /class`) untuk DOSEN hanya
+  berisi miliknya.
+- Detail mata kuliah, detail kelas, pertemuan dan presensi
+  (`GET /meeting/:classId`), daftar asisten, dan teman sekelas milik dosen lain
+  dibalas 403 "Mata kuliah ini bukan yang Anda ampu." atau "Kelas ini bukan mata
+  kuliah yang Anda ampu." Id yang tidak ada tetap 404. Pemeriksaannya ada di
+  `lecturerSubjectScope`, `assertLecturerOfSubject`, dan `assertLecturerOfClass`
+  (`src/utils/ClassAccess/class.access.ts`).
+- `GET /activation` (data pembayaran) dibalas 403 "Data pembayaran praktikum
+  hanya bisa dilihat laboran!" untuk DOSEN. Sebelumnya dosen bisa membaca status
+  bayar semua mahasiswa lewat API.
+- `GET /dashboard/dosen` (khusus DOSEN, peran lain 403 "Ringkasan ini hanya
+  untuk dosen!") menghitung angka dashboard dari kelas mata kuliah yang ia ampu:
+
+  ```
+  { total_class, total_student, total_meeting,
+    total_attended, total_expected_attendance, attendance_rate }
+  ```
+
+  - `total_student`: peserta kelas, dihitung sekali walau ikut dua mata kuliah
+    dosen yang sama.
+  - `total_meeting`: semua pertemuan yang sudah dibuat (sama dengan kolom di
+    rekap presensi).
+  - `total_expected_attendance`: jumlah peserta × jumlah pertemuan per kelas,
+    dijumlahkan. `total_attended`: presensi berstatus hadir dari peserta kelas
+    itu.
+  - `attendance_rate`: `total_attended / total_expected_attendance × 100`
+    dibulatkan; `null` bila belum ada pertemuan atau peserta. "Belum presensi"
+    dihitung tidak hadir, sama seperti kolom Hadir di rekap.
+  - Kelas dan pertemuan yang `deleted_at`-nya terisi tidak dihitung.
+- Dosen tetap menerima semua event real-time seperti laboran, sehingga
+  dashboard dan halaman kelasnya ikut berubah tanpa refresh.
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
@@ -560,6 +603,12 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
    memprosesnya (instance lain baru menolak sesi itu saat klien tersambung
    ulang). Solusinya Redis pub/sub atau `LISTEN/NOTIFY` Postgres di antara
    instance.
+
+10. **"Pertemuan yang sudah berjalan" dihitung dari pertemuan yang sudah
+    dibuat.** Tidak ada catatan kapan sesi presensi pertama kali dibuka, jadi
+    pertemuan yang dibuat asisten sebelum hari praktikum ikut terhitung di
+    dashboard dosen dan menurunkan rata-rata kehadiran. Solusinya menambah
+    kolom waktu pertama kali sesi dibuka.
 
 ## Pekerjaan yang masih tersisa
 

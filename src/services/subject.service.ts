@@ -11,6 +11,10 @@ import {
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import {
+  assertLecturerOfSubject,
+  lecturerSubjectScope,
+} from "../utils/ClassAccess/class.access";
 
 export const SAddSubject = async (
   body: IAddSubjectRequestBody,
@@ -51,13 +55,14 @@ export const SAddSubject = async (
   }
 };
 
-export const SGetSubject = async (): Promise<
-  IBaseResponse<IGetAllSubjectsResponseBody[]>
-> => {
+export const SGetSubject = async (
+  req: Request
+): Promise<IBaseResponse<IGetAllSubjectsResponseBody[]>> => {
   try {
     const subjects = await db.mst_subject.findMany({
       where: {
         deleted_at: null,
+        ...lecturerSubjectScope(req.user),
       },
       include: {
         lecturer: true,
@@ -83,7 +88,8 @@ export const SGetSubject = async (): Promise<
 };
 
 export const SGetSubjectById = async (
-  id: string
+  id: string,
+  req: Request
 ): Promise<IBaseResponse<IGetAllSubjectsResponseBody>> => {
   try {
     const subjectData = await db.mst_subject.findUnique({
@@ -97,6 +103,8 @@ export const SGetSubjectById = async (
     });
 
     if (!subjectData) throw new NotFoundError("Subject not found!");
+
+    assertLecturerOfSubject(req.user, subjectData.lecturer_id);
 
     return {
       status: true,

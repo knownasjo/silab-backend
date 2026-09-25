@@ -12,6 +12,7 @@ import { getCurrentQrToken } from "../utils/QrToken/qr.token";
 import { publishClassMembersEvent } from "../utils/RealtimeEvents/realtime.events";
 import {
   assertCanManageClass,
+  assertLecturerOfClass,
   isClassAssistant,
 } from "../utils/ClassAccess/class.access";
 
@@ -70,6 +71,8 @@ export const SGetAllClassMeeting = async (
     });
 
     if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
+
+    await assertLecturerOfClass(user, isClassExist.id);
 
     let isStudent = false;
 

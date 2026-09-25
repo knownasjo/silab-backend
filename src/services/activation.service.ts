@@ -4,6 +4,7 @@ import db from "../prisma/client.prisma";
 import {
   BadRequestError,
   ConflictError,
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
@@ -75,6 +76,11 @@ export const SGetAllActivations = async (
     const user = req.user;
     const statusQuery = req.query.status;
     const nameQuery = req.query.name?.toString();
+
+    if (user?.role === "DOSEN")
+      throw new ForbiddenError(
+        "Data pembayaran praktikum hanya bisa dilihat laboran!"
+      );
 
     const whereCondition = {
       deleted_at: null,

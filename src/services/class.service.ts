@@ -20,6 +20,7 @@ import {
 import { Request } from "express";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 import { assertNoAssistantScheduleClash } from "../utils/AssistantRules/assistant.rules";
+import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
 
 export const SAddClass = async (
   body: IAddClassRequestBody,
@@ -74,6 +75,9 @@ export const SGetAllClasses = async (
             some: { userId: user.id, deletedAt: null },
           },
         }),
+        ...(user?.role === "DOSEN" && {
+          subject: { lecturer_id: user.id },
+        }),
       },
       include: {
         participants: {
@@ -116,7 +120,8 @@ export const SGetAllClasses = async (
 };
 
 export const SGetClassById = async (
-  id: string
+  id: string,
+  req: Request
 ): Promise<IBaseResponse<IGetClassByIdResponseBody>> => {
   try {
     const classData = await db.mst_class.findUnique({
@@ -141,6 +146,8 @@ export const SGetClassById = async (
     });
 
     if (!classData) throw new NotFoundError("Class not found!");
+
+    await assertLecturerOfClass(req.user, classData.id);
 
     const data: IGetClassByIdResponseBody = {
       id: classData.id,
@@ -396,6 +403,8 @@ export const SGetClassmates = async (
   });
 
   if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  await assertLecturerOfClass(user, classData.id);
 
   const participants = await db.trn_class_participants.findMany({
     where: { classId: classData.id, deleted_at: null },

@@ -13,6 +13,7 @@ import {
 } from "../utils/HttpErrors/HttptErrors";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 import { formatSchedule, isScheduleClash } from "../utils/Schedule/schedule";
+import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
 
 const classSchedule = {
   select: {
@@ -173,8 +174,11 @@ export const SRemoveCollaborator = async (
 };
 
 export const SGetCollaborators = async (
-  id: string
+  id: string,
+  req: Request
 ): Promise<IBaseResponse<IGetCollaboratorsResponseBody[]>> => {
+  await assertLecturerOfClass(req.user, id);
+
   const collaboratorsData = await db.trn_class_collaborator.findMany({
     where: {
       classId: id,

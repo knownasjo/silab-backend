@@ -45,7 +45,7 @@ export const CGetClassById = async (
   try {
     const id = req.params.id.toString();
 
-    const resData = await SGetClassById(id);
+    const resData = await SGetClassById(id, req);
 
     res.status(200).json(resData);
   } catch (error: any) {

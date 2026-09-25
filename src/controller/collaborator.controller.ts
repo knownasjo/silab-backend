@@ -41,7 +41,7 @@ export const CGetClassCollaborators = async (
   try {
     const id = req.params.id.toString();
 
-    const resData = await SGetCollaborators(id);
+    const resData = await SGetCollaborators(id, req);
 
     res.status(200).json(resData);
   } catch (error) {

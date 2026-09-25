@@ -13,6 +13,7 @@ import AnnouncementRoute from "../src/routes/announcement.route";
 import CollaboratorRoute from "../src/routes/collaborator.route";
 import AttendanceRoute from "../src/routes/attendance.route";
 import EventRoute from "../src/routes/event.route";
+import DashboardRoute from "../src/routes/dashboard.route";
 import cors from "cors";
 
 const app = express();
@@ -35,6 +36,7 @@ app.use("/user", UserRoute);
 app.use("/announcement", AnnouncementRoute);
 app.use("/collaborator", CollaboratorRoute);
 app.use("/events", EventRoute);
+app.use("/dashboard", DashboardRoute);
 
 app.use(errorHandler);
 

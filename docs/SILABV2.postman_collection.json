@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "6dcbc2f1-3896-4c0c-8c79-96241f90aea3",
 		"name": "SILABV2",
-		"description": "Koleksi endpoint backend SILAB (Express + Prisma). Daftar endpoint lengkap dan aturannya ada di README `silab-backend`.\n\n**Cara pakai**\n1. Pastikan variabel `baseUrl` sesuai (bawaan `http://localhost:3000`).\n2. Jalankan request di folder **Auth** (Login - Laboran, Mahasiswa, Dosen, Asisten). Token tersimpan otomatis dan dipakai request lain.\n3. Request yang mengubah data memakai **akun baru** dari folder Pendaftaran Mahasiswa (`accessTokenBaru`) atau data baru (mata kuliah, akun dosen, pertemuan) agar akun uji lain tidak berubah. Kode verifikasi dan kode reset diisi manual ke variabel `verificationCode` dan `resetCode`.\n\n**Perhatian:** POST/PUT/DELETE mengubah data sungguhan di database. Akun mahasiswa uji bisa dihapus lagi dengan `npm run hapus-akun <NIM>`.\n\nAkun uji: Laboran 60010002/laboran002, Mahasiswa 2000016099/mahasiswa001, Dosen 60020001/dosen001, Asisten 2000016101/asisten001. Mahasiswa login dengan NIM, dosen dan laboran dengan NIY (8 angka); field-nya tetap bernama `nim`.\n\nAccess token yang kedaluwarsa atau dicabut dibalas **400 `jwt expired`**; jalankan Login lagi atau Refresh Token.",
+		"description": "Koleksi endpoint backend SILAB (Express + Prisma). Daftar endpoint lengkap dan aturannya ada di README `silab-backend`.\n\n**Cara pakai**\n1. Pastikan variabel `baseUrl` sesuai (bawaan `http://localhost:3000`).\n2. Jalankan request di folder **Auth** (Login - Laboran, Mahasiswa, Dosen, Asisten). Token tersimpan otomatis dan dipakai request lain.\n3. Request yang mengubah data memakai **akun baru** dari folder Pendaftaran Mahasiswa (`accessTokenBaru`) atau data baru (mata kuliah, akun dosen, pertemuan) agar akun uji lain tidak berubah. Kode verifikasi dan kode reset diisi manual ke variabel `verificationCode` dan `resetCode`.\n\n**Perhatian:** POST/PUT/DELETE mengubah data sungguhan di database. Akun mahasiswa uji bisa dihapus lagi dengan `npm run hapus-akun <NIM>`.\n\nAkun uji: Laboran 60010002/laboran002, Mahasiswa 2000016099/mahasiswa001, Dosen 60020001/dosen001, Asisten 2000016101/asisten001. Mahasiswa login dengan NIM, dosen dan laboran dengan NIY (8 angka); field-nya tetap bernama `nim`.\n\nFolder **Dosen** berisi apa saja yang bisa dibaca dosen; dosen tidak bisa mengubah data apa pun.\n\nAccess token yang kedaluwarsa atau dicabut dibalas **400 `jwt expired`**; jalankan Login lagi atau Refresh Token.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -912,7 +912,7 @@
 								"subject"
 							]
 						},
-						"description": "`[{ id, subject_code, subject_name, semester, lecturer }]`. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
+						"description": "LABORAN: semua mata kuliah. DOSEN: hanya yang ia ampu. `[{ id, subject_code, subject_name, semester, lecturer }]`. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
 					},
 					"response": []
 				},
@@ -941,7 +941,7 @@
 								"{{subjectId}}"
 							]
 						},
-						"description": "Detail satu mata kuliah beserta kelas-kelasnya."
+						"description": "Detail satu mata kuliah: `{ id, subject_code, subject_name, semester, lecturer }`. DOSEN hanya mata kuliah yang ia ampu (403 \"Mata kuliah ini bukan yang Anda ampu.\")."
 					},
 					"response": []
 				}
@@ -1017,7 +1017,7 @@
 								"class"
 							]
 						},
-						"description": "LABORAN/DOSEN: semua kelas. MAHASISWA: hanya kelas yang ia pegang sebagai asisten (coba dengan `accessTokenAsisten`)."
+						"description": "LABORAN: semua kelas. DOSEN: hanya kelas dari mata kuliah yang ia ampu. MAHASISWA: hanya kelas yang ia pegang sebagai asisten (coba dengan `accessTokenAsisten`)."
 					},
 					"response": []
 				},
@@ -1046,7 +1046,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Detail satu kelas: mata kuliah, jadwal, ruang, dosen, dan jumlah peserta."
+						"description": "Detail satu kelas: mata kuliah, jadwal, ruang, dosen, dan jumlah peserta. DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\")."
 					},
 					"response": []
 				},
@@ -1177,7 +1177,7 @@
 								"classmates"
 							]
 						},
-						"description": "Daftar peserta kelas. MAHASISWA hanya boleh melihat kelasnya sendiri (403 \"Anda tidak terdaftar di kelas ini!\")."
+						"description": "Daftar peserta kelas. MAHASISWA hanya boleh melihat kelasnya sendiri (403 \"Anda tidak terdaftar di kelas ini!\"), DOSEN hanya kelas mata kuliah yang ia ampu."
 					},
 					"response": []
 				}
@@ -1307,7 +1307,7 @@
 								}
 							]
 						},
-						"description": "Satu baris per aktivasi, terbaru di atas: `{ id, user_id, nim, student, status, subject_id, ... }`. Id aktivasi pertama disimpan ke `activationId`."
+						"description": "Satu baris per aktivasi, terbaru di atas: `{ id, user_id, nim, student, status, subject_id, ... }`. Id aktivasi pertama disimpan ke `activationId`. DOSEN ditolak 403."
 					},
 					"response": []
 				},
@@ -1485,7 +1485,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
+						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
 					},
 					"response": []
 				},
@@ -2064,7 +2064,7 @@
 								"{{targetAssistantClassId}}"
 							]
 						},
-						"description": "`[{ id, nim, fullname }]`."
+						"description": "`[{ id, nim, fullname }]`. DOSEN hanya kelas mata kuliah yang ia ampu."
 					},
 					"response": []
 				},
@@ -2095,6 +2095,154 @@
 							]
 						},
 						"description": "Hanya LABORAN.\n\n- 200 berhasil\n- 404 bukan asisten kelas itu"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dosen",
+			"description": "Dosen hanya memantau mata kuliah yang ia ampu dan tidak bisa mengubah data apa pun. Semua request memakai `accessTokenDosen` (Dosen001 mengampu semua mata kuliah uji).",
+			"item": [
+				{
+					"name": "Ringkasan Dashboard Dosen",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenDosen}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/dosen",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"dosen"
+							]
+						},
+						"description": "Hanya DOSEN. Angka dashboard untuk mata kuliah yang ia ampu:\n\n`{ total_class, total_student, total_meeting, total_attended, total_expected_attendance, attendance_rate }`\n\n- `total_student`: mahasiswa di kelas-kelasnya, dihitung sekali walau ikut dua mata kuliah\n- `total_meeting`: semua pertemuan yang sudah dibuat\n- `total_expected_attendance`: jumlah mahasiswa × jumlah pertemuan per kelas, dijumlahkan\n- `attendance_rate`: persen hadir dibulatkan, `null` bila belum ada pertemuan atau mahasiswa\n\n403 \"Ringkasan ini hanya untuk dosen!\" untuk peran lain."
+					},
+					"response": []
+				},
+				{
+					"name": "Mata Kuliah yang Diampu",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenDosen}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject"
+							]
+						},
+						"description": "Untuk DOSEN, daftar mata kuliah hanya berisi yang ia ampu."
+					},
+					"response": []
+				},
+				{
+					"name": "Kelas yang Diampu",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenDosen}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class"
+							]
+						},
+						"description": "Untuk DOSEN, hanya kelas dari mata kuliah yang ia ampu."
+					},
+					"response": []
+				},
+				{
+					"name": "Presensi Kelas (Dosen)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenDosen}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{classId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{classId}}"
+							]
+						},
+						"description": "Tampilan staf (setiap pertemuan beserta status presensi mahasiswa) untuk kelas mata kuliah yang ia ampu. Kelas dosen lain dibalas 403 \"Kelas ini bukan mata kuliah yang Anda ampu.\""
+					},
+					"response": []
+				},
+				{
+					"name": "Pembayaran (Dosen Ditolak)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenDosen}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation"
+							]
+						},
+						"description": "Data pembayaran tertutup untuk dosen: 403 \"Data pembayaran praktikum hanya bisa dilihat laboran!\""
 					},
 					"response": []
 				}
