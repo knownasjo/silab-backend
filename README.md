@@ -664,19 +664,50 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 - dosen lama langsung kehilangan akses (403), termasuk ke riwayat saat ia
   masih mengampu. Riwayat dosen pengampu tidak disimpan (lihat batasan 13).
 
+### Tambah dan urutan pertemuan
+
+`POST /meeting` (LABORAN atau asisten kelas itu) memeriksa, berurutan:
+
+1. `classId` wajib teks: 400 "Kelas wajib diisi!" (sebelumnya `classId`
+   kosong atau berupa angka membuat server error 500).
+2. Kelas harus ada: 404 "Kelas tidak ditemukan!".
+3. Hak akses: 403 "Hanya laboran atau asisten kelas ini yang dapat
+   melakukannya!". Diperiksa sebelum judul, jadi yang tidak berhak tidak
+   mendapat petunjuk soal isi kelas.
+4. Judul dirapikan (spasi di awal/akhir dibuang, spasi ganda jadi satu), lalu
+   wajib ada dan paling banyak 50 karakter: 400 "Judul pertemuan wajib diisi!"
+   / "Judul pertemuan paling banyak 50 karakter!". Sebelumnya judul kosong
+   tetap tersimpan bila dikirim langsung ke API.
+5. Judul tidak boleh sama dengan pertemuan lain di kelas yang sama, tanpa
+   membedakan huruf besar-kecil dan spasi: 409 "Pertemuan 1 sudah ada di kelas
+   ini!" (memakai judul yang sudah tersimpan). Kelas lain boleh memakai judul
+   yang sama.
+
+Berhasil: 201 "Pertemuan 3 berhasil ditambahkan" dengan `data: { id }`.
+Huruf besar-kecil judul disimpan apa adanya ("pertemuan 1" tidak diubah
+menjadi "Pertemuan 1").
+
+Pemeriksaan kembar dan penyimpanan berjalan dalam satu transaksi yang lebih
+dulu mengambil `pg_advisory_xact_lock(hashtext(classId))`. Penambahan
+pertemuan di kelas yang sama jadi antre satu per satu, sehingga laboran dan
+asisten yang menyimpan judul sama pada saat bersamaan tidak bisa sama-sama
+lolos (diuji dengan lima permintaan sekaligus: satu 201, empat 409). Tidak ada
+constraint database untuk ini, karena unique index pada `lower(name)` butuh
+migrasi SQL manual.
+
+`GET /meeting/:classId` kini diurutkan menurut judul yang dirapikan dengan
+`Intl.Collator("id", { numeric: true, sensitivity: "base" })`: angka dibaca
+sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil
+diabaikan, lalu menurut waktu dibuat bila judulnya sama. Sebelumnya diurutkan
+menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
+(naik); aplikasi mobile membaliknya, jadi di sana nomor terbesar di atas.
+
 ### Aturan lain yang sudah diberlakukan
 
-- **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
-  apa pun menjadi `Pertemuan <angka>`. Nama lain (misal "Responsi") dibiarkan,
-  hanya dirapikan spasinya.
-- **Nama pertemuan tidak boleh ganda** dalam satu kelas (pemeriksaan di tingkat
-  aplikasi, bukan constraint database).
 - **Pindah kelas ditolak** bila mahasiswa sudah punya catatan presensi di kelas
   lama. Laboran harus menghapus presensinya dulu lewat
   `DELETE /meeting/:id/attendances/:userId`.
 - **Hapus pengumuman bersifat soft delete** — `deleted_at` diisi, baris tetap ada.
-- **`GET /meeting/:classId` diurutkan menurut `createdAt` naik**, supaya urutan
-  pertemuan stabil di dropdown dan kolom rekap presensi.
 - **Error tak terduga tidak lagi dibocorkan.** Error di luar kelas error
   aplikasi (misalnya error Prisma) dibalas 500 "Terjadi kesalahan pada
   server." dan detailnya dicetak di terminal backend. Sebelumnya pesan mentah
@@ -799,6 +830,11 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
     baru melihat seluruh data sejak awal dan dosen lama kehilangan akses ke
     data saat ia mengampu. Menyimpan riwayat butuh tabel dosen per periode,
     yang bergantung pada batasan 1 (belum ada periode akademik).
+
+14. **Pertemuan tidak bisa dihapus atau diganti judulnya.** Belum ada endpoint
+    untuk itu, jadi pertemuan yang salah dibuat tetap ada dan ikut dihitung di
+    rekap serta dashboard dosen (lihat batasan 10). Judul kembar dan judul
+    kosong kini ditolak saat dibuat (lihat "Tambah dan urutan pertemuan").
 
 ## Pekerjaan yang masih tersisa
 

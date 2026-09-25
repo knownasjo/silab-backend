@@ -7,7 +7,12 @@ import {
 } from "../interfaces/meeting.interface";
 import db from "../prisma/client.prisma";
 import { generateToken } from "../utils/GenerateMeetingToken/generate.token";
-import { ForbiddenError, NotFoundError } from "../utils/HttpErrors/HttptErrors";
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from "../utils/HttpErrors/HttptErrors";
 import { getCurrentQrToken } from "../utils/QrToken/qr.token";
 import { publishClassMembersEvent } from "../utils/RealtimeEvents/realtime.events";
 import {
@@ -16,45 +21,79 @@ import {
   isClassAssistant,
 } from "../utils/ClassAccess/class.access";
 
+const MEETING_NAME_MAX = 50;
+
+const readText = (value: unknown) =>
+  typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+
+const sameText = (a: string, b: string) =>
+  readText(a).toLowerCase() === readText(b).toLowerCase();
+
+const meetingNameOrder = new Intl.Collator("id", {
+  numeric: true,
+  sensitivity: "base",
+});
+
 export const SAddClassMeeting = async (
   body: IAddClassMeetingRequestBody,
   req: Request
-): Promise<IBaseResponse> => {
-  try {
-    const { meetingName, classId } = body;
+): Promise<IBaseResponse<{ id: string }>> => {
+  const user = req.user;
+  const classId = body?.classId;
 
-    const user = req.user;
+  if (typeof classId !== "string" || !classId.trim())
+    throw new BadRequestError("Kelas wajib diisi!");
 
-    const isClassExist = await db.mst_class.findUnique({
-      where: {
-        id: classId,
-      },
+  const isClassExist = await db.mst_class.findUnique({
+    where: {
+      id: classId,
+    },
+  });
+
+  if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  await assertCanManageClass(user, isClassExist.id);
+
+  const meetingName = readText(body?.meetingName);
+
+  if (!meetingName) throw new BadRequestError("Judul pertemuan wajib diisi!");
+
+  if (meetingName.length > MEETING_NAME_MAX)
+    throw new BadRequestError(
+      `Judul pertemuan paling banyak ${MEETING_NAME_MAX} karakter!`
+    );
+
+  const meeting = await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${isClassExist.id}))`;
+
+    const meetings = await tx.trn_meetings.findMany({
+      where: { classId: isClassExist.id, deleted_at: null },
+      select: { name: true },
     });
 
-    if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
+    const twin = meetings.find((other) => sameText(other.name, meetingName));
 
-    await assertCanManageClass(user, isClassExist.id);
+    if (twin) throw new ConflictError(`${twin.name} sudah ada di kelas ini!`);
 
-    const meeting = await db.trn_meetings.create({
+    return tx.trn_meetings.create({
       data: {
-        classId: classId,
+        classId: isClassExist.id,
         name: meetingName,
         token: generateToken(),
       },
     });
+  });
 
-    void publishClassMembersEvent(meeting.classId, "meeting", {
-      class_id: meeting.classId,
-      meeting_id: meeting.id,
-    });
+  void publishClassMembersEvent(meeting.classId, "meeting", {
+    class_id: meeting.classId,
+    meeting_id: meeting.id,
+  });
 
-    return {
-      status: true,
-      message: "Pertemuan berhasil ditambahkan",
-    };
-  } catch (error) {
-    throw error;
-  }
+  return {
+    status: true,
+    message: `${meeting.name} berhasil ditambahkan`,
+    data: { id: meeting.id },
+  };
 };
 
 export const SGetAllClassMeeting = async (
@@ -92,9 +131,7 @@ export const SGetAllClassMeeting = async (
         classId: isClassExist.id,
         deleted_at: null,
       },
-      orderBy: {
-        createdAt: "asc",
-      },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: {
         participants: {
           select: {
@@ -130,6 +167,10 @@ export const SGetAllClassMeeting = async (
             },
           },
         });
+
+    meetingsData.sort((a, b) =>
+      meetingNameOrder.compare(readText(a.name), readText(b.name))
+    );
 
     const data: IGetAllClassMeetingResponseBody[] = meetingsData.map(
       (meeting) => {

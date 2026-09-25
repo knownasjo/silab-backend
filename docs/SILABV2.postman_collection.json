@@ -1730,6 +1730,17 @@
 			"item": [
 				{
 					"name": "Tambah Pertemuan",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) pm.collectionVariables.set(\"meetingId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -1766,7 +1777,7 @@
 								"meeting"
 							]
 						},
-						"description": "LABORAN atau asisten kelas itu. Membuat data sungguhan.\n\n- 201 \"Pertemuan berhasil ditambahkan\""
+						"description": "LABORAN atau asisten kelas itu. Membuat data sungguhan. Spasi berlebih di judul dirapikan, dan judul tidak boleh sama dengan pertemuan lain di kelas yang sama (huruf besar-kecil dianggap sama), jadi menjalankan request ini dua kali ditolak 409. Kelas lain boleh memakai judul yang sama. Id pertemuan baru disimpan ke `meetingId`.\n\n- 201 \"<judul> berhasil ditambahkan\" `{ id }`\n- 400 \"Kelas wajib diisi!\", \"Judul pertemuan wajib diisi!\", \"Judul pertemuan paling banyak 50 karakter!\"\n- 403 \"Hanya laboran atau asisten kelas ini yang dapat melakukannya!\"\n- 404 \"Kelas tidak ditemukan!\"\n- 409 \"<judul> sudah ada di kelas ini!\""
 					},
 					"response": []
 				},
@@ -1809,7 +1820,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
+						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Pertemuan diurutkan menurut judul, dengan angka dibaca sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil diabaikan. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
 					},
 					"response": []
 				},
