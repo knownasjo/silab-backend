@@ -27,6 +27,7 @@ export interface IGetClassResponseBody {
   startAt: string;
   endAt: string;
   room: string;
+  sessionId: string | null;
   participants: number;
 }
 

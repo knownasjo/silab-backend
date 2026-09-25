@@ -1215,7 +1215,7 @@
 								"class"
 							]
 						},
-						"description": "LABORAN: semua kelas. DOSEN: hanya kelas dari mata kuliah yang ia ampu. MAHASISWA: hanya kelas yang ia pegang sebagai asisten (coba dengan `accessTokenAsisten`)."
+						"description": "LABORAN: semua kelas. DOSEN: hanya kelas dari mata kuliah yang ia ampu. MAHASISWA: hanya kelas yang ia pegang sebagai asisten (coba dengan `accessTokenAsisten`). Setiap kelas berisi jadwal, ruang, `sessionId`, kuota, dan jumlah peserta; halaman Jam Sesi di web memakai `sessionId` untuk menampilkan kelas per sesi."
 					},
 					"response": []
 				},

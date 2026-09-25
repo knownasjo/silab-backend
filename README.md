@@ -110,7 +110,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | POST | `/class` | LABORAN (lihat "Tambah kelas dan jam sesi") |
-| GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu) |
+| GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu). Berisi `sessionId` tiap kelas |
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
@@ -533,6 +533,9 @@ laboran (tabel `mst_session`, menu web Master Data → Jam Sesi).
   di sesi itu dalam satu transaksi dan mengirim event `session` serta `class`.
 - Sesi yang dipakai kelas tidak bisa dihapus (409 "... dipakai n kelas.
   Nonaktifkan saja ..."); sesi nonaktif tidak muncul di pilihan kelas baru.
+- `GET /session` hanya memberi jumlah kelas per sesi. Daftar kelasnya diambil
+  dari `GET /class`, yang kini berisi `sessionId`, supaya aturan akses kelas
+  tetap di satu tempat (`GET /session` bisa dibaca semua peran).
 
 `POST /class { subjectId, name, quota, day, room, sessionId }` (hanya LABORAN,
 selain itu 403) memeriksa, dengan pesan berbahasa Indonesia:

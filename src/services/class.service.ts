@@ -394,6 +394,7 @@ export const SGetAllClasses = async (
       quota: classData.quota,
       isFull: classData.quota === classData.participants.length,
       room: classData.room,
+      sessionId: classData.sessionId,
       day: classData.day,
       startAt: classData.startAt,
       endAt: classData.endAt,
