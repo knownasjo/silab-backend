@@ -1,9 +1,11 @@
+import { Prisma } from "@prisma/client";
 import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
   IAddClassMeetingRequestBody,
   IGetAllClassMeetingResponseBody,
   IGetMeetingQrTokenResponseBody,
+  IUpdateMeetingRequestBody,
 } from "../interfaces/meeting.interface";
 import db from "../prisma/client.prisma";
 import { generateToken } from "../utils/GenerateMeetingToken/generate.token";
@@ -34,6 +36,58 @@ const meetingNameOrder = new Intl.Collator("id", {
   sensitivity: "base",
 });
 
+const readMeetingName = (value: unknown) => {
+  const text = readText(value);
+  const name = text.charAt(0).toUpperCase() + text.slice(1);
+
+  if (!name) throw new BadRequestError("Judul pertemuan wajib diisi!");
+
+  if (name.length > MEETING_NAME_MAX)
+    throw new BadRequestError(
+      `Judul pertemuan paling banyak ${MEETING_NAME_MAX} karakter!`
+    );
+
+  return name;
+};
+
+const saveMeetingName = <T>(
+  classId: string,
+  name: string,
+  exceptId: string | null,
+  save: (tx: Prisma.TransactionClient) => Promise<T>
+) =>
+  db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${classId}))`;
+
+    const meetings = await tx.trn_meetings.findMany({
+      where: {
+        classId,
+        deleted_at: null,
+        ...(exceptId ? { id: { not: exceptId } } : {}),
+      },
+      select: { name: true },
+    });
+
+    const twin = meetings.find((other) => sameText(other.name, name));
+
+    if (twin) throw new ConflictError(`${twin.name} sudah ada di kelas ini!`);
+
+    return save(tx);
+  });
+
+const findManagedMeeting = async (meetingId: string, req: Request) => {
+  const meeting = await db.trn_meetings.findFirst({
+    where: { id: meetingId, deleted_at: null },
+    include: { _count: { select: { participants: true } } },
+  });
+
+  if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
+
+  await assertCanManageClass(req.user, meeting.classId);
+
+  return meeting;
+};
+
 export const SAddClassMeeting = async (
   body: IAddClassMeetingRequestBody,
   req: Request
@@ -54,45 +108,115 @@ export const SAddClassMeeting = async (
 
   await assertCanManageClass(user, isClassExist.id);
 
-  const meetingName = readText(body?.meetingName);
+  const meetingName = readMeetingName(body?.meetingName);
 
-  if (!meetingName) throw new BadRequestError("Judul pertemuan wajib diisi!");
-
-  if (meetingName.length > MEETING_NAME_MAX)
-    throw new BadRequestError(
-      `Judul pertemuan paling banyak ${MEETING_NAME_MAX} karakter!`
-    );
-
-  const meeting = await db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${isClassExist.id}))`;
-
-    const meetings = await tx.trn_meetings.findMany({
-      where: { classId: isClassExist.id, deleted_at: null },
-      select: { name: true },
-    });
-
-    const twin = meetings.find((other) => sameText(other.name, meetingName));
-
-    if (twin) throw new ConflictError(`${twin.name} sudah ada di kelas ini!`);
-
-    return tx.trn_meetings.create({
-      data: {
-        classId: isClassExist.id,
-        name: meetingName,
-        token: generateToken(),
-      },
-    });
-  });
+  const meeting = await saveMeetingName(
+    isClassExist.id,
+    meetingName,
+    null,
+    (tx) =>
+      tx.trn_meetings.create({
+        data: {
+          classId: isClassExist.id,
+          name: meetingName,
+          token: generateToken(),
+        },
+      })
+  );
 
   void publishClassMembersEvent(meeting.classId, "meeting", {
     class_id: meeting.classId,
     meeting_id: meeting.id,
+    action: "created",
   });
 
   return {
     status: true,
     message: `${meeting.name} berhasil ditambahkan`,
     data: { id: meeting.id },
+  };
+};
+
+export const SUpdateMeeting = async (
+  meetingId: string,
+  body: IUpdateMeetingRequestBody,
+  req: Request
+): Promise<IBaseResponse> => {
+  const meeting = await findManagedMeeting(meetingId, req);
+  const meetingName = readMeetingName(body?.meetingName);
+
+  if (meetingName === meeting.name)
+    return { status: true, message: "Tidak ada perubahan pada pertemuan" };
+
+  await saveMeetingName(meeting.classId, meetingName, meeting.id, (tx) =>
+    tx.trn_meetings.update({
+      where: { id: meeting.id },
+      data: { name: meetingName, updated_at: new Date() },
+    })
+  );
+
+  void publishClassMembersEvent(meeting.classId, "meeting", {
+    class_id: meeting.classId,
+    meeting_id: meeting.id,
+    action: "updated",
+  });
+
+  return {
+    status: true,
+    message: `${meeting.name} berhasil diubah menjadi ${meetingName}`,
+  };
+};
+
+export const SDeleteMeeting = async (
+  meetingId: string,
+  req: Request
+): Promise<IBaseResponse> => {
+  const meeting = await findManagedMeeting(meetingId, req);
+
+  const assertDeletable = (current: typeof meeting) => {
+    if (current.status)
+      throw new ConflictError(
+        "Sesi presensi pertemuan ini sedang dibuka. Tutup sesinya dulu sebelum menghapus."
+      );
+
+    if (current._count.participants > 0)
+      throw new ConflictError(
+        `Pertemuan ini sudah punya ${current._count.participants} presensi, jadi tidak bisa dihapus. Hapus presensinya dulu atau ubah judulnya.`
+      );
+  };
+
+  assertDeletable(meeting);
+
+  try {
+    const { count } = await db.trn_meetings.deleteMany({
+      where: { id: meeting.id, status: false },
+    });
+
+    if (count === 0) {
+      assertDeletable(await findManagedMeeting(meetingId, req));
+      throw new ConflictError("Pertemuan ini baru saja berubah, coba lagi.");
+    }
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    )
+      throw new ConflictError(
+        "Presensi baru saja tercatat di pertemuan ini, jadi tidak bisa dihapus."
+      );
+
+    throw error;
+  }
+
+  void publishClassMembersEvent(meeting.classId, "meeting", {
+    class_id: meeting.classId,
+    meeting_id: meeting.id,
+    action: "deleted",
+  });
+
+  return {
+    status: true,
+    message: `${meeting.name} berhasil dihapus`,
   };
 };
 

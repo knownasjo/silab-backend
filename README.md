@@ -132,6 +132,8 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | POST | `/meeting` | LABORAN, asisten kelas itu |
 | GET | `/meeting/:classId` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | GET | `/meeting/:id/qr` | LABORAN, asisten kelas itu |
+| PUT | `/meeting/:id` | LABORAN, asisten kelas itu (ubah judul) |
+| DELETE | `/meeting/:id` | LABORAN, asisten kelas itu (hanya pertemuan tanpa presensi yang sesinya ditutup) |
 | PUT | `/meeting/:id/status` | LABORAN, asisten kelas itu |
 | PUT | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
 | DELETE | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
@@ -415,7 +417,7 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 | `subject` | `subject_id` (+ `action: "updated"` saat diubah) | mata kuliah ditambah atau diubah | semua |
 | `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
 | `activation` | `{}` (atau `class_id` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
-| `meeting` | `class_id`, `meeting_id` | pertemuan ditambah, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
+| `meeting` | `class_id`, `meeting_id` (+ `action`: `created`, `updated`, atau `deleted` saat pertemuan ditambah, diubah judulnya, atau dihapus) | pertemuan ditambah, diubah judulnya, atau dihapus, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
 | `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |
 | `session` | `session_id` | jam sesi ditambah, diubah, dinonaktifkan, atau dihapus | semua |
 | `ping` | `{}` | setiap 25 detik | semua, untuk menjaga koneksi |
@@ -664,7 +666,7 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 - dosen lama langsung kehilangan akses (403), termasuk ke riwayat saat ia
   masih mengampu. Riwayat dosen pengampu tidak disimpan (lihat batasan 13).
 
-### Tambah dan urutan pertemuan
+### Tambah, ubah, hapus, dan urutan pertemuan
 
 `POST /meeting` (LABORAN atau asisten kelas itu) memeriksa, berurutan:
 
@@ -674,8 +676,9 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 3. Hak akses: 403 "Hanya laboran atau asisten kelas ini yang dapat
    melakukannya!". Diperiksa sebelum judul, jadi yang tidak berhak tidak
    mendapat petunjuk soal isi kelas.
-4. Judul dirapikan (spasi di awal/akhir dibuang, spasi ganda jadi satu), lalu
-   wajib ada dan paling banyak 50 karakter: 400 "Judul pertemuan wajib diisi!"
+4. Judul dirapikan (spasi di awal/akhir dibuang, spasi ganda jadi satu) dan
+   huruf pertamanya dijadikan kapital, lalu wajib ada dan paling banyak 50
+   karakter: 400 "Judul pertemuan wajib diisi!"
    / "Judul pertemuan paling banyak 50 karakter!". Sebelumnya judul kosong
    tetap tersimpan bila dikirim langsung ke API.
 5. Judul tidak boleh sama dengan pertemuan lain di kelas yang sama, tanpa
@@ -684,8 +687,11 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
    yang sama.
 
 Berhasil: 201 "Pertemuan 3 berhasil ditambahkan" dengan `data: { id }`.
-Huruf besar-kecil judul disimpan apa adanya ("pertemuan 1" tidak diubah
-menjadi "Pertemuan 1").
+Hanya huruf pertama yang dijadikan kapital, sisanya disimpan sesuai ketikan:
+"pertemuan 1" menjadi "Pertemuan 1", "uts" menjadi "Uts", "UTS" tetap "UTS",
+dan judul berawalan angka tidak berubah. Judul lama yang berhuruf kecil
+("pertemuan 1", "pertemuan 3", dan "asbduad" di Data Mining A) sudah
+diperbarui sekali lewat skrip.
 
 Pemeriksaan kembar dan penyimpanan berjalan dalam satu transaksi yang lebih
 dulu mengambil `pg_advisory_xact_lock(hashtext(classId))`. Penambahan
@@ -694,6 +700,31 @@ asisten yang menyimpan judul sama pada saat bersamaan tidak bisa sama-sama
 lolos (diuji dengan lima permintaan sekaligus: satu 201, empat 409). Tidak ada
 constraint database untuk ini, karena unique index pada `lower(name)` butuh
 migrasi SQL manual.
+
+`PUT /meeting/:id` mengubah judul dengan aturan yang sama (404 "Pertemuan
+tidak ditemukan!", 403, 400, dan 409 kembar; pertemuan itu sendiri tidak
+dihitung kembar, jadi "Uts" boleh diubah menjadi "UTS"). Judul yang sama
+setelah dirapikan dan dikapitalkan dibalas 200 "Tidak ada perubahan pada
+pertemuan" tanpa event. Pertemuan yang sudah punya presensi atau sesinya
+sedang dibuka tetap boleh diubah judulnya, karena presensinya tidak
+tersentuh. Berhasil: 200 "Pertemuan 2 berhasil diubah menjadi Responsi".
+
+`DELETE /meeting/:id` menghapus permanen (bukan `deleted_at`), dengan
+penolakan:
+
+- 409 "Sesi presensi pertemuan ini sedang dibuka. Tutup sesinya dulu sebelum
+  menghapus." Mahasiswa mungkin sedang memindai QR.
+- 409 "Pertemuan ini sudah punya n presensi, jadi tidak bisa dihapus. Hapus
+  presensinya dulu atau ubah judulnya." Catatan "tidak hadir" juga dihitung.
+  Presensi bisa dihapus satu per satu lewat
+  `DELETE /meeting/:id/attendances/:userId`.
+
+Penghapusan memakai `deleteMany` dengan syarat sesi masih tertutup, jadi sesi
+yang baru saja dibuka di antara pemeriksaan dan penghapusan tetap menolak.
+Presensi yang tercatat pada saat yang sama ditolak foreign key (Prisma P2003)
+dan dibalas 409 "Presensi baru saja tercatat di pertemuan ini, jadi tidak
+bisa dihapus." Berhasil: 200 "Pertemuan 2 berhasil dihapus". Judulnya bisa
+dipakai lagi setelah itu.
 
 `GET /meeting/:classId` kini diurutkan menurut judul yang dirapikan dengan
 `Intl.Collator("id", { numeric: true, sensitivity: "base" })`: angka dibaca
@@ -734,15 +765,20 @@ Pola password: nama awal akun dalam huruf kecil. Laboran dan dosen memakai NIY
 
 | NIM / NIY | Password | Role |
 |---|---|---|
-| 60010002 | laboran002 | LABORAN |
+| 60010002 | laboran002 | LABORAN (nama tampilan kini "akun test") |
 | 60010001 | laboran001 | LABORAN |
+| 60020001 | dosen001 | DOSEN (mengampu keempat mata kuliah) |
 | 2000016099 | mahasiswa001 | MAHASISWA |
-| 2000016101 | asisten001 | MAHASISWA (asisten Alpro D) |
-| 60020001 | dosen001 | DOSEN |
+| 2000016100 | mahasiswa002 | MAHASISWA (peserta Alpro D) |
+| 2000016104 | mahasiswa004 | MAHASISWA (peserta Alpro C dan Data Mining A) |
+| 2000016105 | mahasiswa005 | MAHASISWA (asisten Alpro C) |
 
-Data uji: kelas `652fb265-0d30-45c6-90eb-b37b1c3f3127` (Algoritma dan
-Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`
-(Pertemuan 1).
+Akun asisten001 (2000016101) sudah dihapus; Mahasiswa005 menggantikannya
+sebagai akun asisten di Postman.
+
+Data uji: kelas `2e32063e-fa79-478c-9b66-4f071d25cca5` (Algoritma dan
+Pemrograman, kelas C), pertemuan `9d68f112-6b59-4d4f-9cfe-e3ca46a0be40`
+(Pertemuan 1 kelas C).
 
 ### Menghapus akun mahasiswa uji
 
@@ -830,11 +866,6 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
     baru melihat seluruh data sejak awal dan dosen lama kehilangan akses ke
     data saat ia mengampu. Menyimpan riwayat butuh tabel dosen per periode,
     yang bergantung pada batasan 1 (belum ada periode akademik).
-
-14. **Pertemuan tidak bisa dihapus atau diganti judulnya.** Belum ada endpoint
-    untuk itu, jadi pertemuan yang salah dibuat tetap ada dan ikut dihitung di
-    rekap serta dashboard dosen (lihat batasan 10). Judul kembar dan judul
-    kosong kini ditolak saat dibuat (lihat "Tambah dan urutan pertemuan").
 
 ## Pekerjaan yang masih tersisa
 

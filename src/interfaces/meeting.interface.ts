@@ -3,6 +3,10 @@ export interface IAddClassMeetingRequestBody {
   meetingName: string;
 }
 
+export interface IUpdateMeetingRequestBody {
+  meetingName: string;
+}
+
 export interface IGetAllClassMeetingResponseBody {
   id: string;
   meeting_name: string;

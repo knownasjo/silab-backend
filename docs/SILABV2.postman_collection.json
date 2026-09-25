@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "6dcbc2f1-3896-4c0c-8c79-96241f90aea3",
 		"name": "SILABV2",
-		"description": "Koleksi endpoint backend SILAB (Express + Prisma). Daftar endpoint lengkap dan aturannya ada di README `silab-backend`.\n\n**Cara pakai**\n1. Pastikan variabel `baseUrl` sesuai (bawaan `http://localhost:3000`).\n2. Jalankan request di folder **Auth** (Login - Laboran, Mahasiswa, Dosen, Asisten). Token tersimpan otomatis dan dipakai request lain.\n3. Request yang mengubah data memakai **akun baru** dari folder Pendaftaran Mahasiswa (`accessTokenBaru`) atau data baru (mata kuliah, akun dosen, pertemuan) agar akun uji lain tidak berubah. Kode verifikasi dan kode reset diisi manual ke variabel `verificationCode` dan `resetCode`.\n\n**Perhatian:** POST/PUT/DELETE mengubah data sungguhan di database. Akun mahasiswa uji bisa dihapus lagi dengan `npm run hapus-akun <NIM>`.\n\nAkun uji: Laboran 60010002/laboran002, Mahasiswa 2000016099/mahasiswa001, Dosen 60020001/dosen001, Asisten 2000016101/asisten001. Mahasiswa login dengan NIM, dosen dan laboran dengan NIY (8 angka); field-nya tetap bernama `nim`.\n\nFolder **Dosen** berisi apa saja yang bisa dibaca dosen; dosen tidak bisa mengubah data apa pun.\n\nAccess token yang kedaluwarsa atau dicabut dibalas **400 `jwt expired`**; jalankan Login lagi atau Refresh Token.",
+		"description": "Koleksi endpoint backend SILAB (Express + Prisma). Daftar endpoint lengkap dan aturannya ada di README `silab-backend`.\n\n**Cara pakai**\n1. Pastikan variabel `baseUrl` sesuai (bawaan `http://localhost:3000`).\n2. Jalankan request di folder **Auth** (Login - Laboran, Mahasiswa, Dosen, Asisten). Token tersimpan otomatis dan dipakai request lain.\n3. Request yang mengubah data memakai **akun baru** dari folder Pendaftaran Mahasiswa (`accessTokenBaru`) atau data baru (mata kuliah, akun dosen, pertemuan) agar akun uji lain tidak berubah. Kode verifikasi dan kode reset diisi manual ke variabel `verificationCode` dan `resetCode`.\n\n**Perhatian:** POST/PUT/DELETE mengubah data sungguhan di database. Akun mahasiswa uji bisa dihapus lagi dengan `npm run hapus-akun <NIM>`.\n\nAkun uji: Laboran 60010002/laboran002, Mahasiswa 2000016099/mahasiswa001, Dosen 60020001/dosen001, Asisten 2000016105/mahasiswa005. Mahasiswa login dengan NIM, dosen dan laboran dengan NIY (8 angka); field-nya tetap bernama `nim`.\n\nFolder **Dosen** berisi apa saja yang bisa dibaca dosen; dosen tidak bisa mengubah data apa pun.\n\nAccess token yang kedaluwarsa atau dicabut dibalas **400 `jwt expired`**; jalankan Login lagi atau Refresh Token.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -178,7 +178,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"nim\": \"2000016101\",\n  \"password\": \"asisten001\"\n}",
+							"raw": "{\n  \"nim\": \"2000016105\",\n  \"password\": \"mahasiswa005\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -195,7 +195,7 @@
 								"login"
 							]
 						},
-						"description": "Masuk dengan NIM dan password akun uji asisten. Token disimpan otomatis ke variabel `accessTokenAsisten`. Akun ini MAHASISWA yang menjadi asisten Algoritma dan Pemrograman kelas D (`{{assistantClassId}}`).\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+						"description": "Masuk dengan NIM dan password akun uji asisten. Token disimpan otomatis ke variabel `accessTokenAsisten`. Akun ini MAHASISWA (Mahasiswa005) yang menjadi asisten Algoritma dan Pemrograman kelas C (`{{assistantClassId}}`).\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
 					},
 					"response": []
 				},
@@ -2135,6 +2135,78 @@
 						"description": "Menutup sesi; pemindaian berikutnya dibalas 403 \"Sesi presensi belum dibuka!\"."
 					},
 					"response": []
+				},
+				{
+					"name": "Ubah Judul Pertemuan",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"meetingName\": \"{{meetingNewName}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. Aturan judul sama dengan Tambah Pertemuan (dirapikan, huruf pertama dijadikan kapital, paling banyak 50 karakter, tidak boleh sama dengan pertemuan lain di kelas itu). Boleh untuk pertemuan yang sudah punya presensi atau sesinya sedang dibuka; presensinya tidak berubah.\n\n- 200 \"<judul lama> berhasil diubah menjadi <judul baru>\"\n- 200 \"Tidak ada perubahan pada pertemuan\"\n- 400 \"Judul pertemuan wajib diisi!\", \"Judul pertemuan paling banyak 50 karakter!\"\n- 403 \"Hanya laboran atau asisten kelas ini yang dapat melakukannya!\"\n- 404 \"Pertemuan tidak ditemukan!\"\n- 409 \"<judul> sudah ada di kelas ini!\""
+					},
+					"response": []
+				},
+				{
+					"name": "Hapus Pertemuan",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. Menghapus permanen pertemuan yang sesinya ditutup dan belum punya presensi (catatan hadir maupun tidak hadir). Di koleksi ini dijalankan setelah Hapus Presensi dan Tutup Sesi Presensi, jadi pertemuan buatan Postman bisa dihapus.\n\n- 200 \"<judul> berhasil dihapus\"\n- 403 \"Hanya laboran atau asisten kelas ini yang dapat melakukannya!\"\n- 404 \"Pertemuan tidak ditemukan!\"\n- 409 \"Sesi presensi pertemuan ini sedang dibuka. Tutup sesinya dulu sebelum menghapus.\"\n- 409 \"Pertemuan ini sudah punya n presensi, jadi tidak bisa dihapus. Hapus presensinya dulu atau ubah judulnya.\""
+					},
+					"response": []
 				}
 			]
 		},
@@ -2777,9 +2849,9 @@
 		},
 		{
 			"key": "assistantClassId",
-			"value": "65b8e179-f3a8-4b2a-bdda-27569e6b54ff",
+			"value": "2e32063e-fa79-478c-9b66-4f071d25cca5",
 			"type": "string",
-			"description": "Algoritma dan Pemrograman kelas D, dipegang asisten001"
+			"description": "Algoritma dan Pemrograman kelas C, dipegang Mahasiswa005"
 		},
 		{
 			"key": "targetAssistantClassId",
@@ -2816,6 +2888,12 @@
 			"value": "Pertemuan dari Postman",
 			"type": "string",
 			"description": "Nama pertemuan baru"
+		},
+		{
+			"key": "meetingNewName",
+			"value": "Pertemuan dari Postman (diubah)",
+			"type": "string",
+			"description": "Judul baru untuk Ubah Judul Pertemuan"
 		},
 		{
 			"key": "meetingId",

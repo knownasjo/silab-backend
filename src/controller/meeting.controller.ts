@@ -1,8 +1,10 @@
 import { NextFunction, Request, Response } from "express";
 import {
   SAddClassMeeting,
+  SDeleteMeeting,
   SGetAllClassMeeting,
   SGetMeetingQrToken,
+  SUpdateMeeting,
   SUpdateMeetingStatus,
 } from "../services/meeting.service";
 
@@ -62,6 +64,38 @@ export const CUpdateMeetingStatus = async (
     const status = Boolean(req.body.status);
 
     const resData = await SUpdateMeetingStatus(meetingId, status, req);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CUpdateMeeting = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SUpdateMeeting(
+      req.params.id.toString(),
+      req.body,
+      req
+    );
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CDeleteMeeting = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SDeleteMeeting(req.params.id.toString(), req);
 
     res.status(200).json(resData);
   } catch (error: any) {
