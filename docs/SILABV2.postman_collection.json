@@ -195,7 +195,7 @@
 								"login"
 							]
 						},
-						"description": "Masuk dengan NIM dan password akun uji asisten. Token disimpan otomatis ke variabel `accessTokenAsisten`. Akun ini MAHASISWA yang menjadi asisten Algoritma dan Pemrograman kelas B (`{{assistantClassId}}`).\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+						"description": "Masuk dengan NIM dan password akun uji asisten. Token disimpan otomatis ke variabel `accessTokenAsisten`. Akun ini MAHASISWA yang menjadi asisten Algoritma dan Pemrograman kelas D (`{{assistantClassId}}`).\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
 					},
 					"response": []
 				},
@@ -948,6 +948,177 @@
 			]
 		},
 		{
+			"name": "Jam Sesi",
+			"description": "Jam sesi praktikum dalam dua kelompok hari: `WEEKDAY` (Senin–Kamis) dan `FRIDAY` (Jumat). Kelas mengikuti jam sesinya, jadi mengubah jam sesi ikut mengubah jam semua kelas di sesi itu.",
+			"item": [
+				{
+					"name": "Semua Jam Sesi",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/session?day=&active=",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"session"
+							],
+							"query": [
+								{
+									"key": "day",
+									"value": "",
+									"description": "MONDAY–FRIDAY: hanya sesi untuk hari itu (opsional)"
+								},
+								{
+									"key": "active",
+									"value": "",
+									"description": "true: hanya sesi aktif (opsional)"
+								}
+							]
+						},
+						"description": "Semua peran yang login. Urut per kelompok hari lalu jam mulai: `[{ id, day_group, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Form Tambah Praktikum memakai `?day=<hari>&active=true`."
+					},
+					"response": []
+				},
+				{
+					"name": "Tambah Jam Sesi",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) pm.collectionVariables.set(\"newSessionId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"day_group\": \"FRIDAY\",\n  \"number\": 9,\n  \"startAt\": \"18.00\",\n  \"endAt\": \"19.00\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/session",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"session"
+							]
+						},
+						"description": "Hanya LABORAN. `day_group`: WEEKDAY atau FRIDAY, `number` 1–20 (unik per kelompok), jam `JJ.MM` dan jam mulai sebelum jam selesai. Id sesi baru disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat berhasil ditambahkan\"\n- 400 format salah\n- 409 \"Sesi n ... sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n ... (JJ.MM–JJ.MM)!\""
+					},
+					"response": []
+				},
+				{
+					"name": "Ubah Jam Sesi",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"startAt\": \"18.30\",\n  \"endAt\": \"19.30\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/session/{{newSessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"session",
+								"{{newSessionId}}"
+							]
+						},
+						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `is_active` (false = nonaktif, tidak muncul di pilihan kelas baru). Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim.\n\n- 200 \"Sesi n ... berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\")\n- 409 tumpang tindih dengan sesi lain"
+					},
+					"response": []
+				},
+				{
+					"name": "Hapus Jam Sesi",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/session/{{newSessionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"session",
+								"{{newSessionId}}"
+							]
+						},
+						"description": "Hanya LABORAN, dan hanya sesi yang belum dipakai kelas. Sesi yang dipakai dibalas 409 \"... dipakai n kelas. Nonaktifkan saja ...\"."
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Kelas",
 			"description": "",
 			"item": [
@@ -973,7 +1144,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"subjectId\": \"{{newSubjectId}}\",\n  \"name\": \"A\",\n  \"quota\": 25,\n  \"day\": \"FRIDAY\",\n  \"startAt\": \"13.00\",\n  \"endAt\": \"14.40\",\n  \"room\": \"PSI\"\n}",
+							"raw": "{\n  \"subjectId\": \"{{newSubjectId}}\",\n  \"name\": \"A\",\n  \"quota\": 25,\n  \"day\": \"MONDAY\",\n  \"room\": \"SBTI\",\n  \"sessionId\": \"{{sessionId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -989,7 +1160,7 @@
 								"class"
 							]
 						},
-						"description": "Hanya LABORAN. `day`: MONDAY–FRIDAY, `room`: PSI atau SBTI, jam `HH.MM`. Membuat data sungguhan.\n\n- 201 \"Class added\"\n- 409 \"Class on subject already exist\""
+						"description": "Hanya LABORAN. `name` satu huruf A–Z (huruf kecil diubah jadi besar), `quota` 1–99, `day` MONDAY–FRIDAY, `room` PSI atau SBTI, `sessionId` dari \"Semua Jam Sesi\" yang aktif dan sesuai kelompok harinya. Jam kelas diambil dari sesi. Membuat data sungguhan.\n\n- 201 \"Kelas <mata kuliah> A berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid, sesi nonaktif, atau sesi bukan untuk hari itu\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kelas A sudah ada di ...!\" atau \"Ruang PSI sudah dipakai <mata kuliah> kelas X (Senin, 07.00 - 08.40).\""
 					},
 					"response": []
 				},
@@ -2430,27 +2601,39 @@
 		},
 		{
 			"key": "classId",
-			"value": "652fb265-0d30-45c6-90eb-b37b1c3f3127",
+			"value": "2e32063e-fa79-478c-9b66-4f071d25cca5",
 			"type": "string",
-			"description": "Algoritma dan Pemrograman kelas A"
+			"description": "Algoritma dan Pemrograman kelas C"
 		},
 		{
 			"key": "otherClassId",
-			"value": "2e32063e-fa79-478c-9b66-4f071d25cca5",
+			"value": "65b8e179-f3a8-4b2a-bdda-27569e6b54ff",
 			"type": "string",
-			"description": "Algoritma dan Pemrograman kelas C (tujuan Pindah Kelas)"
+			"description": "Algoritma dan Pemrograman kelas D (tujuan Pindah Kelas)"
 		},
 		{
 			"key": "assistantClassId",
-			"value": "b8dca325-3f74-419d-92b3-cca95e82ebb8",
+			"value": "65b8e179-f3a8-4b2a-bdda-27569e6b54ff",
 			"type": "string",
-			"description": "Algoritma dan Pemrograman kelas B, dipegang asisten001"
+			"description": "Algoritma dan Pemrograman kelas D, dipegang asisten001"
 		},
 		{
 			"key": "targetAssistantClassId",
-			"value": "4f879e1d-3eca-4206-af66-97073615bee5",
+			"value": "456d7731-6c10-478d-8f53-88d2bccdb839",
 			"type": "string",
-			"description": "Interaksi Manusia dan Komputer kelas A (contoh Tambah Asisten)"
+			"description": "Data Mining kelas A (contoh Tambah Asisten)"
+		},
+		{
+			"key": "sessionId",
+			"value": "a6d19628-e831-4739-98ac-5b5b426538e9",
+			"type": "string",
+			"description": "Sesi 2 Senin–Kamis (dipakai Tambah Kelas)"
+		},
+		{
+			"key": "newSessionId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Tambah Jam Sesi"
 		},
 		{
 			"key": "lecturerId",
@@ -2466,9 +2649,9 @@
 		},
 		{
 			"key": "meetingId",
-			"value": "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
+			"value": "9d68f112-6b59-4d4f-9cfe-e3ca46a0be40",
 			"type": "string",
-			"description": "Pertemuan 1 kelas A; diganti otomatis oleh Daftar Pertemuan Kelas"
+			"description": "Pertemuan 1 kelas C; diganti otomatis oleh Daftar Pertemuan Kelas"
 		},
 		{
 			"key": "qrToken",

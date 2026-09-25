@@ -21,44 +21,112 @@ import { Request } from "express";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 import { assertNoAssistantScheduleClash } from "../utils/AssistantRules/assistant.rules";
 import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
+import {
+  DAY_LABELS,
+  dayGroupOf,
+  formatSchedule,
+  isScheduleClash,
+} from "../utils/Schedule/schedule";
+
+const readText = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+
+const readQuota = (value: unknown) => {
+  const quota =
+    typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+
+  if (!Number.isInteger(quota) || (quota as number) < 1 || (quota as number) > 99)
+    throw new BadRequestError("Kuota harus angka 1 sampai 99!");
+
+  return quota as number;
+};
 
 export const SAddClass = async (
   body: IAddClassRequestBody,
   req: Request
-): Promise<IBaseResponse> => {
-  try {
-    const { name, room, day, subjectId } = body;
+): Promise<IBaseResponse<{ id: string }>> => {
+  if (req.user?.role !== "LABORAN")
+    throw new ForbiddenError("Hanya laboran yang dapat menambah kelas!");
 
-    if (req.user?.role !== "LABORAN")
-      throw new UnauthorizedError("User not allowed to add subject");
+  const subjectId = readText(body?.subjectId);
+  const name = readText(body?.name).toUpperCase();
+  const day = readText(body?.day);
+  const room = readText(body?.room);
+  const sessionId = readText(body?.sessionId);
 
-    const isClassExist = await db.mst_class.findFirst({
-      where: {
-        name: name,
-        subjectId: subjectId,
-      },
-    });
+  if (!subjectId) throw new BadRequestError("Mata kuliah wajib dipilih!");
 
-    if (isClassExist) throw new ConflictError("Class on subject already exist");
+  if (!/^[A-Z]$/.test(name))
+    throw new BadRequestError("Nama kelas harus satu huruf A–Z!");
 
-    const newClass = await db.mst_class.create({
-      data: {
-        ...body,
-        day: day as DaysOfWeek,
-        room: room as ClassRoom,
-        created_by: req.user?.id!,
-      },
-    });
+  const quota = readQuota(body?.quota);
 
-    publishRealtimeEvent("class", { class_id: newClass.id, action: "created" });
+  if (!Object.values(DaysOfWeek).includes(day as DaysOfWeek))
+    throw new BadRequestError("Hari harus Senin sampai Jumat!");
 
-    return {
-      status: true,
-      message: "Class added",
-    };
-  } catch (error) {
-    throw error;
-  }
+  if (!Object.values(ClassRoom).includes(room as ClassRoom))
+    throw new BadRequestError("Ruangan harus PSI atau SBTI!");
+
+  if (!sessionId) throw new BadRequestError("Sesi kelas wajib dipilih!");
+
+  const subject = await db.mst_subject.findFirst({
+    where: { id: subjectId, deleted_at: null },
+  });
+
+  if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
+
+  const session = await db.mst_session.findUnique({ where: { id: sessionId } });
+
+  if (!session || !session.is_active)
+    throw new BadRequestError("Sesi tidak ditemukan atau sudah nonaktif!");
+
+  if (session.day_group !== dayGroupOf(day))
+    throw new BadRequestError(
+      `Sesi ${session.number} bukan sesi hari ${DAY_LABELS[day]}!`
+    );
+
+  const duplicate = await db.mst_class.findFirst({
+    where: { subjectId, name, deleted_at: null },
+  });
+
+  if (duplicate)
+    throw new ConflictError(
+      `Kelas ${name} sudah ada di ${subject.subject_name}!`
+    );
+
+  const schedule = { day, startAt: session.startAt, endAt: session.endAt };
+  const sameRoom = await db.mst_class.findMany({
+    where: { day: day as DaysOfWeek, room: room as ClassRoom, deleted_at: null },
+    include: { subject: { select: { subject_name: true } } },
+  });
+  const clash = sameRoom.find((item) => isScheduleClash(item, schedule));
+
+  if (clash)
+    throw new ConflictError(
+      `Ruang ${room} sudah dipakai ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
+    );
+
+  const newClass = await db.mst_class.create({
+    data: {
+      subjectId,
+      name,
+      quota,
+      day: day as DaysOfWeek,
+      room: room as ClassRoom,
+      sessionId,
+      startAt: session.startAt,
+      endAt: session.endAt,
+      created_by: req.user.id,
+    },
+  });
+
+  publishRealtimeEvent("class", { class_id: newClass.id, action: "created" });
+
+  return {
+    status: true,
+    message: `Kelas ${subject.subject_name} ${name} berhasil ditambahkan`,
+    data: { id: newClass.id },
+  };
 };
 
 export const SGetAllClasses = async (

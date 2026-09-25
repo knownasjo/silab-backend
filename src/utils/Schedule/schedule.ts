@@ -1,4 +1,4 @@
-const DAY_LABELS: Record<string, string> = {
+export const DAY_LABELS: Record<string, string> = {
   MONDAY: "Senin",
   TUESDAY: "Selasa",
   WEDNESDAY: "Rabu",
@@ -12,10 +12,21 @@ interface ISchedule {
   endAt: string;
 }
 
-const toMinutes = (time: string) => {
+export const toMinutes = (time: string) => {
   const match = /^(\d{1,2})[.:](\d{2})$/.exec(time.trim());
   return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 };
+
+export const isValidTime = (time: string) =>
+  /^([01]\d|2[0-3])\.[0-5]\d$/.test(time);
+
+export const DAY_GROUP_LABELS: Record<string, string> = {
+  WEEKDAY: "Senin–Kamis",
+  FRIDAY: "Jumat",
+};
+
+export const dayGroupOf = (day: string) =>
+  day === "FRIDAY" ? "FRIDAY" : "WEEKDAY";
 
 export const isScheduleClash = (a: ISchedule, b: ISchedule) => {
   if (a.day !== b.day) return false;

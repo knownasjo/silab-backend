@@ -1,12 +1,10 @@
 export interface IAddClassRequestBody {
-  subjectId: string;
-  name: string;
-  quota: number;
-  day: string;
-  startAt: string;
-  endAt: string;
-  room: string;
-  created_by: string;
+  subjectId?: string;
+  name?: string;
+  quota?: number;
+  day?: string;
+  room?: string;
+  sessionId?: string;
 }
 
 export interface IGetClassResponseBody {

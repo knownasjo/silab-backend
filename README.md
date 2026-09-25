@@ -108,13 +108,17 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | POST | `/subject` | LABORAN |
 | GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
-| POST | `/class` | LABORAN |
+| POST | `/class` | LABORAN (lihat "Tambah kelas dan jam sesi") |
 | GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
 | GET | `/class/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri, DOSEN hanya kelas mata kuliah yang ia ampu) |
+| GET | `/session?day=&active=` | login (jam sesi; `day` = hari kelas, `active=true` = hanya yang aktif) |
+| POST | `/session` | LABORAN |
+| PUT | `/session/:id` | LABORAN (ubah jam, nomor, atau status aktif) |
+| DELETE | `/session/:id` | LABORAN (hanya sesi yang belum dipakai kelas) |
 | POST | `/activation` | MAHASISWA |
 | GET | `/activation?status=&name=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak |
 | PUT | `/activation/:id` | LABORAN |
@@ -143,7 +147,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
 ### Koleksi Postman
 
-`docs/SILABV2.postman_collection.json` berisi 58 request untuk semua endpoint
+`docs/SILABV2.postman_collection.json` berisi 62 request untuk semua endpoint
 di atas, dikelompokkan per fitur, masing-masing dengan keterangan peran dan
 balasan yang diharapkan. Import ke Postman, lalu:
 
@@ -158,6 +162,9 @@ balasan yang diharapkan. Import ke Postman, lalu:
 4. Folder **Dosen** berisi semua yang bisa dibaca dosen: ringkasan dashboard,
    mata kuliah dan kelas yang diampu, presensi kelas, dan contoh penolakan data
    pembayaran.
+5. Folder **Jam Sesi** membuat sesi contoh (Sesi 9 Jumat), mengubah, lalu
+   menghapusnya. "Tambah Kelas" memakai variabel `sessionId` (Sesi 2
+   Senin–Kamis).
 
 POST/PUT/DELETE mengubah data sungguhan. Akun mahasiswa hasil uji bisa dihapus
 dengan `npm run hapus-akun <NIM>`.
@@ -498,6 +505,47 @@ menolak dosen seperti sebelumnya.
 - Dosen tetap menerima semua event real-time seperti laboran, sehingga
   dashboard dan halaman kelasnya ikut berubah tanpa refresh.
 
+### Tambah kelas dan jam sesi
+
+Jam kelas tidak lagi diketik bebas. Kelas memilih satu **jam sesi** yang diatur
+laboran (tabel `mst_session`, menu web Master Data → Jam Sesi).
+
+- Jam sesi dibagi dua kelompok hari (`day_group`): `WEEKDAY` untuk Senin–Kamis
+  dan `FRIDAY` untuk Jumat, karena jam hari Jumat berbeda. Setiap sesi punya
+  nomor 1–20 yang unik per kelompok, jam mulai dan selesai berformat `JJ.MM`,
+  dan status aktif. Sesi dalam satu kelompok tidak boleh tumpang tindih (yang
+  bersambung, misalnya 08.40 dan 08.40, boleh).
+- Isi awal: Senin–Kamis Sesi 1–6 (07.00–08.40, 08.45–10.25, 10.30–12.10,
+  12.30–14.10, 14.15–16.05, 16.10–17.10), sama dengan daftar yang sebelumnya
+  tertulis di kode web. Jam sesi Jumat masih kosong, jadi kelas hari Jumat baru
+  bisa dibuat setelah laboran mengisinya.
+- `mst_class.sessionId` mencatat sesi kelas, sedangkan `startAt`/`endAt` tetap
+  disimpan, sehingga aplikasi mobile dan pengecekan bentrok jadwal asisten tidak
+  berubah. Mengubah jam sesi (`PUT /session/:id`) ikut mengubah jam semua kelas
+  di sesi itu dalam satu transaksi dan mengirim event `session` serta `class`.
+- Sesi yang dipakai kelas tidak bisa dihapus (409 "... dipakai n kelas.
+  Nonaktifkan saja ..."); sesi nonaktif tidak muncul di pilihan kelas baru.
+
+`POST /class { subjectId, name, quota, day, room, sessionId }` (hanya LABORAN,
+selain itu 403) memeriksa, dengan pesan berbahasa Indonesia:
+
+- nama kelas satu huruf A–Z (huruf kecil diubah jadi besar, spasi dibuang),
+  kuota 1–99, hari MONDAY–FRIDAY, ruang PSI atau SBTI, dan sesi wajib dipilih
+  (400);
+- mata kuliah ada (404), sesi ada dan aktif, dan sesi sesuai kelompok hari
+  kelas (400 "Sesi 2 bukan sesi hari Jumat!");
+- nama kelas belum dipakai di mata kuliah itu (409 "Kelas B sudah ada di
+  ...!");
+- **ruang tidak bentrok**: satu ruang hanya untuk satu kelas pada hari dan jam
+  yang tumpang tindih (409 "Ruang PSI sudah dipakai Algoritma dan Pemrograman
+  kelas C (Selasa, 16.10 - 17.10)."). PSI dan SBTI dua ruang terpisah.
+
+Jam kelas diambil dari sesi, dan hanya field di atas yang disimpan (sebelumnya
+seluruh body disalin ke database). Balasan 201: "Kelas <mata kuliah> <nama>
+berhasil ditambahkan" `{ id }`. Sebelum aturan ini, empat kelas Senin 07.00 dan
+dua kelas Selasa 07.00 di PSI saling bentrok; keenamnya sudah dihapus beserta
+pertemuan, presensi, dan pesertanya, sedangkan aktivasi mahasiswa tetap ada.
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
@@ -511,13 +559,19 @@ menolak dosen seperti sebelumnya.
 - **Hapus pengumuman bersifat soft delete** — `deleted_at` diisi, baris tetap ada.
 - **`GET /meeting/:classId` diurutkan menurut `createdAt` naik**, supaya urutan
   pertemuan stabil di dropdown dan kolom rekap presensi.
+- **Error tak terduga tidak lagi dibocorkan.** Error di luar kelas error
+  aplikasi (misalnya error Prisma) dibalas 500 "Terjadi kesalahan pada
+  server." dan detailnya dicetak di terminal backend. Sebelumnya pesan mentah
+  Prisma, termasuk path file di server, dikirim ke klien. Body JSON yang rusak
+  dibalas 400 "Format JSON tidak valid!" (`src/middleware/error.middleware.ts`).
 
 ## Bahasa pesan
 
 Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
 dan sebagian `announcement`.
 
-Belum: `auth`, `subject`, `class`, sebagian `user`. Jadi login masih
+Belum: `auth`, `subject`, `class` (kecuali tambah kelas), sebagian `user`.
+Jadi login masih
 menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
 menjawab "NIM/NIY atau password salah!" (sebelumnya "Email or password invalid!",
 padahal login memakai NIM/NIY), dan `POST /auth/refresh` sudah berbahasa
@@ -533,7 +587,7 @@ Pola password: nama awal akun dalam huruf kecil. Laboran dan dosen memakai NIY
 | 60010002 | laboran002 | LABORAN |
 | 60010001 | laboran001 | LABORAN |
 | 2000016099 | mahasiswa001 | MAHASISWA |
-| 2000016101 | asisten001 | MAHASISWA (asisten Alpro B) |
+| 2000016101 | asisten001 | MAHASISWA (asisten Alpro D) |
 | 60020001 | dosen001 | DOSEN |
 
 Data uji: kelas `652fb265-0d30-45c6-90eb-b37b1c3f3127` (Algoritma dan
@@ -610,8 +664,17 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
     dashboard dosen dan menurunkan rata-rata kehadiran. Solusinya menambah
     kolom waktu pertama kali sesi dibuka.
 
+11. **Jam kelas tidak punya riwayat.** Mengubah jam sesi langsung mengubah jam
+    semua kelasnya, termasuk untuk pertemuan yang sudah lewat. Tidak ada
+    catatan jam lama, dan tidak ada fitur mengubah jadwal satu kelas saja.
+
 ## Pekerjaan yang masih tersisa
 
+- [ ] Pastikan jam sesi Senin–Kamis dan isi jam sesi Jumat lewat web
+      (Master Data → Jam Sesi)
+- [ ] `POST /subject` belum divalidasi seperti `POST /class`: pesan masih
+      bahasa Inggris, penolakan non-laboran memakai 401, dan `lecturer_id`
+      yang salah berakhir sebagai 500
 - [ ] Seragamkan pesan lima service sisanya ke bahasa Indonesia
 
 ## Catatan lain

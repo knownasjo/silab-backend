@@ -7,12 +7,23 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  const statusCode = err instanceof BaseError ? err.statusCode : 500;
-  const data = err instanceof BaseError ? err.data : undefined;
+  if (err instanceof BaseError) {
+    res.status(err.statusCode).json({
+      status: false,
+      message: err.message,
+      ...(err.data !== undefined && { data: err.data }),
+    });
+    return;
+  }
 
-  res.status(statusCode).json({
+  if ((err as { type?: string }).type === "entity.parse.failed") {
+    res.status(400).json({ status: false, message: "Format JSON tidak valid!" });
+    return;
+  }
+
+  console.error(err);
+  res.status(500).json({
     status: false,
-    message: err.message || "Internal Server Error",
-    ...(data !== undefined && { data }),
+    message: "Terjadi kesalahan pada server.",
   });
 };

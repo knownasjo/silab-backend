@@ -28,6 +28,11 @@ enum DaysOfWeek {
     FRIDAY
 }
 
+enum SessionDayGroup {
+    WEEKDAY
+    FRIDAY
+}
+
 enum AnnouncementTypes {
     ASSISTANT
     PRACTICUM
@@ -87,6 +92,7 @@ model mst_class {
     startAt    String
     endAt      String
     room       ClassRoom
+    sessionId  String?
     updated_by String?
     created_by String
     updated_at DateTime?
@@ -96,9 +102,27 @@ model mst_class {
     participants           trn_class_participants[] @relation(name: "ClassParticipants")
     trn_meetings           trn_meetings[]           @relation(name: "ClassMeeting")
     subject                mst_subject              @relation(fields: [subjectId], references: [id])
+    session                mst_session?             @relation(name: "ClassSession", fields: [sessionId], references: [id])
     trn_class_collaborator trn_class_collaborator[] @relation(name: "ClassCollaborators")
 
     @@index([id, subjectId])
+}
+
+model mst_session {
+    id         String          @id @default(uuid())
+    day_group  SessionDayGroup
+    number     Int
+    startAt    String
+    endAt      String
+    is_active  Boolean         @default(true)
+    updated_by String?
+    created_by String
+    updated_at DateTime?
+    created_at DateTime?       @default(now())
+
+    classes mst_class[] @relation(name: "ClassSession")
+
+    @@unique([day_group, number])
 }
 
 model trn_class_participants {
