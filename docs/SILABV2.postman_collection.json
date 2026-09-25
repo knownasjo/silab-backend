@@ -912,7 +912,7 @@
 								"subject"
 							]
 						},
-						"description": "LABORAN: semua mata kuliah. DOSEN: hanya yang ia ampu. `[{ id, subject_code, subject_name, semester, lecturer }]`. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
+						"description": "LABORAN: semua mata kuliah. DOSEN: hanya yang ia ampu. `[{ id, subject_code, subject_name, semester, lecturer_id, lecturer }]`, urut menurut waktu dibuat. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
 					},
 					"response": []
 				},
@@ -941,7 +941,50 @@
 								"{{subjectId}}"
 							]
 						},
-						"description": "Detail satu mata kuliah: `{ id, subject_code, subject_name, semester, lecturer }`. DOSEN hanya mata kuliah yang ia ampu (403 \"Mata kuliah ini bukan yang Anda ampu.\")."
+						"description": "Detail satu mata kuliah: `{ id, subject_code, subject_name, semester, lecturer_id, lecturer }`. DOSEN hanya mata kuliah yang ia ampu (403 \"Mata kuliah ini bukan yang Anda ampu.\")."
+					},
+					"response": []
+				},
+				{
+					"name": "Ubah Mata Kuliah",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"semester\": \"4\",\n  \"lecturer_id\": \"{{lecturerId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject/{{newSubjectId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject",
+								"{{newSubjectId}}"
+							]
+						},
+						"description": "Hanya LABORAN. Semua field opsional: `subject_code` (maks. 20 karakter), `subject_name` (maks. 100), `semester` (1–8), `lecturer_id` (akun DOSEN); yang tidak dikirim memakai nilai sekarang. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Bila dosen diganti, dosen baru langsung bisa membaca semua kelas, pertemuan, dan presensi mata kuliah itu, sedangkan dosen lama tidak lagi.\n\n- 200 \"Mata kuliah <nama> berhasil diperbarui\" (+ \"; dosen pengampu sekarang <nama>\" bila dosen diganti) atau \"Tidak ada perubahan pada mata kuliah\"\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 403 bukan laboran\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
 				}

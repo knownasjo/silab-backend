@@ -3,6 +3,7 @@ import {
   SAddSubject,
   SGetSubject,
   SGetSubjectById,
+  SUpdateSubject,
 } from "../services/subject.service";
 
 export const CAddSubject = async (
@@ -42,6 +43,24 @@ export const CGetSubjectById = async (
     const subjectId = req.params.id.toString();
 
     const resData = await SGetSubjectById(subjectId, req);
+
+    res.status(200).json(resData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const CUpdateSubject = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SUpdateSubject(
+      req.params.id.toString(),
+      req.body,
+      req
+    );
 
     res.status(200).json(resData);
   } catch (error) {

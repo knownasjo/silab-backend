@@ -73,7 +73,9 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
 ## Alur bisnis
 
 1. Laboran membuat mata kuliah (`POST /subject`) dan kelas (`POST /class`),
-   lalu bisa mengubah atau menghapus kelas (`PUT`/`DELETE /class/:id`)
+   lalu bisa mengubah mata kuliah termasuk dosen pengampunya
+   (`PUT /subject/:id`) serta mengubah atau menghapus kelas
+   (`PUT`/`DELETE /class/:id`)
 2. Mahasiswa mendaftar mata kuliah (`POST /activation`) → status `false`
 3. Pembayaran **offline**; laboran menandai lunas (`PUT /activation/:id`)
    dan sekaligus memilih kelas lewat `classId` di body
@@ -107,8 +109,9 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/auth/me` | login (ganti nama sendiri, lihat "Profil dan ganti password") |
 | PUT | `/auth/me/password` | login (ganti password sendiri) |
 | POST | `/subject` | LABORAN |
-| GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu) |
+| GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu). Berisi `lecturer_id`, urut menurut waktu dibuat |
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
+| PUT | `/subject/:id` | LABORAN (lihat "Ubah mata kuliah dan dosen pengampu") |
 | POST | `/class` | LABORAN (lihat "Tambah kelas dan jam sesi") |
 | GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu). Berisi `sessionId` tiap kelas |
 | GET | `/class/registration` | MAHASISWA |
@@ -150,7 +153,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
 ### Koleksi Postman
 
-`docs/SILABV2.postman_collection.json` berisi 64 request untuk semua endpoint
+`docs/SILABV2.postman_collection.json` berisi 65 request untuk semua endpoint
 di atas, dikelompokkan per fitur, masing-masing dengan keterangan peran dan
 balasan yang diharapkan. Import ke Postman, lalu:
 
@@ -409,7 +412,7 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 |---|---|---|---|
 | `ready` | `{}` | stream baru tersambung | pembuka stream |
 | `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
-| `subject` | `subject_id` | mata kuliah ditambah | semua |
+| `subject` | `subject_id` (+ `action: "updated"` saat diubah) | mata kuliah ditambah atau diubah | semua |
 | `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
 | `activation` | `{}` (atau `class_id` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
 | `meeting` | `class_id`, `meeting_id` | pertemuan ditambah, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
@@ -615,6 +618,44 @@ menghapus kelas!"):
 Karena kelas bisa dipindah ke sesi lain, sesi yang sudah dipakai kelas bisa
 dikosongkan dulu lalu dihapus.
 
+### Ubah mata kuliah dan dosen pengampu
+
+Laboran mengubah mata kuliah dari tombol "Ubah" di halaman Praktikum web.
+
+`PUT /subject/:id { subject_code?, subject_name?, semester?, lecturer_id? }`
+(hanya LABORAN, selain itu 403 "Hanya laboran yang dapat mengubah mata
+kuliah!"):
+
+- Field yang tidak dikirim memakai nilai sekarang. Spasi berlebih dirapikan.
+  Kode wajib diisi dan paling banyak 20 karakter, nama wajib diisi dan paling
+  banyak 100 karakter, semester 1–8 (boleh dikirim sebagai angka), dan
+  `lecturer_id` harus akun berperan DOSEN (400 "Dosen pengampu harus akun
+  dosen yang terdaftar!").
+- Kode dan nama tidak boleh sama dengan mata kuliah lain, tanpa membedakan
+  huruf besar-kecil (409 "Kode X sudah dipakai mata kuliah Y!" atau "Nama X
+  sudah dipakai mata kuliah berkode Y!"). Nama harus unik karena beberapa
+  tampilan lama mengenali mata kuliah dari namanya.
+- Isi yang sama dengan data sekarang dibalas 200 "Tidak ada perubahan pada
+  mata kuliah" tanpa menulis database.
+- Berhasil: 200 "Mata kuliah <nama> berhasil diperbarui", ditambah "; dosen
+  pengampu sekarang <nama>" bila dosen diganti. Event `subject`
+  (`action: "updated"`) dan `class` untuk tiap kelasnya dikirim ke semua, dan
+  `activation` ke mahasiswa yang mengambil mata kuliah itu, supaya nama mata
+  kuliah dan nama dosen di aplikasi mereka ikut berubah.
+
+**Bila dosen pengampu diganti**, akses dosen mengikuti `lecturer_id` saat itu
+juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
+(`src/utils/ClassAccess/class.access.ts`):
+
+- dosen baru langsung bisa membaca mata kuliah itu beserta semua kelas,
+  pertemuan, dan presensinya, termasuk yang tercatat sebelum pergantian, dan
+  dashboard-nya ikut menghitungnya;
+- dosen lama langsung kehilangan akses (403), termasuk ke riwayat saat ia
+  masih mengampu. Riwayat dosen pengampu tidak disimpan (lihat batasan 13).
+
+`POST /subject` (tambah mata kuliah) belum memakai aturan ini; lihat
+"Pekerjaan yang masih tersisa".
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
@@ -639,8 +680,8 @@ dikosongkan dulu lalu dihapus.
 Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
 dan sebagian `announcement`.
 
-Belum: `auth`, `subject`, `class` (kecuali tambah, ubah, dan hapus kelas),
-sebagian `user`.
+Belum: `auth`, `subject` (kecuali ubah mata kuliah), `class` (kecuali tambah,
+ubah, dan hapus kelas), sebagian `user`.
 Jadi login masih
 menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
 menjawab "NIM/NIY atau password salah!" (sebelumnya "Email or password invalid!",
@@ -745,13 +786,19 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
     di tengah semester tetap tampil. Mengarsipkan kelas butuh pemeriksaan
     `deleted_at` di semua query yang membaca kelas, pertemuan, dan presensi.
 
+13. **Riwayat dosen pengampu tidak disimpan.** `mst_subject.lecturer_id` hanya
+    menyimpan dosen saat ini. Bila dosen diganti di tengah semester, dosen
+    baru melihat seluruh data sejak awal dan dosen lama kehilangan akses ke
+    data saat ia mengampu. Menyimpan riwayat butuh tabel dosen per periode,
+    yang bergantung pada batasan 1 (belum ada periode akademik).
+
 ## Pekerjaan yang masih tersisa
 
 - [ ] Pastikan jam sesi Senin–Kamis dan isi jam sesi Jumat lewat web
       (Master Data → Jam Sesi)
-- [ ] `POST /subject` belum divalidasi seperti `POST /class`: pesan masih
-      bahasa Inggris, penolakan non-laboran memakai 401, dan `lecturer_id`
-      yang salah berakhir sebagai 500
+- [ ] `POST /subject` belum divalidasi seperti `PUT /subject/:id`: pesan
+      masih bahasa Inggris, penolakan non-laboran memakai 401, `lecturer_id`
+      yang salah berakhir sebagai 500, dan nama mata kuliah boleh kembar
 - [ ] Seragamkan pesan lima service sisanya ke bahasa Indonesia
 
 ## Catatan lain
