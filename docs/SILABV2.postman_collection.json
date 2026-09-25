@@ -953,6 +953,22 @@
 			"item": [
 				{
 					"name": "Semua Jam Sesi",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const sessions = pm.response.json().data;",
+									"    const current = pm.collectionVariables.get(\"sessionId\");",
+									"    const weekday = sessions.find((session) => session.day_group === \"WEEKDAY\" && session.is_active);",
+									"    if (weekday && !sessions.some((session) => session.id === current)) pm.collectionVariables.set(\"sessionId\", weekday.id);",
+									"}"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -987,7 +1003,7 @@
 								}
 							]
 						},
-						"description": "Semua peran yang login. Urut per kelompok hari lalu jam mulai: `[{ id, day_group, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Form Tambah Praktikum memakai `?day=<hari>&active=true`."
+						"description": "Semua peran yang login. Urut per kelompok hari lalu jam mulai: `[{ id, day_group, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Form Tambah Praktikum memakai `?day=<hari>&active=true`. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin–Kamis aktif pertama."
 					},
 					"response": []
 				},
@@ -1124,6 +1140,17 @@
 			"item": [
 				{
 					"name": "Tambah Kelas",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) pm.collectionVariables.set(\"newClassId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -1160,7 +1187,7 @@
 								"class"
 							]
 						},
-						"description": "Hanya LABORAN. `name` satu huruf A–Z (huruf kecil diubah jadi besar), `quota` 1–99, `day` MONDAY–FRIDAY, `room` PSI atau SBTI, `sessionId` dari \"Semua Jam Sesi\" yang aktif dan sesuai kelompok harinya. Jam kelas diambil dari sesi. Membuat data sungguhan.\n\n- 201 \"Kelas <mata kuliah> A berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid, sesi nonaktif, atau sesi bukan untuk hari itu\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kelas A sudah ada di ...!\" atau \"Ruang PSI sudah dipakai <mata kuliah> kelas X (Senin, 07.00 - 08.40).\""
+						"description": "Hanya LABORAN. `name` satu huruf A–Z (huruf kecil diubah jadi besar), `quota` 1–99, `day` MONDAY–FRIDAY, `room` PSI atau SBTI, `sessionId` dari \"Semua Jam Sesi\" yang aktif dan sesuai kelompok harinya. Jam kelas diambil dari sesi. Membuat data sungguhan; id kelas baru disimpan ke `newClassId`.\n\n- 201 \"Kelas <mata kuliah> A berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid, sesi nonaktif, atau sesi bukan untuk hari itu\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kelas A sudah ada di ...!\" atau \"Ruang PSI sudah dipakai <mata kuliah> kelas X (Senin, 07.00 - 08.40).\""
 					},
 					"response": []
 				},
@@ -1217,7 +1244,79 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Detail satu kelas: mata kuliah, jadwal, ruang, dosen, dan jumlah peserta. DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\")."
+						"description": "Detail satu kelas: mata kuliah, jadwal, ruang, `sessionId`, dosen, jumlah peserta, jumlah pertemuan (`meetings`), dan jumlah pertemuan yang sudah berisi presensi (`recorded_meetings`). DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\")."
+					},
+					"response": []
+				},
+				{
+					"name": "Ubah Kelas",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"quota\": 30,\n  \"room\": \"PSI\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/{{newClassId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"{{newClassId}}"
+							]
+						},
+						"description": "Hanya LABORAN. Semua field opsional: `name`, `quota`, `day`, `room`, `sessionId`; field yang tidak dikirim memakai nilai sekarang, lalu hasilnya dicek dengan aturan yang sama seperti Tambah Kelas. Mata kuliah tidak bisa diganti. Sesi yang sudah nonaktif tetap boleh dipakai kelas yang memang sudah memakainya. Peserta, asisten, pertemuan, dan presensi tetap tersimpan.\n\n- 200 \"Kelas <mata kuliah> A berhasil diperbarui\" (atau \"Tidak ada perubahan pada kelas\")\n- 400 isian tidak valid atau \"Mata kuliah kelas tidak bisa diubah!\"\n- 409 nama kelas sudah dipakai, bentrok ruang, \"Kuota tidak boleh kurang dari jumlah peserta (n)!\", atau \"Jadwal baru bentrok: asisten/peserta ...\" (asisten kelas ini punya kelas lain di jam baru, atau peserta kelas ini menjadi asisten kelas lain di jam baru)"
+					},
+					"response": []
+				},
+				{
+					"name": "Hapus Kelas",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/{{newClassId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"{{newClassId}}"
+							]
+						},
+						"description": "Hanya LABORAN. Kelas yang sudah punya presensi tidak bisa dihapus. Bila belum, kelas dihapus beserta pertemuan kosongnya; peserta kembali berstatus lunas tanpa kelas (bisa memilih kelas lain) dan asisten dilepas. Status pembayaran tidak berubah.\n\n- 200 \"Kelas <mata kuliah> A berhasil dihapus\" `{ participants, assistants, meetings }`\n- 404 \"Kelas tidak ditemukan!\"\n- 409 \"Kelas ini sudah punya presensi di n pertemuan, jadi tidak bisa dihapus. Ubah kelasnya bila ada data yang salah.\""
 					},
 					"response": []
 				},
@@ -2447,7 +2546,7 @@
 								"events"
 							]
 						},
-						"description": "Koneksi Server-Sent Events. Setelah `ready`, server mengirim event `announcement`, `subject`, `class`, `activation`, `meeting`, dan `attendance` sesuai hak akses, serta `ping` setiap 25 detik. Koneksi ditutup saat access token habis atau password akun diganti."
+						"description": "Koneksi Server-Sent Events. Setelah `ready`, server mengirim event `announcement`, `subject`, `class`, `activation`, `meeting`, `attendance`, dan `session` sesuai hak akses, serta `ping` setiap 25 detik. Koneksi ditutup saat access token habis atau password akun diganti."
 					},
 					"response": []
 				}
@@ -2625,15 +2724,21 @@
 		},
 		{
 			"key": "sessionId",
-			"value": "a6d19628-e831-4739-98ac-5b5b426538e9",
+			"value": "4848cbf2-e575-4971-854a-b50edef9dd65",
 			"type": "string",
-			"description": "Sesi 2 Senin–Kamis (dipakai Tambah Kelas)"
+			"description": "Sesi 2 Senin–Kamis (dipakai Tambah Kelas); diganti otomatis oleh Semua Jam Sesi bila sesinya sudah tidak ada"
 		},
 		{
 			"key": "newSessionId",
 			"value": "",
 			"type": "string",
 			"description": "Terisi otomatis oleh Tambah Jam Sesi"
+		},
+		{
+			"key": "newClassId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Tambah Kelas"
 		},
 		{
 			"key": "lecturerId",

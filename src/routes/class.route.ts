@@ -3,11 +3,13 @@ import { MAuthUser } from "../middleware/auth.middleware";
 import {
   CAddClass,
   CClassRegistration,
+  CDeleteClass,
   CGetAllClassByPaidActivations,
   CGetAllClasses,
   CGetClassById,
   CGetClassmates,
   CGetMyClasses,
+  CUpdateClass,
 } from "../controller/class.controller";
 
 const router = Router();
@@ -23,6 +25,10 @@ router.post("/registration", MAuthUser(), CClassRegistration);
 router.get("/me", MAuthUser(), CGetMyClasses);
 
 router.get("/:id", MAuthUser(), CGetClassById);
+
+router.put("/:id", MAuthUser(), CUpdateClass);
+
+router.delete("/:id", MAuthUser(), CDeleteClass);
 
 router.get("/:id/classmates", MAuthUser(), CGetClassmates);
 

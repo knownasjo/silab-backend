@@ -2,11 +2,13 @@ import { NextFunction, Request, Response } from "express";
 import {
   SAddClass,
   SClassRegistration,
+  SDeleteClass,
   SGetAllClassByPaidActivations,
   SGetAllClasses,
   SGetClassById,
   SGetClassmates,
   SGetMyClasses,
+  SUpdateClass,
 } from "../services/class.service";
 
 export const CAddClass = async (
@@ -18,6 +20,34 @@ export const CAddClass = async (
     const resData = await SAddClass(req.body, req);
 
     res.status(201).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CUpdateClass = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SUpdateClass(req.params.id.toString(), req.body, req);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CDeleteClass = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SDeleteClass(req.params.id.toString(), req);
+
+    res.status(200).json(resData);
   } catch (error: any) {
     next(error);
   }

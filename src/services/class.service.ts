@@ -1,12 +1,14 @@
-import { ClassRoom, DaysOfWeek } from "@prisma/client";
+import { ClassRoom, DaysOfWeek, Prisma } from "@prisma/client";
 import {
   IAddClassRequestBody,
   IClassRegistrationRequestBody,
+  IDeleteClassResponseBody,
   IGetAllClassByPaidActivationsResponseBody,
   IGetClassByIdResponseBody,
   IGetClassResponseBody,
   IGetClassmateResponseBody,
   IGetMyClassResponseBody,
+  IUpdateClassRequestBody,
 } from "../interfaces/class.interface";
 import { IBaseResponse } from "../interfaces/global.interface";
 import db from "../prisma/client.prisma";
@@ -18,8 +20,14 @@ import {
   NotFoundError,
 } from "../utils/HttpErrors/HttptErrors";
 import { Request } from "express";
-import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
-import { assertNoAssistantScheduleClash } from "../utils/AssistantRules/assistant.rules";
+import {
+  publishClassMembersEvent,
+  publishRealtimeEvent,
+} from "../utils/RealtimeEvents/realtime.events";
+import {
+  assertNoAssistantScheduleClash,
+  assertNoMemberScheduleClash,
+} from "../utils/AssistantRules/assistant.rules";
 import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
 import {
   DAY_LABELS,
@@ -41,20 +49,19 @@ const readQuota = (value: unknown) => {
   return quota as number;
 };
 
-export const SAddClass = async (
-  body: IAddClassRequestBody,
-  req: Request
-): Promise<IBaseResponse<{ id: string }>> => {
-  if (req.user?.role !== "LABORAN")
-    throw new ForbiddenError("Hanya laboran yang dapat menambah kelas!");
+interface IClassFields {
+  name: string;
+  quota: number;
+  day: DaysOfWeek;
+  room: ClassRoom;
+  sessionId: string;
+}
 
-  const subjectId = readText(body?.subjectId);
+const readClassFields = (body: IAddClassRequestBody): IClassFields => {
   const name = readText(body?.name).toUpperCase();
   const day = readText(body?.day);
   const room = readText(body?.room);
   const sessionId = readText(body?.sessionId);
-
-  if (!subjectId) throw new BadRequestError("Mata kuliah wajib dipilih!");
 
   if (!/^[A-Z]$/.test(name))
     throw new BadRequestError("Nama kelas harus satu huruf A–Z!");
@@ -69,51 +76,107 @@ export const SAddClass = async (
 
   if (!sessionId) throw new BadRequestError("Sesi kelas wajib dipilih!");
 
-  const subject = await db.mst_subject.findFirst({
-    where: { id: subjectId, deleted_at: null },
+  return {
+    name,
+    quota,
+    day: day as DaysOfWeek,
+    room: room as ClassRoom,
+    sessionId,
+  };
+};
+
+const findClassSession = async (
+  fields: IClassFields,
+  currentSessionId?: string | null
+) => {
+  const session = await db.mst_session.findUnique({
+    where: { id: fields.sessionId },
   });
 
-  if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
-
-  const session = await db.mst_session.findUnique({ where: { id: sessionId } });
-
-  if (!session || !session.is_active)
+  if (!session || (!session.is_active && session.id !== currentSessionId))
     throw new BadRequestError("Sesi tidak ditemukan atau sudah nonaktif!");
 
-  if (session.day_group !== dayGroupOf(day))
+  if (session.day_group !== dayGroupOf(fields.day))
     throw new BadRequestError(
-      `Sesi ${session.number} bukan sesi hari ${DAY_LABELS[day]}!`
+      `Sesi ${session.number} bukan sesi hari ${DAY_LABELS[fields.day]}!`
     );
 
+  return session;
+};
+
+const assertClassNameFree = async (
+  subjectId: string,
+  subjectName: string,
+  name: string,
+  exceptId?: string
+) => {
   const duplicate = await db.mst_class.findFirst({
-    where: { subjectId, name, deleted_at: null },
+    where: {
+      subjectId,
+      name,
+      deleted_at: null,
+      ...(exceptId && { id: { not: exceptId } }),
+    },
   });
 
   if (duplicate)
-    throw new ConflictError(
-      `Kelas ${name} sudah ada di ${subject.subject_name}!`
-    );
+    throw new ConflictError(`Kelas ${name} sudah ada di ${subjectName}!`);
+};
 
-  const schedule = { day, startAt: session.startAt, endAt: session.endAt };
+const assertRoomFree = async (
+  schedule: { day: DaysOfWeek; room: ClassRoom; startAt: string; endAt: string },
+  exceptId?: string
+) => {
   const sameRoom = await db.mst_class.findMany({
-    where: { day: day as DaysOfWeek, room: room as ClassRoom, deleted_at: null },
+    where: {
+      day: schedule.day,
+      room: schedule.room,
+      deleted_at: null,
+      ...(exceptId && { id: { not: exceptId } }),
+    },
     include: { subject: { select: { subject_name: true } } },
   });
   const clash = sameRoom.find((item) => isScheduleClash(item, schedule));
 
   if (clash)
     throw new ConflictError(
-      `Ruang ${room} sudah dipakai ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
+      `Ruang ${schedule.room} sudah dipakai ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
     );
+};
+
+export const SAddClass = async (
+  body: IAddClassRequestBody,
+  req: Request
+): Promise<IBaseResponse<{ id: string }>> => {
+  if (req.user?.role !== "LABORAN")
+    throw new ForbiddenError("Hanya laboran yang dapat menambah kelas!");
+
+  const subjectId = readText(body?.subjectId);
+
+  if (!subjectId) throw new BadRequestError("Mata kuliah wajib dipilih!");
+
+  const fields = readClassFields(body);
+
+  const subject = await db.mst_subject.findFirst({
+    where: { id: subjectId, deleted_at: null },
+  });
+
+  if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
+
+  const session = await findClassSession(fields);
+
+  await assertClassNameFree(subjectId, subject.subject_name, fields.name);
+  await assertRoomFree({
+    day: fields.day,
+    room: fields.room,
+    startAt: session.startAt,
+    endAt: session.endAt,
+  });
 
   const newClass = await db.mst_class.create({
     data: {
       subjectId,
-      name,
-      quota,
-      day: day as DaysOfWeek,
-      room: room as ClassRoom,
-      sessionId,
+      ...fields,
       startAt: session.startAt,
       endAt: session.endAt,
       created_by: req.user.id,
@@ -124,8 +187,168 @@ export const SAddClass = async (
 
   return {
     status: true,
-    message: `Kelas ${subject.subject_name} ${name} berhasil ditambahkan`,
+    message: `Kelas ${subject.subject_name} ${fields.name} berhasil ditambahkan`,
     data: { id: newClass.id },
+  };
+};
+
+export const SUpdateClass = async (
+  id: string,
+  body: IUpdateClassRequestBody,
+  req: Request
+): Promise<IBaseResponse> => {
+  if (req.user?.role !== "LABORAN")
+    throw new ForbiddenError("Hanya laboran yang dapat mengubah kelas!");
+
+  const current = await db.mst_class.findFirst({
+    where: { id, deleted_at: null },
+    include: {
+      subject: { select: { subject_name: true } },
+      participants: { where: { deleted_at: null }, select: { userId: true } },
+    },
+  });
+
+  if (!current) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  if (body?.subjectId !== undefined && body.subjectId !== current.subjectId)
+    throw new BadRequestError("Mata kuliah kelas tidak bisa diubah!");
+
+  const fields = readClassFields({
+    name: body?.name ?? current.name,
+    quota: body?.quota ?? current.quota,
+    day: body?.day ?? current.day,
+    room: body?.room ?? current.room,
+    sessionId: body?.sessionId ?? current.sessionId ?? undefined,
+  });
+
+  if (fields.quota < current.participants.length)
+    throw new ConflictError(
+      `Kuota tidak boleh kurang dari jumlah peserta (${current.participants.length})!`
+    );
+
+  const session = await findClassSession(fields, current.sessionId);
+  const schedule = {
+    day: fields.day,
+    room: fields.room,
+    startAt: session.startAt,
+    endAt: session.endAt,
+  };
+  const isRenamed = fields.name !== current.name;
+  const isRescheduled =
+    schedule.day !== current.day ||
+    schedule.startAt !== current.startAt ||
+    schedule.endAt !== current.endAt;
+  const isMoved = isRescheduled || schedule.room !== current.room;
+
+  if (
+    !isRenamed &&
+    !isMoved &&
+    fields.quota === current.quota &&
+    fields.sessionId === current.sessionId
+  )
+    return { status: true, message: "Tidak ada perubahan pada kelas" };
+
+  if (isRenamed)
+    await assertClassNameFree(
+      current.subjectId,
+      current.subject.subject_name,
+      fields.name,
+      id
+    );
+
+  if (isMoved) await assertRoomFree(schedule, id);
+
+  if (isRescheduled) await assertNoMemberScheduleClash(id, schedule);
+
+  await db.mst_class.update({
+    where: { id },
+    data: {
+      ...fields,
+      startAt: session.startAt,
+      endAt: session.endAt,
+      updated_by: req.user.id,
+      updated_at: new Date(),
+    },
+  });
+
+  publishRealtimeEvent("class", { class_id: id, action: "updated" });
+  void publishClassMembersEvent(id, "activation", { class_id: id });
+
+  return {
+    status: true,
+    message: `Kelas ${current.subject.subject_name} ${fields.name} berhasil diperbarui`,
+  };
+};
+
+export const SDeleteClass = async (
+  id: string,
+  req: Request
+): Promise<IBaseResponse<IDeleteClassResponseBody>> => {
+  if (req.user?.role !== "LABORAN")
+    throw new ForbiddenError("Hanya laboran yang dapat menghapus kelas!");
+
+  const classData = await db.mst_class.findFirst({
+    where: { id, deleted_at: null },
+    include: {
+      subject: { select: { subject_name: true } },
+      participants: { where: { deleted_at: null }, select: { userId: true } },
+      trn_class_collaborator: {
+        where: { deletedAt: null },
+        select: { userId: true },
+      },
+      trn_meetings: {
+        select: { _count: { select: { participants: true } } },
+      },
+    },
+  });
+
+  if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  const recordedMeetings = classData.trn_meetings.filter(
+    (meeting) => meeting._count.participants > 0
+  ).length;
+
+  if (recordedMeetings > 0)
+    throw new ConflictError(
+      `Kelas ini sudah punya presensi di ${recordedMeetings} pertemuan, jadi tidak bisa dihapus. Ubah kelasnya bila ada data yang salah.`
+    );
+
+  try {
+    await db.$transaction([
+      db.trn_meetings.deleteMany({ where: { classId: id } }),
+      db.trn_class_participants.deleteMany({ where: { classId: id } }),
+      db.trn_class_collaborator.deleteMany({ where: { classId: id } }),
+      db.mst_class.delete({ where: { id } }),
+    ]);
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    )
+      throw new ConflictError(
+        "Presensi baru saja tercatat di kelas ini, jadi kelas tidak bisa dihapus."
+      );
+
+    throw error;
+  }
+
+  const memberIds = [
+    ...classData.participants,
+    ...classData.trn_class_collaborator,
+  ].map((member) => member.userId);
+
+  publishRealtimeEvent("class", { class_id: id, action: "deleted" });
+  if (memberIds.length > 0)
+    publishRealtimeEvent("activation", { class_id: id }, memberIds);
+
+  return {
+    status: true,
+    message: `Kelas ${classData.subject.subject_name} ${classData.name} berhasil dihapus`,
+    data: {
+      participants: classData.participants.length,
+      assistants: classData.trn_class_collaborator.length,
+      meetings: classData.trn_meetings.length,
+    },
   };
 };
 
@@ -210,10 +433,13 @@ export const SGetClassById = async (
             lecturer: true,
           },
         },
+        trn_meetings: {
+          select: { _count: { select: { participants: true } } },
+        },
       },
     });
 
-    if (!classData) throw new NotFoundError("Class not found!");
+    if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
 
     await assertLecturerOfClass(req.user, classData.id);
 
@@ -226,11 +452,16 @@ export const SGetClassById = async (
       quota: classData.quota,
       isFull: classData.quota === classData.participants.length,
       room: classData.room,
+      sessionId: classData.sessionId,
       day: classData.day,
       startAt: classData.startAt,
       endAt: classData.endAt,
       lecturer: classData.subject.lecturer.fullname,
       participants: classData.participants.length,
+      meetings: classData.trn_meetings.length,
+      recorded_meetings: classData.trn_meetings.filter(
+        (meeting) => meeting._count.participants > 0
+      ).length,
     };
 
     return {

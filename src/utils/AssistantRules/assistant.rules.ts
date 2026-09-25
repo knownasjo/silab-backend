@@ -61,3 +61,84 @@ export const assertNoAssistantScheduleClash = async (
       );
   }
 };
+
+const classSchedule = {
+  select: {
+    name: true,
+    day: true,
+    startAt: true,
+    endAt: true,
+    subject: { select: { subject_name: true } },
+  },
+};
+
+export const assertNoMemberScheduleClash = async (
+  classId: string,
+  schedule: { day: string; startAt: string; endAt: string }
+) => {
+  const elsewhere = { classId: { not: classId }, class: { deleted_at: null } };
+  const assistingElsewhere = {
+    where: { ...elsewhere, deletedAt: null },
+    select: { class: classSchedule },
+  };
+
+  const [assistants, participants] = await Promise.all([
+    db.trn_class_collaborator.findMany({
+      where: { classId, deletedAt: null },
+      select: {
+        user: {
+          select: {
+            fullname: true,
+            classEnrollments: {
+              where: { ...elsewhere, deleted_at: null },
+              select: { class: classSchedule },
+            },
+            trn_class_collaborator: assistingElsewhere,
+          },
+        },
+      },
+    }),
+    db.trn_class_participants.findMany({
+      where: { classId, deleted_at: null },
+      select: {
+        user: {
+          select: {
+            fullname: true,
+            trn_class_collaborator: assistingElsewhere,
+          },
+        },
+      },
+    }),
+  ]);
+
+  const commitments = [
+    ...assistants.flatMap(({ user }) => [
+      ...user.classEnrollments.map((row) => ({
+        member: `asisten ${user.fullname}`,
+        activity: "mengikuti praktikum",
+        ...row.class,
+      })),
+      ...user.trn_class_collaborator.map((row) => ({
+        member: `asisten ${user.fullname}`,
+        activity: "menjadi asisten",
+        ...row.class,
+      })),
+    ]),
+    ...participants.flatMap(({ user }) =>
+      user.trn_class_collaborator.map((row) => ({
+        member: `peserta ${user.fullname}`,
+        activity: "menjadi asisten",
+        ...row.class,
+      }))
+    ),
+  ];
+
+  const clash = commitments.find((commitment) =>
+    isScheduleClash(commitment, schedule)
+  );
+
+  if (clash)
+    throw new ConflictError(
+      `Jadwal baru bentrok: ${clash.member} ${clash.activity} ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
+    );
+};

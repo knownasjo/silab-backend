@@ -72,7 +72,8 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
 
 ## Alur bisnis
 
-1. Laboran membuat mata kuliah (`POST /subject`) dan kelas (`POST /class`)
+1. Laboran membuat mata kuliah (`POST /subject`) dan kelas (`POST /class`),
+   lalu bisa mengubah atau menghapus kelas (`PUT`/`DELETE /class/:id`)
 2. Mahasiswa mendaftar mata kuliah (`POST /activation`) → status `false`
 3. Pembayaran **offline**; laboran menandai lunas (`PUT /activation/:id`)
    dan sekaligus memilih kelas lewat `classId` di body
@@ -114,6 +115,8 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
 | GET | `/class/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
+| PUT | `/class/:id` | LABORAN (lihat "Ubah dan hapus kelas") |
+| DELETE | `/class/:id` | LABORAN (hanya kelas yang belum punya presensi) |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri, DOSEN hanya kelas mata kuliah yang ia ampu) |
 | GET | `/session?day=&active=` | login (jam sesi; `day` = hari kelas, `active=true` = hanya yang aktif) |
 | POST | `/session` | LABORAN |
@@ -147,7 +150,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
 ### Koleksi Postman
 
-`docs/SILABV2.postman_collection.json` berisi 62 request untuk semua endpoint
+`docs/SILABV2.postman_collection.json` berisi 64 request untuk semua endpoint
 di atas, dikelompokkan per fitur, masing-masing dengan keterangan peran dan
 balasan yang diharapkan. Import ke Postman, lalu:
 
@@ -158,13 +161,17 @@ balasan yang diharapkan. Import ke Postman, lalu:
    (mata kuliah, akun dosen, pertemuan), jadi akun uji lain tidak berubah.
    Kode dari email diisi manual ke variabel `verificationCode` dan `resetCode`.
 3. Skrip di beberapa request menyimpan id yang dibutuhkan request berikutnya
-   (`newStudentId`, `activationId`, `meetingId`, `qrToken`, `announcementId`).
+   (`newStudentId`, `activationId`, `meetingId`, `qrToken`, `announcementId`,
+   `newClassId`).
 4. Folder **Dosen** berisi semua yang bisa dibaca dosen: ringkasan dashboard,
    mata kuliah dan kelas yang diampu, presensi kelas, dan contoh penolakan data
    pembayaran.
 5. Folder **Jam Sesi** membuat sesi contoh (Sesi 9 Jumat), mengubah, lalu
    menghapusnya. "Tambah Kelas" memakai variabel `sessionId` (Sesi 2
-   Senin–Kamis).
+   Senin–Kamis). Bila sesi itu sudah dihapus dan dibuat ulang, "Semua Jam
+   Sesi" mengganti `sessionId` dengan sesi Senin–Kamis aktif pertama.
+6. Folder **Kelas** menambah kelas A untuk mata kuliah baru, mengubahnya
+   ("Ubah Kelas"), lalu menghapusnya ("Hapus Kelas").
 
 POST/PUT/DELETE mengubah data sungguhan. Akun mahasiswa hasil uji bisa dihapus
 dengan `npm run hapus-akun <NIM>`.
@@ -403,10 +410,11 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 | `ready` | `{}` | stream baru tersambung | pembuka stream |
 | `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
 | `subject` | `subject_id` | mata kuliah ditambah | semua |
-| `class` | `class_id` (+ `action: "created"` untuk kelas baru) | kelas baru, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus | semua |
-| `activation` | `{}` | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas | laboran/dosen, dan mahasiswa yang bersangkutan |
+| `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
+| `activation` | `{}` (atau `class_id` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
 | `meeting` | `class_id`, `meeting_id` | pertemuan ditambah, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
 | `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |
+| `session` | `session_id` | jam sesi ditambah, diubah, dinonaktifkan, atau dihapus | semua |
 | `ping` | `{}` | setiap 25 detik | semua, untuk menjaga koneksi |
 
 - Event hanya memberi tahu **apa** yang berubah, bukan datanya. Klien memanggil
@@ -546,6 +554,64 @@ berhasil ditambahkan" `{ id }`. Sebelum aturan ini, empat kelas Senin 07.00 dan
 dua kelas Selasa 07.00 di PSI saling bentrok; keenamnya sudah dihapus beserta
 pertemuan, presensi, dan pesertanya, sedangkan aktivasi mahasiswa tetap ada.
 
+### Ubah dan hapus kelas
+
+Laboran mengubah atau menghapus kelas dari halaman detail kelas di web.
+
+`PUT /class/:id { name?, quota?, day?, room?, sessionId? }` (hanya LABORAN,
+selain itu 403 "Hanya laboran yang dapat mengubah kelas!"):
+
+- Field yang tidak dikirim memakai nilai sekarang, lalu hasilnya diperiksa
+  dengan aturan yang sama seperti tambah kelas (format, sesi sesuai hari,
+  nama belum dipakai kelas lain, ruang tidak bentrok dengan kelas lain).
+- Mata kuliah tidak bisa diganti (400 "Mata kuliah kelas tidak bisa
+  diubah!"). Kuota tidak boleh di bawah jumlah peserta (409 "Kuota tidak boleh
+  kurang dari jumlah peserta (n)!").
+- Sesi yang sudah nonaktif tetap boleh dipakai kelas yang memang sudah
+  memakainya, jadi kuota atau ruangnya masih bisa diubah. Kelas lain tidak bisa
+  pindah ke sesi nonaktif.
+- Bila hari atau jam berubah, **jadwal anggota kelas diperiksa** (409 "Jadwal
+  baru bentrok: ..."): asisten kelas ini tidak boleh punya kelas lain (sebagai
+  praktikan maupun asisten) di jam baru, dan peserta kelas ini tidak boleh
+  menjadi asisten kelas lain di jam baru. Aturan ini sama dengan saat asisten
+  ditambahkan dan saat mahasiswa memilih kelas
+  (`assertNoMemberScheduleClash` di `src/utils/AssistantRules/assistant.rules.ts`).
+- Peserta, asisten, pertemuan, dan presensi tetap tersimpan. Jadwal baru
+  berlaku untuk pertemuan berikutnya.
+- Body yang isinya sama dengan data sekarang dibalas 200 "Tidak ada perubahan
+  pada kelas" tanpa menulis ke database dan tanpa event.
+- Berhasil: 200 "Kelas <mata kuliah> <nama> berhasil diperbarui", event
+  `class` (`action: "updated"`) ke semua dan `activation` ke peserta serta
+  asisten kelas itu, supaya jadwal di aplikasi mereka ikut berubah.
+
+`DELETE /class/:id` (hanya LABORAN, selain itu 403 "Hanya laboran yang dapat
+menghapus kelas!"):
+
+- Kelas yang sudah punya presensi (ada mahasiswa yang tercatat di salah satu
+  pertemuannya) **tidak bisa dihapus**: 409 "Kelas ini sudah punya presensi di
+  n pertemuan, jadi tidak bisa dihapus. Ubah kelasnya bila ada data yang
+  salah." Presensi adalah catatan resmi, jadi kelas seperti ini tetap ada
+  sebagai riwayat.
+- Bila belum ada presensi, kelas dihapus permanen dalam satu transaksi beserta
+  pertemuan kosongnya, peserta, dan asistennya. Peserta kembali berstatus
+  lunas tanpa kelas dan bisa memilih kelas lain; status pembayaran tidak
+  berubah. Pertemuan yang dibuat tanpa sengaja karena itu tidak mengunci
+  kelas selamanya.
+- Bila presensi baru tercatat tepat saat penghapusan berjalan, foreign key
+  menolak penghapusan pertemuannya dan balasannya 409 "Presensi baru saja
+  tercatat di kelas ini, jadi kelas tidak bisa dihapus."
+- Berhasil: 200 "Kelas <mata kuliah> <nama> berhasil dihapus"
+  `{ participants, assistants, meetings }`, event `class`
+  (`action: "deleted"`) ke semua dan `activation` ke peserta serta asisten.
+- `GET /class/:id` kini juga berisi `sessionId`, `meetings` (jumlah
+  pertemuan), dan `recorded_meetings` (pertemuan yang sudah berisi presensi),
+  sehingga web bisa menampilkan dampak penghapusan sebelum laboran
+  mengonfirmasi. Kelas yang tidak ada dibalas 404 "Kelas tidak ditemukan!"
+  (sebelumnya "Class not found!").
+
+Karena kelas bisa dipindah ke sesi lain, sesi yang sudah dipakai kelas bisa
+dikosongkan dulu lalu dihapus.
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
@@ -570,7 +636,8 @@ pertemuan, presensi, dan pesertanya, sedangkan aktivasi mahasiswa tetap ada.
 Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
 dan sebagian `announcement`.
 
-Belum: `auth`, `subject`, `class` (kecuali tambah kelas), sebagian `user`.
+Belum: `auth`, `subject`, `class` (kecuali tambah, ubah, dan hapus kelas),
+sebagian `user`.
 Jadi login masih
 menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
 menjawab "NIM/NIY atau password salah!" (sebelumnya "Email or password invalid!",
@@ -634,10 +701,10 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
 3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
 4. **Mahasiswa yang status bayarnya dibatalkan tetap berada di kelas.**
-5. **Jadwal kelas tidak diperiksa ulang bila jadwalnya diubah.** Aturan
-   asisten dicek setiap kali asisten ditambahkan atau mahasiswa mendapat
-   kelas, tetapi bila jadwal kelas diubah langsung di database setelah
-   itu, bentrokan baru tidak terdeteksi (belum ada endpoint ubah jadwal).
+5. **Bentrok jadwal hanya diperiksa terhadap kelas yang dipegang sebagai
+   asisten.** Dua kelas praktikum milik satu mahasiswa boleh berjadwal sama,
+   baik saat memilih kelas maupun saat laboran mengubah jadwal kelas. Jadwal
+   yang diubah langsung di database juga tidak diperiksa ulang.
 6. **QR yang berganti hanya menghentikan titip absen tertunda** (lewat foto).
    Siaran langsung, misalnya teman di kelas melakukan video call lalu
    mahasiswa yang absen memindai dari layar saat itu juga, tetap bisa lolos.
@@ -665,8 +732,15 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
     kolom waktu pertama kali sesi dibuka.
 
 11. **Jam kelas tidak punya riwayat.** Mengubah jam sesi langsung mengubah jam
-    semua kelasnya, termasuk untuk pertemuan yang sudah lewat. Tidak ada
-    catatan jam lama, dan tidak ada fitur mengubah jadwal satu kelas saja.
+    semua kelasnya, dan mengubah jadwal satu kelas juga menimpa jadwal
+    lamanya, termasuk untuk pertemuan yang sudah lewat. Tidak ada catatan jam
+    lama.
+
+12. **Hapus kelas bersifat permanen.** Kelas tanpa presensi dihapus dari
+    database (bukan soft delete) dan tidak bisa dipulihkan. Kelas yang sudah
+    punya presensi tidak bisa dihapus sama sekali, jadi kelas yang dibubarkan
+    di tengah semester tetap tampil. Mengarsipkan kelas butuh pemeriksaan
+    `deleted_at` di semua query yang membaca kelas, pertemuan, dan presensi.
 
 ## Pekerjaan yang masih tersisa
 

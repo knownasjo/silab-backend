@@ -7,6 +7,14 @@ export interface IAddClassRequestBody {
   sessionId?: string;
 }
 
+export type IUpdateClassRequestBody = IAddClassRequestBody;
+
+export interface IDeleteClassResponseBody {
+  participants: number;
+  assistants: number;
+  meetings: number;
+}
+
 export interface IGetClassResponseBody {
   id: string;
   subjectId: string;
@@ -34,8 +42,11 @@ export interface IGetClassByIdResponseBody {
   startAt: string;
   endAt: string;
   room: string;
+  sessionId: string | null;
   lecturer: string;
   participants: number;
+  meetings: number;
+  recorded_meetings: number;
 }
 
 export interface IGetAllClassByPaidActivationsResponseBody {
