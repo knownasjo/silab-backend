@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { UserRole, mst_user } from "@prisma/client";
 import {
   CreateRefreshToken,
   CreateToken,
@@ -7,6 +7,7 @@ import {
   passwordChangeTime,
 } from "../helper/jwt.helper";
 import {
+  IChangePasswordRequestBody,
   IForgotPasswordRequestBody,
   IPasswordResetCodeResponseBody,
   IRefreshTokenRequestBody,
@@ -14,8 +15,10 @@ import {
   IRegistrationResponseBody,
   IResendRegistrationRequestBody,
   IResetPasswordRequestBody,
+  IUpdateProfileRequestBody,
   IUserLoginRequestBody,
   IUserLoginResponseBody,
+  IUserProfileResponseBody,
   IUserRegisterRequestBody,
   IVerifyRegistrationRequestBody,
 } from "../interfaces/auth.interface";
@@ -50,6 +53,17 @@ const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
 const readEmail = (value: unknown) => readText(value).toLowerCase();
+
+const readPassword = (value: unknown) => (typeof value === "string" ? value : "");
+
+const readFullname = (value: unknown) => {
+  const fullname = readText(value).replace(/\s+/g, " ");
+
+  if (fullname.length < 3 || fullname.length > 100)
+    throw new BadRequestError("Nama lengkap harus 3 sampai 100 karakter!");
+
+  return fullname;
+};
 
 const createSession = (userId: string): IUserLoginResponseBody => ({
   accessToken: CreateToken({ id: userId }),
@@ -86,10 +100,10 @@ export const SUserLogin = async (
 ): Promise<IBaseResponse<IUserLoginResponseBody>> => {
   try {
     const nim = readText(body?.nim);
-    const password = typeof body?.password === "string" ? body.password : "";
+    const password = readPassword(body?.password);
 
     if (!nim || !password)
-      throw new BadRequestError("NIM dan password wajib diisi!");
+      throw new BadRequestError("NIM/NIY dan password wajib diisi!");
 
     const userData = await db.mst_user.findFirst({
       where: {
@@ -111,12 +125,12 @@ export const SUserLogin = async (
           { email: registration.email }
         );
 
-      throw new UnauthorizedError("NIM atau password salah!");
+      throw new UnauthorizedError("NIM/NIY atau password salah!");
     }
 
     const isPassSame = await bcrypt.compare(password, userData.password);
 
-    if (!isPassSame) throw new UnauthorizedError("NIM atau password salah!");
+    if (!isPassSame) throw new UnauthorizedError("NIM/NIY atau password salah!");
 
     return {
       status: true,
@@ -164,10 +178,8 @@ export const SRegisterUser = async (
   body: IUserRegisterRequestBody
 ): Promise<IBaseResponse<IRegistrationResponseBody>> => {
   const email = readEmail(body?.email);
-  const fullname = readText(body?.fullname).replace(/\s+/g, " ");
-  const password = typeof body?.password === "string" ? body.password : "";
-  const confirmPassword =
-    typeof body?.confirmPassword === "string" ? body.confirmPassword : "";
+  const password = readPassword(body?.password);
+  const confirmPassword = readPassword(body?.confirmPassword);
 
   const nim = CAMPUS_EMAIL.exec(email)?.[1];
 
@@ -176,8 +188,7 @@ export const SRegisterUser = async (
       "Gunakan email kampus dengan format namadepanNIM@webmail.uad.ac.id!"
     );
 
-  if (fullname.length < 3 || fullname.length > 100)
-    throw new BadRequestError("Nama lengkap harus 3 sampai 100 karakter!");
+  const fullname = readFullname(body?.fullname);
 
   if (password.length < MIN_PASSWORD_LENGTH)
     throw new BadRequestError(
@@ -416,9 +427,8 @@ export const SResetPassword = async (
 ): Promise<IBaseResponse> => {
   const email = readEmail(body?.email);
   const code = readText(body?.code);
-  const password = typeof body?.password === "string" ? body.password : "";
-  const confirmPassword =
-    typeof body?.confirmPassword === "string" ? body.confirmPassword : "";
+  const password = readPassword(body?.password);
+  const confirmPassword = readPassword(body?.confirmPassword);
 
   if (!email || !/^\d{6}$/.test(code))
     throw new BadRequestError("Masukkan 6 angka kode verifikasi!");
@@ -479,5 +489,79 @@ export const SResetPassword = async (
   return {
     status: true,
     message: "Password berhasil diubah, silakan masuk.",
+  };
+};
+
+const profileOf = (user: mst_user): IUserProfileResponseBody => ({
+  id: user.id,
+  nim: user.nim,
+  name: user.fullname,
+  email: user.email,
+  role: user.role,
+});
+
+export const SUpdateProfile = async (
+  userId: string,
+  body: IUpdateProfileRequestBody
+): Promise<IBaseResponse<IUserProfileResponseBody>> => {
+  const fullname = readFullname(body?.fullname);
+
+  const user = await db.mst_user.update({
+    where: { id: userId },
+    data: { fullname },
+  });
+
+  return {
+    status: true,
+    message: "Nama berhasil diperbarui",
+    data: profileOf(user),
+  };
+};
+
+export const SChangePassword = async (
+  userId: string,
+  body: IChangePasswordRequestBody
+): Promise<IBaseResponse<IUserLoginResponseBody>> => {
+  const oldPassword = readPassword(body?.oldPassword);
+  const password = readPassword(body?.password);
+  const confirmPassword = readPassword(body?.confirmPassword);
+
+  if (!oldPassword) throw new BadRequestError("Password lama wajib diisi!");
+
+  if (password.length < MIN_PASSWORD_LENGTH)
+    throw new BadRequestError(
+      `Password minimal ${MIN_PASSWORD_LENGTH} karakter!`
+    );
+
+  if (password !== confirmPassword)
+    throw new BadRequestError("Konfirmasi password tidak sama!");
+
+  const user = await db.mst_user.findUnique({ where: { id: userId } });
+
+  if (!user || !(await bcrypt.compare(oldPassword, user.password)))
+    throw new BadRequestError("Password lama salah!");
+
+  if (password === oldPassword)
+    throw new BadRequestError(
+      "Password baru harus berbeda dari password lama."
+    );
+
+  await db.$transaction([
+    db.mst_user.update({
+      where: { id: user.id },
+      data: {
+        password: await bcrypt.hash(password, 10),
+        password_changed_at: passwordChangeTime(),
+      },
+    }),
+    db.trn_password_resets.deleteMany({ where: { userId: user.id } }),
+  ]);
+
+  closeUserStreams(user.id);
+
+  return {
+    status: true,
+    message: "Password berhasil diganti",
+    data: createSession(user.id),
   };
 };

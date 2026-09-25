@@ -46,6 +46,24 @@ export interface IResendRegistrationRequestBody {
   email: string;
 }
 
+export interface IUpdateProfileRequestBody {
+  fullname: string;
+}
+
+export interface IUserProfileResponseBody {
+  id: string;
+  nim: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export interface IChangePasswordRequestBody {
+  oldPassword: string;
+  password: string;
+  confirmPassword: string;
+}
+
 export interface IForgotPasswordRequestBody {
   email: string;
 }

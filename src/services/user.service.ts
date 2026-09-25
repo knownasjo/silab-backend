@@ -78,11 +78,18 @@ export const SCreateUser = async (
   const password = typeof body.password === "string" ? body.password : "";
   const role = readText(body.role).toUpperCase();
   const roles: string[] = [UserRole.MAHASISWA, UserRole.LABORAN, UserRole.DOSEN];
+  const isStaff = role === UserRole.LABORAN || role === UserRole.DOSEN;
+
+  if (!roles.includes(role))
+    throw new BadRequestError(`Role harus salah satu dari ${roles.join(", ")}!`);
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new BadRequestError("Format email tidak valid!");
 
-  if (!/^\d{1,30}$/.test(nim))
+  if (isStaff && !/^\d{8}$/.test(nim))
+    throw new BadRequestError("NIY harus 8 angka!");
+
+  if (!isStaff && !/^\d{1,30}$/.test(nim))
     throw new BadRequestError("NIM hanya boleh berisi angka!");
 
   if (fullname.length < 3 || fullname.length > 100)
@@ -90,9 +97,6 @@ export const SCreateUser = async (
 
   if (password.length < 8)
     throw new BadRequestError("Password minimal 8 karakter!");
-
-  if (!roles.includes(role))
-    throw new BadRequestError(`Role harus salah satu dari ${roles.join(", ")}!`);
 
   const registeredUser = await db.mst_user.findFirst({
     where: {
@@ -105,7 +109,7 @@ export const SCreateUser = async (
     throw new ConflictError(
       registeredUser.email.toLowerCase() === email
         ? "Email sudah terdaftar!"
-        : "NIM sudah terdaftar!"
+        : `${isStaff ? "NIY" : "NIM"} sudah terdaftar!`
     );
 
   const [, user] = await db.$transaction([

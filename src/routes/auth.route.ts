@@ -1,9 +1,11 @@
 import { Router } from "express";
 import {
+  CChangePassword,
   CForgotPassword,
   CRefreshAccessToken,
   CResendRegistrationCode,
   CResetPassword,
+  CUpdateProfile,
   CUserLogin,
   CUserMe,
   CUserRegister,
@@ -28,5 +30,9 @@ router.post("/password/forgot", CForgotPassword);
 router.post("/password/reset", CResetPassword);
 
 router.get("/me", MAuthUser(), CUserMe);
+
+router.put("/me", MAuthUser(), CUpdateProfile);
+
+router.put("/me/password", MAuthUser(), CChangePassword);
 
 export default router;

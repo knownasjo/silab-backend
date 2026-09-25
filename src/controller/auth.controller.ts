@@ -7,6 +7,8 @@ import {
   SResendRegistrationCode,
   SForgotPassword,
   SResetPassword,
+  SUpdateProfile,
+  SChangePassword,
 } from "../services/auth.service";
 
 export const CUserLogin = async (
@@ -100,6 +102,34 @@ export const CResetPassword = async (
 ) => {
   try {
     const resData = await SResetPassword(req.body);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CUpdateProfile = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SUpdateProfile(req.user!.id, req.body);
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CChangePassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SChangePassword(req.user!.id, req.body);
 
     res.status(200).json(resData);
   } catch (error: any) {

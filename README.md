@@ -103,6 +103,8 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | POST | `/auth/password/forgot` | publik (akun MAHASISWA, lihat "Lupa password") |
 | POST | `/auth/password/reset` | publik |
 | GET | `/auth/me` | login |
+| PUT | `/auth/me` | login (ganti nama sendiri, lihat "Profil dan ganti password") |
+| PUT | `/auth/me/password` | login (ganti password sendiri) |
 | POST | `/subject` | LABORAN |
 | GET | `/subject` | login |
 | GET | `/subject/:id` | login |
@@ -125,7 +127,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | DELETE | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
 | POST | `/subject/classes/:classId/meetings/:meetingId/attendances` | MAHASISWA |
 | POST | `/user` | LABORAN (buat akun role apa pun, langsung aktif) |
-| PUT | `/user/:nimAtauId/password` | LABORAN (ganti password akun LABORAN/DOSEN) |
+| PUT | `/user/:niyAtauId/password` | LABORAN (ganti password akun LABORAN/DOSEN) |
 | GET | `/user/dosen` | login |
 | GET | `/user/mahasiswa?name=` | LABORAN (calon asisten, cari nama/NIM, maks. 20) |
 | POST | `/announcement` | LABORAN |
@@ -137,6 +139,24 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/collaborator/:id` | login |
 | DELETE | `/collaborator/:classId/:userId` | LABORAN |
 | GET | `/events` | login; stream SSE real-time |
+
+### Koleksi Postman
+
+`docs/SILABV2.postman_collection.json` berisi 53 request untuk semua endpoint
+di atas, dikelompokkan per fitur, masing-masing dengan keterangan peran dan
+balasan yang diharapkan. Import ke Postman, lalu:
+
+1. Jalankan request di folder **Auth**. Token laboran, mahasiswa, dosen, dan
+   asisten tersimpan otomatis ke variabel koleksi.
+2. Request yang mengubah data memakai akun baru dari folder **Pendaftaran
+   Mahasiswa** (`newStudentEmail`, token `accessTokenBaru`) atau data baru
+   (mata kuliah, akun dosen, pertemuan), jadi akun uji lain tidak berubah.
+   Kode dari email diisi manual ke variabel `verificationCode` dan `resetCode`.
+3. Skrip di beberapa request menyimpan id yang dibutuhkan request berikutnya
+   (`newStudentId`, `activationId`, `meetingId`, `qrToken`, `announcementId`).
+
+POST/PUT/DELETE mengubah data sungguhan. Akun mahasiswa hasil uji bisa dihapus
+dengan `npm run hapus-akun <NIM>`.
 
 ### Endpoint presensi (inti skripsi)
 
@@ -277,9 +297,16 @@ POST /auth/register/resend  { email }         -> 200 { email, nim, expires_in, r
 
 Akun staf dan akun uji dibuat laboran lewat `POST /user` (`Authorization`
 laboran) dengan body `{ email, nim, fullname, password, role }`: email bebas,
-NIM angka, password min. 8, role salah satu `UserRole`. Akun langsung aktif dan
-menggantikan pendaftaran belum terverifikasi dengan email/NIM yang sama.
+password min. 8, role MAHASISWA, LABORAN, atau DOSEN. Akun langsung aktif dan
+menggantikan pendaftaran belum terverifikasi dengan email/nomor yang sama.
 Gunakan email asli yang aktif untuk akun laboran dan dosen.
+
+**NIM dan NIY.** Kolom `nim` di database dan field `nim` di API adalah nomor
+induk untuk login. Mahasiswa mengisinya dengan NIM (angka), sedangkan dosen dan
+laboran dengan **NIY** (Nomor Induk Yayasan), wajib tepat 8 angka ("NIY harus 8
+angka!", "NIY sudah terdaftar!"). NIDN dosen belum disimpan karena belum ada
+fitur yang membutuhkannya. Pesan login untuk semua peran: "NIM/NIY atau password
+salah!".
 
 ### Lupa password
 
@@ -315,14 +342,40 @@ Laboran dan dosen yang lupa password menghubungi laboran lain, yang lalu
 mengganti password-nya:
 
 ```
-PUT /user/2000016201/password   { "password": "passwordbaru" }
+PUT /user/60020001/password   { "password": "passwordbaru" }
   -> 200 "Password Dosen001 berhasil diganti"  { id, nim, fullname, role }
 ```
 
-`:nimAtauId` boleh NIM atau id akun. Hanya LABORAN yang boleh memanggilnya, dan
+`:niyAtauId` boleh NIY atau id akun. Hanya LABORAN yang boleh memanggilnya, dan
 hanya untuk akun LABORAN/DOSEN; akun mahasiswa ditolak 403 agar mahasiswa
 memakai Lupa password. Sesi lama akun itu ikut dicabut. Bila laboran mengganti
 password-nya sendiri lewat endpoint ini, sesinya sendiri juga berakhir.
+
+### Profil dan ganti password
+
+Setiap pengguna yang login bisa mengubah nama dan password-nya sendiri. Aplikasi
+mobile memakainya untuk mahasiswa (termasuk asisten), web untuk laboran dan
+dosen.
+
+```
+PUT /auth/me            { fullname }
+  -> 200 "Nama berhasil diperbarui"  { id, nim, name, email, role }
+PUT /auth/me/password   { oldPassword, password, confirmPassword }
+  -> 200 "Password berhasil diganti"  { accessToken, refreshToken }
+```
+
+- Hanya nama yang bisa diubah (3–100 karakter, spasi berlebih dirapikan). NIM,
+  email, dan role di body diabaikan. Ganti nama tidak mengeluarkan sesi dan
+  tidak mengirim event real-time; layar lain melihat nama baru setelah memuat
+  ulang.
+- Ganti password: 400 "Password lama wajib diisi!", "Password minimal 8
+  karakter!", "Konfirmasi password tidak sama!", "Password lama salah!", atau
+  "Password baru harus berbeda dari password lama." Penolakan tidak mengubah
+  apa pun.
+- Setelah berhasil, sesi lama dicabut seperti pada Lupa password (termasuk
+  aliran SSE), kode Lupa password yang masih tersimpan dihapus, dan balasannya
+  berisi token baru. Perangkat yang mengganti password menyimpan token itu
+  sehingga tetap masuk; perangkat lain kembali ke login.
 
 `trn_registrations` dan `trn_password_resets` memakai Row Level Security seperti
 tabel lain, sehingga tidak bisa dibaca lewat API publik Supabase; backend tetap
@@ -423,21 +476,22 @@ dan sebagian `announcement`.
 
 Belum: `auth`, `subject`, `class`, sebagian `user`. Jadi login masih
 menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
-menjawab "NIM atau password salah!" (sebelumnya "Email or password invalid!",
-padahal login memakai NIM), dan `POST /auth/refresh` sudah berbahasa
+menjawab "NIM/NIY atau password salah!" (sebelumnya "Email or password invalid!",
+padahal login memakai NIM/NIY), dan `POST /auth/refresh` sudah berbahasa
 Indonesia.
 
 ## Akun uji
 
-Pola password: fullname dalam huruf kecil.
+Pola password: nama awal akun dalam huruf kecil. Laboran dan dosen memakai NIY
+8 angka (sebelumnya 2000016002, 2000016001, dan 2000016201).
 
-| NIM | Password | Role |
+| NIM / NIY | Password | Role |
 |---|---|---|
-| 2000016002 | laboran002 | LABORAN |
-| 2000016001 | laboran001 | LABORAN |
+| 60010002 | laboran002 | LABORAN |
+| 60010001 | laboran001 | LABORAN |
 | 2000016099 | mahasiswa001 | MAHASISWA |
 | 2000016101 | asisten001 | MAHASISWA (asisten Alpro B) |
-| 2000016201 | dosen001 | DOSEN |
+| 60020001 | dosen001 | DOSEN |
 
 Data uji: kelas `652fb265-0d30-45c6-90eb-b37b1c3f3127` (Algoritma dan
 Pemrograman, kelas A), pertemuan `cc6434e9-8701-4955-a1ed-6ed4a723b4f1`

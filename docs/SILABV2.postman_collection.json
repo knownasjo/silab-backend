@@ -1,1146 +1,2344 @@
 {
-  "info": {
-    "_postman_id": "6dcbc2f1-3896-4c0c-8c79-96241f90aea3",
-    "name": "SILABV2",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_exporter_id": "38266744"
-  },
-  "item": [
-    {
-      "name": "Auth",
-      "item": [
-        {
-          "name": "Login - Mahasiswa",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {\r",
-                  "    try {\r",
-                  "        const jsonData = pm.response.json();\r",
-                  "\r",
-                  "        // Check if accessToken is inside data\r",
-                  "        if (jsonData.data && jsonData.data.accessToken) {\r",
-                  "            pm.collectionVariables.set(\"accessTokenMahasiswa\", jsonData.data.accessToken);\r",
-                  "            console.log(\"Access token saved to collection variables.\");\r",
-                  "        } else {\r",
-                  "            console.warn(\"No accessToken found in response data.\");\r",
-                  "        }\r",
-                  "    } catch (e) {\r",
-                  "        console.error(\"Failed to parse response JSON:\", e);\r",
-                  "    }\r",
-                  "} else {\r",
-                  "    console.error(\"Authentication failed with status code:\", pm.response.code);\r",
-                  "}\r",
-                  ""
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            },
-            {
-              "listen": "prerequest",
-              "script": {
-                "exec": [
-                  ""
-                ],
-                "type": "text/javascript",
-                "packages": {},
-                "requests": {}
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n  \"nim\": \"2000016104\",\r\n  \"password\": \"mahasiswa004\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Register - Mahasiswa",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"email\" : \"mahasiswa005@webmail.uad.ac.id\",\r\n    \"nim\" : \"2000016105\",\r\n    \"fullname\" : \"Mahasiswa005\",\r\n    \"password\" : \"mahasiswa005\",\r\n    \"confirmPassword\" : \"mahasiswa005\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get User Data",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "me"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Login - Laboran",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {\r",
-                  "    try {\r",
-                  "        const jsonData = pm.response.json();\r",
-                  "\r",
-                  "        // Check if accessToken is inside data\r",
-                  "        if (jsonData.data && jsonData.data.accessToken) {\r",
-                  "            pm.collectionVariables.set(\"accessTokenLaboran\", jsonData.data.accessToken);\r",
-                  "            console.log(\"Access token saved to collection variables.\");\r",
-                  "        } else {\r",
-                  "            console.warn(\"No accessToken found in response data.\");\r",
-                  "        }\r",
-                  "    } catch (e) {\r",
-                  "        console.error(\"Failed to parse response JSON:\", e);\r",
-                  "    }\r",
-                  "} else {\r",
-                  "    console.error(\"Authentication failed with status code:\", pm.response.code);\r",
-                  "}\r",
-                  ""
-                ],
-                "type": "text/javascript",
-                "packages": {}
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"nim\" : \"2000016002\",\r\n    \"password\" : \"laboran002\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Register - Laboran",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"email\" : \"laboran002@webmail.uad.ac.id\",\r\n    \"nim\" : \"2000016002\",\r\n    \"fullname\" : \"Laboran002\",\r\n    \"password\" : \"laboran002\",\r\n    \"confirmPassword\" : \"laboran002\",\r\n    \"role\" : \"LABORAN\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Register - Asisten",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"email\" : \"asisten001@webmail.uad.ac.id\",\r\n    \"nim\" : \"2000016101\",\r\n    \"fullname\" : \"asisten001\",\r\n    \"password\" : \"asisten001\",\r\n    \"confirmPassword\" : \"asisten001\",\r\n    \"role\" : \"ASISTEN\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Register - Dosen",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"email\" : \"dosen001@webmail.uad.ac.id\",\r\n    \"nim\" : \"2000016201\",\r\n    \"fullname\" : \"Dosen001\",\r\n    \"password\" : \"dosen001\",\r\n    \"confirmPassword\" : \"dosen001\",\r\n    \"role\" : \"DOSEN\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Subject",
-      "item": [
-        {
-          "name": "Get All Subjects",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/subject",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "subject"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Add Subject",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"subject_code\": \"001\",\r\n    \"subject_name\": \"Algoritma dan Pemrograman\",\r\n    \"semester\": \"1\",\r\n    \"lecturer_id\": \"8f173d22-c5a8-46ea-83ca-44c380a47564\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/subject",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "subject"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Subject by Id",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/subject/a3ad4b19-25a6-471b-8d83-cb15e62fb59c",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "subject",
-                "a3ad4b19-25a6-471b-8d83-cb15e62fb59c"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Class",
-      "item": [
-        {
-          "name": "Get All Classes",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/class/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "class",
-                ""
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Add Class",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"subjectId\": \"22f284b9-7c59-4121-a395-dcd109e5097f\",\r\n    \"name\": \"A\",\r\n    \"quota\": 25,\r\n    \"day\": \"MONDAY\",\r\n    \"startAt\": \"07.00\",\r\n    \"endAt\": \"08.30\",\r\n    \"room\": \"PSI\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/class/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "class",
-                ""
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Class By Id",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/class/652fb265-0d30-45c6-90eb-b37b1c3f3127",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "class",
-                "652fb265-0d30-45c6-90eb-b37b1c3f3127"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Class By Paid Payment Status",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/class/registration",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "class",
-                "registration"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Class Registration",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"classIds\" : [\"652fb265-0d30-45c6-90eb-b37b1c3f3127\"]\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/class/registration",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "class",
-                "registration"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Activation",
-      "item": [
-        {
-          "name": "Add Student Activation",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"subjectIds\" : [\"3406e520-8b34-4ddb-839f-ce46230ef779\"]\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/activation/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "activation",
-                ""
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Activations",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/activation/?name=&status=",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "activation",
-                ""
-              ],
-              "query": [
-                {
-                  "key": "name",
-                  "value": ""
-                },
-                {
-                  "key": "status",
-                  "value": ""
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Payment Status",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"classId\": \"eb4e960d-439e-4b06-b4ab-df26aeccda29\" }",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/activation/9c86e410-429b-46a0-93e1-174a36635265",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "activation",
-                "9c86e410-429b-46a0-93e1-174a36635265"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Meeting",
-      "item": [
-        {
-          "name": "Get All Class Meeting",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/meeting/652fb265-0d30-45c6-90eb-b37b1c3f3127",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "meeting",
-                "652fb265-0d30-45c6-90eb-b37b1c3f3127"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Add Class Meeting",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"classId\" : \"652fb265-0d30-45c6-90eb-b37b1c3f3127\",\r\n    \"meetingName\" : \"Pertemuan 1\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/meeting/",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "meeting",
-                ""
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Open Attendance Session",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer <token>",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/meeting/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/status",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "meeting",
-                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
-                "status"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Presensi Scan QR",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenMahasiswa}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"token\": \"S8Bxpm\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/subject/classes/652fb265-0d30-45c6-90eb-b37b1c3f3127/meetings/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/attendances",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "subject",
-                "classes",
-                "652fb265-0d30-45c6-90eb-b37b1c3f3127",
-                "meetings",
-                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
-                "attendances"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Ubah Presensi Manual",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "PUT",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{ \"status\": true }",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/meeting/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/attendances/32f6e8e2-44cd-4047-9be5-a6e18934e5f6",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "meeting",
-                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
-                "attendances",
-                "32f6e8e2-44cd-4047-9be5-a6e18934e5f6"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Hapus Presensi",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/meeting/cc6434e9-8701-4955-a1ed-6ed4a723b4f1/attendances/32f6e8e2-44cd-4047-9be5-a6e18934e5f6",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "meeting",
-                "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
-                "attendances",
-                "32f6e8e2-44cd-4047-9be5-a6e18934e5f6"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "User",
-      "item": [
-        {
-          "name": "Get Asisten",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/user/asisten?name=asisten",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "user",
-                "asisten"
-              ],
-              "query": [
-                {
-                  "key": "name",
-                  "value": "asisten"
-                }
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Dosen",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/user/dosen",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "user",
-                "dosen"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Announcement",
-      "item": [
-        {
-          "name": "Add Announcement",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"type\": \"BASIC\",\r\n    \"title\": \"Announcement 001\",\r\n    \"body\": \"Ini adalah pengumuman\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/announcement",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "announcement"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Announcements",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/announcement",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "announcement"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Announcement by Id",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/announcement/fb6b21fc-f4e2-4c56-b00d-8d69a6e29396",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "announcement",
-                "fb6b21fc-f4e2-4c56-b00d-8d69a6e29396"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    },
-    {
-      "name": "Class Collaborators",
-      "item": [
-        {
-          "name": "Add Class Collaborators",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "POST",
-            "header": [],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"classId\" : \"652fb265-0d30-45c6-90eb-b37b1c3f3127\",\r\n    \"collaborators\" : [\"8f173d22-c5a8-46ea-83ca-44c380a47564\"]\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/collaborator",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "collaborator"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Class Collaborators",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{accessTokenLaboran}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/collaborator/652fb265-0d30-45c6-90eb-b37b1c3f3127",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "collaborator",
-                "652fb265-0d30-45c6-90eb-b37b1c3f3127"
-              ]
-            }
-          },
-          "response": []
-        }
-      ]
-    }
-  ],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "packages": {},
-        "exec": [
-          ""
-        ]
-      }
-    },
-    {
-      "listen": "test",
-      "script": {
-        "type": "text/javascript",
-        "packages": {},
-        "exec": [
-          ""
-        ]
-      }
-    }
-  ],
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "localhost:3000",
-      "type": "string"
-    },
-    {
-      "key": "accessTokenLaboran",
-      "value": "",
-      "type": "default"
-    },
-    {
-      "key": "accessTokenMahasiswa",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImM4YjUyNTk5LWU5ZmMtNDFjZi04NzJiLTc4ZTc1ZjQ1YzNjMSIsImlhdCI6MTc0NTk5NDQwMCwiZXhwIjoxNzQ1OTk1MzAwfQ.bYt1EZuXndOctdANh4b83XaHCkJuvk26DcpvfiFAv8Y",
-      "type": "string"
-    }
-  ]
+	"info": {
+		"_postman_id": "6dcbc2f1-3896-4c0c-8c79-96241f90aea3",
+		"name": "SILABV2",
+		"description": "Koleksi endpoint backend SILAB (Express + Prisma). Daftar endpoint lengkap dan aturannya ada di README `silab-backend`.\n\n**Cara pakai**\n1. Pastikan variabel `baseUrl` sesuai (bawaan `http://localhost:3000`).\n2. Jalankan request di folder **Auth** (Login - Laboran, Mahasiswa, Dosen, Asisten). Token tersimpan otomatis dan dipakai request lain.\n3. Request yang mengubah data memakai **akun baru** dari folder Pendaftaran Mahasiswa (`accessTokenBaru`) atau data baru (mata kuliah, akun dosen, pertemuan) agar akun uji lain tidak berubah. Kode verifikasi dan kode reset diisi manual ke variabel `verificationCode` dan `resetCode`.\n\n**Perhatian:** POST/PUT/DELETE mengubah data sungguhan di database. Akun mahasiswa uji bisa dihapus lagi dengan `npm run hapus-akun <NIM>`.\n\nAkun uji: Laboran 60010002/laboran002, Mahasiswa 2000016099/mahasiswa001, Dosen 60020001/dosen001, Asisten 2000016101/asisten001. Mahasiswa login dengan NIM, dosen dan laboran dengan NIY (8 angka); field-nya tetap bernama `nim`.\n\nAccess token yang kedaluwarsa atau dicabut dibalas **400 `jwt expired`**; jalankan Login lagi atau Refresh Token.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"description": "Login semua peran, perpanjang sesi, dan data akun yang sedang login.",
+			"item": [
+				{
+					"name": "Login - Laboran",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenLaboran\", data.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nim\": \"60010002\",\n  \"password\": \"laboran002\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Masuk dengan NIY (8 angka) dan password akun uji laboran. Token disimpan otomatis ke variabel `accessTokenLaboran`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Mahasiswa",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenMahasiswa\", data.accessToken);",
+									"    pm.collectionVariables.set(\"refreshTokenMahasiswa\", data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nim\": \"2000016099\",\n  \"password\": \"mahasiswa001\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Masuk dengan NIM dan password akun uji mahasiswa. Token disimpan otomatis ke variabel `accessTokenMahasiswa` dan `refreshTokenMahasiswa`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Dosen",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenDosen\", data.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nim\": \"60020001\",\n  \"password\": \"dosen001\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Masuk dengan NIY (8 angka) dan password akun uji dosen. Token disimpan otomatis ke variabel `accessTokenDosen`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Asisten",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenAsisten\", data.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nim\": \"2000016101\",\n  \"password\": \"asisten001\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Masuk dengan NIM dan password akun uji asisten. Token disimpan otomatis ke variabel `accessTokenAsisten`. Akun ini MAHASISWA yang menjadi asisten Algoritma dan Pemrograman kelas B (`{{assistantClassId}}`).\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenMahasiswa\", data.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshTokenMahasiswa}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Menukar refresh token dengan access token baru (refresh token tidak diperpanjang).\n\n- 200 `{ accessToken }`\n- 401 \"Sesi berakhir, silakan login kembali!\" bila refresh token kedaluwarsa, password akun diganti, atau akun dihapus"
+					},
+					"response": []
+				},
+				{
+					"name": "Data Akun Saya",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenMahasiswa}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Data akun pemilik token: `{ id, nim, name, email, role }`. Access token yang kedaluwarsa atau dicabut dibalas 400 `jwt expired`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Pendaftaran Mahasiswa",
+			"description": "Mahasiswa mendaftar sendiri dengan email kampus `namadepanNIM@webmail.uad.ac.id`. Isi variabel `newStudentEmail` dengan email kampus asli agar kodenya bisa diterima. Bila `SMTP_USER`/`SMTP_PASS` backend kosong, kode dicetak di terminal backend.",
+			"item": [
+				{
+					"name": "Daftar",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{newStudentEmail}}\",\n  \"fullname\": \"{{newStudentName}}\",\n  \"password\": \"{{newStudentPassword}}\",\n  \"confirmPassword\": \"{{newStudentPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						},
+						"description": "Mengirim kode 6 angka ke email. NIM diambil dari 10 angka sebelum `@`; role selalu MAHASISWA.\n\n- 201 `{ email, nim, expires_in: 600, resend_in: 60 }`\n- 400 format email, nama (3–100 karakter), password (min. 8), atau konfirmasi\n- 409 \"Email sudah terdaftar\" / \"NIM sudah terdaftar\"\n- 429 bila meminta lagi sebelum 60 detik"
+					},
+					"response": []
+				},
+				{
+					"name": "Kirim Ulang Kode",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{newStudentEmail}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register/resend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register",
+								"resend"
+							]
+						},
+						"description": "Mengirim kode baru (kode lama tidak berlaku). Baru boleh 60 detik setelah kiriman terakhir.\n\n- 200 `{ email, nim, expires_in, resend_in }`\n- 404 \"Pendaftaran tidak ditemukan, silakan daftar ulang.\"\n- 429 \"Tunggu n detik sebelum meminta kode baru.\""
+					},
+					"response": []
+				},
+				{
+					"name": "Verifikasi Kode",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenBaru\", data.accessToken);",
+									"    pm.collectionVariables.set(\"refreshTokenBaru\", data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{newStudentEmail}}\",\n  \"code\": \"{{verificationCode}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/register/verify",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"register",
+								"verify"
+							]
+						},
+						"description": "Isi variabel `verificationCode` dengan kode dari email. Akun dibuat dan langsung masuk; token disimpan ke `accessTokenBaru` dan `refreshTokenBaru`.\n\n- 201 `{ accessToken, refreshToken }`\n- 400 \"Kode salah. Sisa n percobaan.\" / \"Kode sudah kedaluwarsa, minta kode baru.\"\n- 429 setelah 5 kali salah"
+					},
+					"response": []
+				},
+				{
+					"name": "Data Akun Baru",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    pm.collectionVariables.set(\"newStudentId\", pm.response.json().data.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Menyimpan id akun baru ke variabel `newStudentId` untuk request presensi dan asisten."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Profil",
+			"description": "Mengubah nama dan password sendiri. Contoh di sini memakai akun baru dari folder Pendaftaran Mahasiswa agar akun uji lain tidak berubah.",
+			"item": [
+				{
+					"name": "Ubah Nama",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullname\": \"{{newStudentName}} Baru\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Hanya nama yang bisa diubah (3–100 karakter, spasi berlebih dirapikan). NIM, email, dan role di body diabaikan.\n\n- 200 \"Nama berhasil diperbarui\" `{ id, nim, name, email, role }`\n- 400 \"Nama lengkap harus 3 sampai 100 karakter!\""
+					},
+					"response": []
+				},
+				{
+					"name": "Ganti Password",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenBaru\", data.accessToken);",
+									"    pm.collectionVariables.set(\"refreshTokenBaru\", data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"oldPassword\": \"{{newStudentPassword}}\",\n  \"password\": \"{{newStudentNewPassword}}\",\n  \"confirmPassword\": \"{{newStudentNewPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/me/password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"me",
+								"password"
+							]
+						},
+						"description": "Sesi lama di perangkat lain dicabut; balasan berisi token baru untuk perangkat ini (disimpan otomatis).\n\n- 200 \"Password berhasil diganti\" `{ accessToken, refreshToken }`\n- 400 \"Password lama wajib diisi!\", \"Password minimal 8 karakter!\", \"Konfirmasi password tidak sama!\", \"Password lama salah!\", \"Password baru harus berbeda dari password lama.\""
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Lupa Password",
+			"description": "Reset password mandiri untuk akun MAHASISWA lewat kode di email. Akun laboran dan dosen diganti password-nya oleh laboran (folder User).",
+			"item": [
+				{
+					"name": "Minta Kode",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{newStudentEmail}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/password/forgot",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"password",
+								"forgot"
+							]
+						},
+						"description": "Mengirim kode reset 6 angka (berlaku 10 menit, minta ulang dengan request yang sama setelah 60 detik).\n\n- 200 `{ email, expires_in: 600, resend_in: 60 }`\n- 404 \"Email ini belum terdaftar di SILAB.\"\n- 403 \"Akun ini belum diverifikasi...\" (dengan `data.email`) atau \"Reset password akun laboran dan dosen dilakukan oleh laboran.\"\n- 429 \"Tunggu n detik sebelum meminta kode baru.\""
+					},
+					"response": []
+				},
+				{
+					"name": "Atur Password Baru",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{newStudentEmail}}\",\n  \"code\": \"{{resetCode}}\",\n  \"password\": \"{{newStudentPassword}}\",\n  \"confirmPassword\": \"{{newStudentPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/password/reset",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"password",
+								"reset"
+							]
+						},
+						"description": "Isi variabel `resetCode` dengan kode dari email. Contoh ini mengembalikan password akun baru ke `newStudentPassword`. Semua sesi lama akun itu dicabut, jadi jalankan \"Login - Akun Baru\" sesudahnya.\n\n- 200 \"Password berhasil diubah, silakan masuk.\"\n- 400 kode bukan 6 angka, password < 8, konfirmasi beda, \"Kode salah. Sisa n percobaan.\", \"Kode sudah kedaluwarsa, minta kode baru.\"\n- 404 \"Permintaan reset password tidak ditemukan, minta kode baru.\"\n- 429 setelah 5 kali salah"
+					},
+					"response": []
+				},
+				{
+					"name": "Login - Akun Baru",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 || pm.response.code === 201) {",
+									"    const data = pm.response.json().data;",
+									"    pm.collectionVariables.set(\"accessTokenBaru\", data.accessToken);",
+									"    pm.collectionVariables.set(\"refreshTokenBaru\", data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"nim\": \"{{newStudentNim}}\",\n  \"password\": \"{{newStudentPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Masuk lagi dengan akun baru setelah password direset. `newStudentNim` harus sama dengan 10 angka di `newStudentEmail`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User",
+			"description": "Pengelolaan akun oleh laboran. Akun laboran dan dosen dibuat di sini dengan email asli yang aktif.",
+			"item": [
+				{
+					"name": "Buat Akun",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"{{newStaffEmail}}\",\n  \"nim\": \"{{newStaffNiy}}\",\n  \"fullname\": \"Dosen Postman\",\n  \"password\": \"{{newStaffPassword}}\",\n  \"role\": \"DOSEN\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user"
+							]
+						},
+						"description": "Hanya LABORAN. Membuat akun yang langsung aktif. `role`: MAHASISWA, LABORAN, atau DOSEN. Field `nim` diisi NIM (angka) untuk MAHASISWA atau NIY tepat 8 angka untuk LABORAN/DOSEN. Email bebas (tidak harus webmail), password min. 8.\n\n- 201 \"Akun berhasil dibuat\" `{ id, email, nim, fullname, role }`\n- 400 isian tidak valid, termasuk \"NIY harus 8 angka!\"\n- 403 bukan laboran\n- 409 \"Email sudah terdaftar!\" / \"NIY sudah terdaftar!\" / \"NIM sudah terdaftar!\""
+					},
+					"response": []
+				},
+				{
+					"name": "Daftar Dosen",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/dosen",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"dosen"
+							]
+						},
+						"description": "Hanya LABORAN. Dipakai untuk memilih dosen pengampu saat menambah mata kuliah: `[{ id, nim, fullname }]`."
+					},
+					"response": []
+				},
+				{
+					"name": "Cari Mahasiswa",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/mahasiswa?name={{newStudentName}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"mahasiswa"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "{{newStudentName}}",
+									"description": "Nama atau NIM (boleh sebagian)"
+								}
+							]
+						},
+						"description": "Hanya LABORAN. Mencari calon asisten berdasarkan nama atau NIM, maksimal 20 hasil: `[{ id, nim, fullname }]`."
+					},
+					"response": []
+				},
+				{
+					"name": "Ganti Password Laboran/Dosen",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"password\": \"{{newStaffNewPassword}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/user/{{newStaffNiy}}/password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"user",
+								"{{newStaffNiy}}",
+								"password"
+							]
+						},
+						"description": "Hanya LABORAN, dan hanya untuk akun LABORAN/DOSEN yang lupa password. Path boleh berisi NIY atau id akun. Sesi lama akun itu dicabut.\n\n- 200 \"Password <nama> berhasil diganti\" `{ id, nim, fullname, role }`\n- 400 \"Password minimal 8 karakter!\"\n- 403 bukan laboran, atau akun MAHASISWA (\"Password mahasiswa tidak bisa diganti laboran...\")\n- 404 \"Akun tidak ditemukan!\""
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Mata Kuliah",
+			"description": "",
+			"item": [
+				{
+					"name": "Tambah Mata Kuliah",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subject_code\": \"{{newSubjectCode}}\",\n  \"subject_name\": \"{{newSubjectName}}\",\n  \"semester\": \"3\",\n  \"lecturer_id\": \"{{lecturerId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject"
+							]
+						},
+						"description": "Hanya LABORAN. `lecturer_id` adalah id dosen dari \"Daftar Dosen\". Membuat data sungguhan.\n\n- 201 \"Subject added\"\n- 409 \"Subject already exist\""
+					},
+					"response": []
+				},
+				{
+					"name": "Semua Mata Kuliah",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const subject = pm.response.json().data.find((item) => item.subject_name === pm.collectionVariables.get(\"newSubjectName\"));",
+									"    if (subject) pm.collectionVariables.set(\"newSubjectId\", subject.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject"
+							]
+						},
+						"description": "`[{ id, subject_code, subject_name, semester, lecturer }]`. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail Mata Kuliah",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject/{{subjectId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject",
+								"{{subjectId}}"
+							]
+						},
+						"description": "Detail satu mata kuliah beserta kelas-kelasnya."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Kelas",
+			"description": "",
+			"item": [
+				{
+					"name": "Tambah Kelas",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subjectId\": \"{{newSubjectId}}\",\n  \"name\": \"A\",\n  \"quota\": 25,\n  \"day\": \"FRIDAY\",\n  \"startAt\": \"13.00\",\n  \"endAt\": \"14.40\",\n  \"room\": \"PSI\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class"
+							]
+						},
+						"description": "Hanya LABORAN. `day`: MONDAY–FRIDAY, `room`: PSI atau SBTI, jam `HH.MM`. Membuat data sungguhan.\n\n- 201 \"Class added\"\n- 409 \"Class on subject already exist\""
+					},
+					"response": []
+				},
+				{
+					"name": "Semua Kelas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class"
+							]
+						},
+						"description": "LABORAN/DOSEN: semua kelas. MAHASISWA: hanya kelas yang ia pegang sebagai asisten (coba dengan `accessTokenAsisten`)."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail Kelas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/{{classId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"{{classId}}"
+							]
+						},
+						"description": "Detail satu kelas: mata kuliah, jadwal, ruang, dosen, dan jumlah peserta."
+					},
+					"response": []
+				},
+				{
+					"name": "Pilihan Kelas (Mahasiswa)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/registration",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"registration"
+							]
+						},
+						"description": "Hanya MAHASISWA. Kelas yang bisa dipilih untuk mata kuliah yang sudah lunas dan belum punya kelas."
+					},
+					"response": []
+				},
+				{
+					"name": "Pilih Kelas (Mahasiswa)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"classIds\": [\n    \"{{classId}}\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/registration",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"registration"
+							]
+						},
+						"description": "Hanya MAHASISWA. Satu kelas per mata kuliah, mata kuliahnya harus lunas, kuota belum penuh, dan tidak bentrok dengan kelas yang ia pegang sebagai asisten.\n\n- 201 berhasil\n- 400/403/409 aturan di atas tidak terpenuhi"
+					},
+					"response": []
+				},
+				{
+					"name": "Kelas Saya",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"me"
+							]
+						},
+						"description": "Hanya MAHASISWA. Kelas praktikum yang diikuti."
+					},
+					"response": []
+				},
+				{
+					"name": "Teman Sekelas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/class/{{classId}}/classmates",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"class",
+								"{{classId}}",
+								"classmates"
+							]
+						},
+						"description": "Daftar peserta kelas. MAHASISWA hanya boleh melihat kelasnya sendiri (403 \"Anda tidak terdaftar di kelas ini!\")."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Aktivasi & Pembayaran",
+			"description": "Mahasiswa mendaftar mata kuliah praktikum, laboran menandai lunas (pembayaran offline) lalu menetapkan atau memindah kelas.",
+			"item": [
+				{
+					"name": "Daftar Mata Kuliah (Mahasiswa)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subjectIds\": [\n    \"{{subjectId}}\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation"
+							]
+						},
+						"description": "Hanya MAHASISWA. Status awal belum bayar. Asisten tidak bisa mendaftar mata kuliah yang ia asisteni.\n\n- 201 \"Pendaftaran mata kuliah berhasil\"\n- 409 sudah terdaftar, atau asisten mata kuliah itu"
+					},
+					"response": []
+				},
+				{
+					"name": "Status Pembayaran Saya",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation"
+							]
+						},
+						"description": "Untuk MAHASISWA hanya berisi aktivasi miliknya sendiri."
+					},
+					"response": []
+				},
+				{
+					"name": "Semua Aktivasi (Laboran)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const activation = pm.response.json().data[0];",
+									"    if (activation) pm.collectionVariables.set(\"activationId\", activation.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation?name={{newStudentName}}&status=",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "{{newStudentName}}",
+									"description": "Cari nama mahasiswa (opsional)"
+								},
+								{
+									"key": "status",
+									"value": "",
+									"description": "true = lunas, false = belum (opsional)"
+								}
+							]
+						},
+						"description": "Satu baris per aktivasi, terbaru di atas: `{ id, user_id, nim, student, status, subject_id, ... }`. Id aktivasi pertama disimpan ke `activationId`."
+					},
+					"response": []
+				},
+				{
+					"name": "Konfirmasi Bayar",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation/{{activationId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation",
+								"{{activationId}}"
+							]
+						},
+						"description": "Hanya LABORAN. Tambahkan `\"classId\": \"...\"` di body untuk sekaligus menetapkan kelas (dicek kuota dan bentrok jadwal asisten). Tanpa `classId`, mahasiswa memilih kelas sendiri lewat \"Pilih Kelas (Mahasiswa)\"."
+					},
+					"response": []
+				},
+				{
+					"name": "Pindah Kelas",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"classId\": \"{{otherClassId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation/{{activationId}}/class",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation",
+								"{{activationId}}",
+								"class"
+							]
+						},
+						"description": "Hanya LABORAN. Memindah mahasiswa ke kelas lain pada mata kuliah yang sama (dicek kuota dan bentrok jadwal asisten)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Pertemuan & Presensi",
+			"description": "Pertemuan dan presensi QR (inti skripsi). Endpoint pengelolaan boleh dipanggil LABORAN atau asisten kelas itu.",
+			"item": [
+				{
+					"name": "Tambah Pertemuan",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"classId\": \"{{classId}}\",\n  \"meetingName\": \"{{meetingName}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. Membuat data sungguhan.\n\n- 201 \"Pertemuan berhasil ditambahkan\""
+					},
+					"response": []
+				},
+				{
+					"name": "Daftar Pertemuan Kelas",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const meeting = pm.response.json().data.find((item) => item.meeting_name === pm.collectionVariables.get(\"meetingName\"));",
+									"    if (meeting) pm.collectionVariables.set(\"meetingId\", meeting.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{classId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{classId}}"
+							]
+						},
+						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
+					},
+					"response": []
+				},
+				{
+					"name": "Daftar Pertemuan (Asisten)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenAsisten}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{assistantClassId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{assistantClassId}}"
+							]
+						},
+						"description": "Asisten yang tidak menjadi peserta kelas itu mendapat tampilan staf. Kelas lain dibalas 403."
+					},
+					"response": []
+				},
+				{
+					"name": "Daftar Pertemuan (Mahasiswa)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{classId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{classId}}"
+							]
+						},
+						"description": "Tampilan mahasiswa: status presensinya sendiri di tiap pertemuan. Bukan peserta kelas: 403."
+					},
+					"response": []
+				},
+				{
+					"name": "Buka Sesi Presensi",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}",
+								"status"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. `status: true` membuka, `false` menutup sesi."
+					},
+					"response": []
+				},
+				{
+					"name": "Token QR",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    pm.collectionVariables.set(\"qrToken\", pm.response.json().data.token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}/qr",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}",
+								"qr"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. `{ token, period_seconds: 10, expires_in_ms }`; token berganti setiap 10 detik dan disimpan ke `qrToken`. Jalankan \"Presensi Scan QR\" kurang dari 10–20 detik sesudahnya."
+					},
+					"response": []
+				},
+				{
+					"name": "Presensi Scan QR",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"{{qrToken}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject/classes/{{classId}}/meetings/{{meetingId}}/attendances",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject",
+								"classes",
+								"{{classId}}",
+								"meetings",
+								"{{meetingId}}",
+								"attendances"
+							]
+						},
+						"description": "Hanya MAHASISWA peserta kelas. Urutan pemeriksaan: token ada → MAHASISWA → pertemuan milik kelas → sesi dibuka → token QR masih berlaku → peserta kelas → belum presensi.\n\n- 201 presensi tercatat\n- 403 \"Sesi presensi belum dibuka!\" / \"Anda tidak terdaftar di kelas ini!\"\n- 400/409 token kedaluwarsa atau sudah presensi"
+					},
+					"response": []
+				},
+				{
+					"name": "Ubah Presensi Manual",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}/attendances/{{newStudentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}",
+								"attendances",
+								"{{newStudentId}}"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. `status: true` hadir, `false` tidak hadir."
+					},
+					"response": []
+				},
+				{
+					"name": "Hapus Presensi",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}/attendances/{{newStudentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}",
+								"attendances",
+								"{{newStudentId}}"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu. Menghapus catatan presensi sehingga mahasiswa bisa memindai lagi."
+					},
+					"response": []
+				},
+				{
+					"name": "Tutup Sesi Presensi",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": false\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}/status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}",
+								"status"
+							]
+						},
+						"description": "Menutup sesi; pemindaian berikutnya dibalas 403 \"Sesi presensi belum dibuka!\"."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Pengumuman",
+			"description": "",
+			"item": [
+				{
+					"name": "Tambah Pengumuman",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"BASIC\",\n  \"title\": \"Pengumuman dari Postman\",\n  \"body\": \"Ini contoh isi pengumuman.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/announcement",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"announcement"
+							]
+						},
+						"description": "Hanya LABORAN. `type`: BASIC, PRACTICUM, ASSISTANT, atau INHALL."
+					},
+					"response": []
+				},
+				{
+					"name": "Semua Pengumuman",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200 && pm.response.json().data.length) {",
+									"    pm.collectionVariables.set(\"announcementId\", pm.response.json().data[0].id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenMahasiswa}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/announcement",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"announcement"
+							]
+						},
+						"description": "Semua peran. Terbaru di atas; id pengumuman teratas disimpan ke `announcementId`."
+					},
+					"response": []
+				},
+				{
+					"name": "Detail Pengumuman",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenMahasiswa}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/announcement/{{announcementId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"announcement",
+								"{{announcementId}}"
+							]
+						},
+						"description": "Detail satu pengumuman."
+					},
+					"response": []
+				},
+				{
+					"name": "Ubah Pengumuman",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"BASIC\",\n  \"title\": \"Pengumuman dari Postman (diubah)\",\n  \"body\": \"Isi pengumuman setelah diubah.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/announcement/{{announcementId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"announcement",
+								"{{announcementId}}"
+							]
+						},
+						"description": "Hanya LABORAN."
+					},
+					"response": []
+				},
+				{
+					"name": "Hapus Pengumuman",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/announcement/{{announcementId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"announcement",
+								"{{announcementId}}"
+							]
+						},
+						"description": "Hanya LABORAN. Pastikan `announcementId` adalah pengumuman yang memang ingin dihapus."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Asisten Kelas",
+			"description": "Asisten adalah akun MAHASISWA yang ditetapkan laboran per kelas.",
+			"item": [
+				{
+					"name": "Tambah Asisten",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"classId\": \"{{targetAssistantClassId}}\",\n  \"collaborators\": [\n    \"{{newStudentId}}\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/collaborator",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"collaborator"
+							]
+						},
+						"description": "Hanya LABORAN. `collaborators` berisi id akun MAHASISWA dari \"Cari Mahasiswa\". Ditolak 409 bila sudah menjadi asisten kelas itu, terdaftar sebagai praktikan mata kuliah yang sama, atau jadwalnya bentrok dengan kelas yang diikuti/dipegang."
+					},
+					"response": []
+				},
+				{
+					"name": "Daftar Asisten Kelas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/collaborator/{{targetAssistantClassId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"collaborator",
+								"{{targetAssistantClassId}}"
+							]
+						},
+						"description": "`[{ id, nim, fullname }]`."
+					},
+					"response": []
+				},
+				{
+					"name": "Hapus Asisten",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/collaborator/{{targetAssistantClassId}}/{{newStudentId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"collaborator",
+								"{{targetAssistantClassId}}",
+								"{{newStudentId}}"
+							]
+						},
+						"description": "Hanya LABORAN.\n\n- 200 berhasil\n- 404 bukan asisten kelas itu"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Realtime",
+			"description": "",
+			"item": [
+				{
+					"name": "Stream Event (SSE)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/events",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"events"
+							]
+						},
+						"description": "Koneksi Server-Sent Events. Setelah `ready`, server mengirim event `announcement`, `subject`, `class`, `activation`, `meeting`, dan `attendance` sesuai hak akses, serta `ping` setiap 25 detik. Koneksi ditutup saat access token habis atau password akun diganti."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3000",
+			"type": "string",
+			"description": "Alamat backend"
+		},
+		{
+			"key": "accessTokenLaboran",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Login - Laboran"
+		},
+		{
+			"key": "accessTokenMahasiswa",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Login - Mahasiswa"
+		},
+		{
+			"key": "refreshTokenMahasiswa",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Login - Mahasiswa"
+		},
+		{
+			"key": "accessTokenDosen",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Login - Dosen"
+		},
+		{
+			"key": "accessTokenAsisten",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Login - Asisten"
+		},
+		{
+			"key": "newStudentEmail",
+			"value": "postman2000016990@webmail.uad.ac.id",
+			"type": "string",
+			"description": "Email kampus untuk akun baru; ganti dengan email asli agar kode bisa diterima"
+		},
+		{
+			"key": "newStudentNim",
+			"value": "2000016990",
+			"type": "string",
+			"description": "10 angka dari newStudentEmail"
+		},
+		{
+			"key": "newStudentName",
+			"value": "Uji Postman",
+			"type": "string",
+			"description": "Nama akun baru"
+		},
+		{
+			"key": "newStudentPassword",
+			"value": "rahasia123",
+			"type": "string",
+			"description": "Password akun baru"
+		},
+		{
+			"key": "newStudentNewPassword",
+			"value": "rahasiabaru123",
+			"type": "string",
+			"description": "Password pengganti di Profil > Ganti Password"
+		},
+		{
+			"key": "verificationCode",
+			"value": "",
+			"type": "string",
+			"description": "Isi dengan kode dari email pendaftaran"
+		},
+		{
+			"key": "resetCode",
+			"value": "",
+			"type": "string",
+			"description": "Isi dengan kode dari email Lupa password"
+		},
+		{
+			"key": "accessTokenBaru",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Verifikasi Kode / Login - Akun Baru"
+		},
+		{
+			"key": "refreshTokenBaru",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis"
+		},
+		{
+			"key": "newStudentId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Data Akun Baru"
+		},
+		{
+			"key": "newStaffEmail",
+			"value": "dosen.postman@uad.ac.id",
+			"type": "string",
+			"description": "Email akun dosen yang dibuat laboran"
+		},
+		{
+			"key": "newStaffNiy",
+			"value": "60029990",
+			"type": "string",
+			"description": "NIY (8 angka) akun dosen yang dibuat laboran"
+		},
+		{
+			"key": "newStaffPassword",
+			"value": "dosenpostman1",
+			"type": "string",
+			"description": "Password awal akun dosen"
+		},
+		{
+			"key": "newStaffNewPassword",
+			"value": "dosenpostman2",
+			"type": "string",
+			"description": "Password pengganti oleh laboran"
+		},
+		{
+			"key": "newSubjectCode",
+			"value": "PM01",
+			"type": "string",
+			"description": "Kode mata kuliah baru"
+		},
+		{
+			"key": "newSubjectName",
+			"value": "Mata Kuliah Postman",
+			"type": "string",
+			"description": "Nama mata kuliah baru"
+		},
+		{
+			"key": "newSubjectId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Mata Kuliah"
+		},
+		{
+			"key": "subjectId",
+			"value": "22f284b9-7c59-4121-a395-dcd109e5097f",
+			"type": "string",
+			"description": "Algoritma dan Pemrograman"
+		},
+		{
+			"key": "classId",
+			"value": "652fb265-0d30-45c6-90eb-b37b1c3f3127",
+			"type": "string",
+			"description": "Algoritma dan Pemrograman kelas A"
+		},
+		{
+			"key": "otherClassId",
+			"value": "2e32063e-fa79-478c-9b66-4f071d25cca5",
+			"type": "string",
+			"description": "Algoritma dan Pemrograman kelas C (tujuan Pindah Kelas)"
+		},
+		{
+			"key": "assistantClassId",
+			"value": "b8dca325-3f74-419d-92b3-cca95e82ebb8",
+			"type": "string",
+			"description": "Algoritma dan Pemrograman kelas B, dipegang asisten001"
+		},
+		{
+			"key": "targetAssistantClassId",
+			"value": "4f879e1d-3eca-4206-af66-97073615bee5",
+			"type": "string",
+			"description": "Interaksi Manusia dan Komputer kelas A (contoh Tambah Asisten)"
+		},
+		{
+			"key": "lecturerId",
+			"value": "3c1157eb-2cd7-4cc7-b54a-794cad6ed570",
+			"type": "string",
+			"description": "Id Dosen001"
+		},
+		{
+			"key": "meetingName",
+			"value": "Pertemuan dari Postman",
+			"type": "string",
+			"description": "Nama pertemuan baru"
+		},
+		{
+			"key": "meetingId",
+			"value": "cc6434e9-8701-4955-a1ed-6ed4a723b4f1",
+			"type": "string",
+			"description": "Pertemuan 1 kelas A; diganti otomatis oleh Daftar Pertemuan Kelas"
+		},
+		{
+			"key": "qrToken",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Token QR"
+		},
+		{
+			"key": "activationId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Aktivasi (Laboran)"
+		},
+		{
+			"key": "announcementId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Pengumuman"
+		}
+	]
 }
