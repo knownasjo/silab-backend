@@ -834,6 +834,17 @@
 			"item": [
 				{
 					"name": "Tambah Mata Kuliah",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) pm.collectionVariables.set(\"newSubjectId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					],
 					"request": {
 						"method": "POST",
 						"header": [
@@ -870,7 +881,7 @@
 								"subject"
 							]
 						},
-						"description": "Hanya LABORAN. `lecturer_id` adalah id dosen dari \"Daftar Dosen\". Membuat data sungguhan.\n\n- 201 \"Subject added\"\n- 409 \"Subject already exist\""
+						"description": "Hanya LABORAN (selain itu 403). Aturannya sama dengan \"Ubah Mata Kuliah\": `subject_code` wajib (maks. 20 karakter), `subject_name` wajib (maks. 100), `semester` 1–8, `lecturer_id` akun DOSEN dari \"Daftar Dosen\"; spasi berlebih dirapikan dan field lain di body diabaikan. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Membuat data sungguhan; id mata kuliah baru disimpan ke `newSubjectId`.\n\n- 201 \"Mata kuliah <nama> berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
 				},

@@ -108,10 +108,10 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/auth/me` | login |
 | PUT | `/auth/me` | login (ganti nama sendiri, lihat "Profil dan ganti password") |
 | PUT | `/auth/me/password` | login (ganti password sendiri) |
-| POST | `/subject` | LABORAN |
+| POST | `/subject` | LABORAN (aturannya sama dengan ubah mata kuliah) |
 | GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu). Berisi `lecturer_id`, urut menurut waktu dibuat |
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
-| PUT | `/subject/:id` | LABORAN (lihat "Ubah mata kuliah dan dosen pengampu") |
+| PUT | `/subject/:id` | LABORAN (lihat "Tambah dan ubah mata kuliah") |
 | POST | `/class` | LABORAN (lihat "Tambah kelas dan jam sesi") |
 | GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu). Berisi `sessionId` tiap kelas |
 | GET | `/class/registration` | MAHASISWA |
@@ -618,9 +618,20 @@ menghapus kelas!"):
 Karena kelas bisa dipindah ke sesi lain, sesi yang sudah dipakai kelas bisa
 dikosongkan dulu lalu dihapus.
 
-### Ubah mata kuliah dan dosen pengampu
+### Tambah dan ubah mata kuliah
 
-Laboran mengubah mata kuliah dari tombol "Ubah" di halaman Praktikum web.
+Laboran menambah mata kuliah di web lewat Master Data → Tambah Mata Kuliah dan
+mengubahnya dari tombol "Ubah" di halaman Praktikum. Keduanya memakai aturan
+yang sama (`readSubjectFields` dan `assertSubjectUnique` di
+`src/services/subject.service.ts`).
+
+`POST /subject { subject_code, subject_name, semester, lecturer_id }` (hanya
+LABORAN, selain itu 403 "Hanya laboran yang dapat menambah mata kuliah!"):
+semua field wajib dan diperiksa dengan aturan di bawah. Hanya keempat field
+itu yang disimpan. Berhasil: 201 "Mata kuliah <nama> berhasil ditambahkan"
+`{ id }` dan event `subject` (`action: "created"`). Sebelumnya endpoint ini
+membalas dalam bahasa Inggris, menolak non-laboran dengan 401, membiarkan
+nama kembar, dan berakhir 500 bila `lecturer_id` salah.
 
 `PUT /subject/:id { subject_code?, subject_name?, semester?, lecturer_id? }`
 (hanya LABORAN, selain itu 403 "Hanya laboran yang dapat mengubah mata
@@ -653,9 +664,6 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 - dosen lama langsung kehilangan akses (403), termasuk ke riwayat saat ia
   masih mengampu. Riwayat dosen pengampu tidak disimpan (lihat batasan 13).
 
-`POST /subject` (tambah mata kuliah) belum memakai aturan ini; lihat
-"Pekerjaan yang masih tersisa".
-
 ### Aturan lain yang sudah diberlakukan
 
 - **Nama pertemuan diseragamkan.** Pola "pertemuan &lt;angka&gt;" dalam penulisan
@@ -680,8 +688,8 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
 dan sebagian `announcement`.
 
-Belum: `auth`, `subject` (kecuali ubah mata kuliah), `class` (kecuali tambah,
-ubah, dan hapus kelas), sebagian `user`.
+Belum: `auth`, `subject` (kecuali tambah dan ubah mata kuliah), `class`
+(kecuali tambah, ubah, dan hapus kelas), sebagian `user`.
 Jadi login masih
 menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
 menjawab "NIM/NIY atau password salah!" (sebelumnya "Email or password invalid!",
@@ -796,9 +804,6 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
 
 - [ ] Pastikan jam sesi Senin–Kamis dan isi jam sesi Jumat lewat web
       (Master Data → Jam Sesi)
-- [ ] `POST /subject` belum divalidasi seperti `PUT /subject/:id`: pesan
-      masih bahasa Inggris, penolakan non-laboran memakai 401, `lecturer_id`
-      yang salah berakhir sebagai 500, dan nama mata kuliah boleh kembar
 - [ ] Seragamkan pesan lima service sisanya ke bahasa Indonesia
 
 ## Catatan lain
