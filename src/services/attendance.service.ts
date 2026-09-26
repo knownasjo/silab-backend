@@ -17,6 +17,9 @@ import {
 import { checkQrToken } from "../utils/QrToken/qr.token";
 import { publishClassAssistantsEvent } from "../utils/RealtimeEvents/realtime.events";
 import { assertCanManageClass } from "../utils/ClassAccess/class.access";
+import { Prisma } from "@prisma/client";
+
+const ALREADY_ATTENDED = "Anda sudah melakukan presensi untuk pertemuan ini!";
 
 export const SAddAttendance = async (
   classId: string,
@@ -79,16 +82,25 @@ export const SAddAttendance = async (
       },
     });
 
-    if (existingAttendance)
-      throw new ConflictError("Anda sudah melakukan presensi untuk pertemuan ini!");
+    if (existingAttendance) throw new ConflictError(ALREADY_ATTENDED);
 
-    const attendance = await db.trn_meeting_participants.create({
-      data: {
-        meetingId: meetingId,
-        userId: user.id,
-        status: true,
-      },
-    });
+    const attendance = await db.trn_meeting_participants
+      .create({
+        data: {
+          meetingId: meetingId,
+          userId: user.id,
+          status: true,
+        },
+      })
+      .catch((error) => {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        )
+          throw new ConflictError(ALREADY_ATTENDED);
+
+        throw error;
+      });
 
     void publishClassAssistantsEvent(
       meeting.classId,

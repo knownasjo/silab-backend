@@ -268,6 +268,13 @@ tidak hadir. Kodenya ada di `src/utils/QrToken/qr.token.ts`.
   presensi tidak valid!".
 - **Waktu penerimaan** dicatat sebelum query database, supaya lambatnya
   database tidak membuat scan yang tepat waktu dianggap kedaluwarsa.
+- **Scan ganda.** Kamera bisa membaca QR dua kali dalam sekejap. Presensi
+  pertama dijawab "Presensi berhasil dicatat", sedangkan permintaan lain untuk
+  pertemuan yang sama, termasuk yang datang bersamaan, dijawab 409 "Anda sudah
+  melakukan presensi untuk pertemuan ini!". Sebelumnya permintaan yang datang
+  bersamaan jatuh ke 500 "Terjadi kesalahan pada server." karena pelanggaran
+  unique `meetingId_userId` tidak ditangkap (uji 5 scan bersamaan: kode lama
+  1 berhasil dan 4 error 500, kode baru 1 berhasil dan 4 dijawab 409).
 - `GET /meeting/:id/qr` hanya melayani sesi yang sedang dibuka dan
   mengembalikan `{ token, period_seconds, expires_in_ms }`. Sisa waktu dihitung
   server, jadi frontend tidak bergantung pada jam laptop.
