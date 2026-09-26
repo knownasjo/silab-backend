@@ -98,7 +98,7 @@ export const SGetAllAnnouncements = async (): Promise<
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {
@@ -118,11 +118,11 @@ export const SGetAnnouncementById = async (
       include: { announcementAuthor: { select: { fullname: true } } },
     });
 
-    if (!data) throw new NotFoundError("Announcement not found!");
+    if (!data) throw new NotFoundError("Pengumuman tidak ditemukan!");
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data: {
         id: data.id,
         title: data.title,

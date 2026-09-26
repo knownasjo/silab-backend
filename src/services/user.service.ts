@@ -30,7 +30,7 @@ export const SGetUser = async (
     const keyword = query?.trim();
 
     if (user?.role !== "LABORAN")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const userData = await db.mst_user.findMany({
       where: {
@@ -54,7 +54,7 @@ export const SGetUser = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {

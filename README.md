@@ -750,16 +750,26 @@ menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
 
 ## Bahasa pesan
 
-Tiga service sudah berbahasa Indonesia: `activation`, `attendance`, `meeting`,
-dan sebagian `announcement`.
+Semua pesan dari backend berbahasa Indonesia. Satu-satunya pengecualian adalah
+**`jwt expired`**, yang sengaja tidak diterjemahkan karena web dan mobile
+mencocokkan teks persis itu untuk memperbarui token (lihat Sesi login dan
+refresh token).
 
-Belum: `auth`, `subject` (kecuali tambah dan ubah mata kuliah), `class`
-(kecuali tambah, ubah, dan hapus kelas), sebagian `user`.
-Jadi login masih
-menjawab "Login Successful". Pengecualian di `auth`: login yang gagal
-menjawab "NIM/NIY atau password salah!" (sebelumnya "Email or password invalid!",
-padahal login memakai NIM/NIY), dan `POST /auth/refresh` sudah berbahasa
-Indonesia.
+Pesan yang dulu masih berbahasa Inggris:
+
+| Dulu | Sekarang |
+|---|---|
+| Login Successful | Login berhasil |
+| Success, Success get user data! | Berhasil |
+| Announcement not found! | Pengumuman tidak ditemukan! |
+| Subject not found! | Mata kuliah tidak ditemukan! |
+| User not allowed! | Anda tidak memiliki akses! |
+| Unauthorize! (request tanpa header `Authorization`) | Silakan login terlebih dahulu! |
+| jwt malformed, invalid signature, dan error token lain | Token tidak valid, silakan login ulang! |
+
+Semua balasan middleware token tetap berstatus 400 seperti sebelumnya. Pesan
+bawaan kelas error di `src/utils/HttpErrors` juga diterjemahkan, walaupun saat
+ini setiap error selalu membawa pesannya sendiri.
 
 ## Akun uji
 

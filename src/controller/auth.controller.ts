@@ -145,7 +145,7 @@ export const CUserMe = async (
   try {
     const resData = {
       status: true,
-      message: "Success get user data!",
+      message: "Berhasil",
       data: {
         id: req?.user?.id,
         nim: req.user?.nim,

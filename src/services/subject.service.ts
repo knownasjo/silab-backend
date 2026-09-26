@@ -162,7 +162,7 @@ export const SGetSubject = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data: data,
     };
   } catch (error) {
@@ -185,13 +185,13 @@ export const SGetSubjectById = async (
       },
     });
 
-    if (!subjectData) throw new NotFoundError("Subject not found!");
+    if (!subjectData) throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
     assertLecturerOfSubject(req.user, subjectData.lecturer_id);
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data: {
         id: subjectData.id,
         subject_code: subjectData.subject_code,

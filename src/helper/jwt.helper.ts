@@ -47,7 +47,7 @@ export const VerifyToken = async (token: string): Promise<IJWTUserPayload> => {
     ) as IJWTPayload;
 
     if (!tokenData.id || !tokenData) {
-      throw Error("Failed to verify token!");
+      throw Error("Token tidak valid!");
     }
 
     const user = await db.mst_user.findUnique({
@@ -56,7 +56,7 @@ export const VerifyToken = async (token: string): Promise<IJWTUserPayload> => {
       },
     });
 
-    if (!user) throw Error("User not found!");
+    if (!user) throw Error("Akun tidak ditemukan!");
 
     return {
       id: user?.id,

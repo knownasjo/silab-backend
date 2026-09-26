@@ -403,7 +403,7 @@ export const SGetAllClasses = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {
@@ -467,7 +467,7 @@ export const SGetClassById = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {
@@ -482,7 +482,7 @@ export const SGetAllClassByPaidActivations = async (
     const user = req.user;
 
     if (user?.role !== "MAHASISWA")
-      throw new UnauthorizedError("User not allowed!");
+      throw new UnauthorizedError("Anda tidak memiliki akses!");
 
     const studentActivation = await db.trn_activations.findMany({
       where: {
@@ -527,7 +527,7 @@ export const SGetAllClassByPaidActivations = async (
 
     return {
       status: true,
-      message: "Success",
+      message: "Berhasil",
       data,
     };
   } catch (error) {

@@ -134,7 +134,7 @@ export const SUserLogin = async (
 
     return {
       status: true,
-      message: "Login Successful",
+      message: "Login berhasil",
       data: createSession(userData.id),
     };
   } catch (error: any) {

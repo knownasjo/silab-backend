@@ -1,19 +1,19 @@
 import { BaseError } from "../BaseErrors/BaseErrors";
 
 export class BadRequestError extends BaseError {
-  constructor(message = "Bad Request") {
+  constructor(message = "Permintaan tidak valid") {
     super(message, 400);
   }
 }
 
 export class UnauthorizedError extends BaseError {
-  constructor(message = "Unauthorized") {
+  constructor(message = "Anda tidak memiliki akses") {
     super(message, 401);
   }
 }
 
 export class ForbiddenError extends BaseError {
-  constructor(message = "Forbidden") {
+  constructor(message = "Akses ditolak") {
     super(message, 403);
   }
 }
@@ -25,37 +25,37 @@ export class UnverifiedAccountError extends BaseError {
 }
 
 export class NotFoundError extends BaseError {
-  constructor(message = "Not Found") {
+  constructor(message = "Data tidak ditemukan") {
     super(message, 404);
   }
 }
 
 export class MethodNotAllowedError extends BaseError {
-  constructor(message = "Method Not Allowed") {
+  constructor(message = "Metode tidak diizinkan") {
     super(message, 405);
   }
 }
 
 export class ConflictError extends BaseError {
-  constructor(message = "Conflict") {
+  constructor(message = "Data bentrok dengan data lain") {
     super(message, 409);
   }
 }
 
 export class UnprocessableEntityError extends BaseError {
-  constructor(message = "Unprocessable Entity") {
+  constructor(message = "Data tidak bisa diproses") {
     super(message, 422);
   }
 }
 
 export class TooManyRequestsError extends BaseError {
-  constructor(message = "Too Many Requests") {
+  constructor(message = "Terlalu banyak permintaan, coba lagi nanti") {
     super(message, 429);
   }
 }
 
 export class InternalServerError extends BaseError {
-  constructor(message = "Internal Server Error") {
+  constructor(message = "Terjadi kesalahan pada server.") {
     super(message, 500);
   }
 }
