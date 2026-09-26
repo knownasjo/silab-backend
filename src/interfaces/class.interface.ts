@@ -35,6 +35,7 @@ export interface IGetClassByIdResponseBody {
   id: string;
   subjectId: string;
   name: string;
+  subject_code: string;
   subject_name: string;
   semester: string;
   quota: number;

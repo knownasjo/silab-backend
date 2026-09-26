@@ -45,8 +45,8 @@ const readSubjectFields = async (
   if (!subject_code)
     throw new BadRequestError("Kode mata kuliah wajib diisi!");
 
-  if (subject_code.length > 20)
-    throw new BadRequestError("Kode mata kuliah paling banyak 20 karakter!");
+  if (!/^\d{9}$/.test(subject_code))
+    throw new BadRequestError("Kode mata kuliah harus 9 angka!");
 
   if (!subject_name)
     throw new BadRequestError("Nama mata kuliah wajib diisi!");

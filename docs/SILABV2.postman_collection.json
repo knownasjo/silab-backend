@@ -881,7 +881,7 @@
 								"subject"
 							]
 						},
-						"description": "Hanya LABORAN (selain itu 403). Aturannya sama dengan \"Ubah Mata Kuliah\": `subject_code` wajib (maks. 20 karakter), `subject_name` wajib (maks. 100), `semester` 1–8, `lecturer_id` akun DOSEN dari \"Daftar Dosen\"; spasi berlebih dirapikan dan field lain di body diabaikan. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Membuat data sungguhan; id mata kuliah baru disimpan ke `newSubjectId`.\n\n- 201 \"Mata kuliah <nama> berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
+						"description": "Hanya LABORAN (selain itu 403). Aturannya sama dengan \"Ubah Mata Kuliah\": `subject_code` wajib, tepat 9 angka, `subject_name` wajib (maks. 100), `semester` 1–8, `lecturer_id` akun DOSEN dari \"Daftar Dosen\"; spasi berlebih dirapikan dan field lain di body diabaikan. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Membuat data sungguhan; id mata kuliah baru disimpan ke `newSubjectId`.\n\n- 201 \"Mata kuliah <nama> berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
 				},
@@ -995,7 +995,7 @@
 								"{{newSubjectId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Semua field opsional: `subject_code` (maks. 20 karakter), `subject_name` (maks. 100), `semester` (1–8), `lecturer_id` (akun DOSEN); yang tidak dikirim memakai nilai sekarang. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Bila dosen diganti, dosen baru langsung bisa membaca semua kelas, pertemuan, dan presensi mata kuliah itu, sedangkan dosen lama tidak lagi.\n\n- 200 \"Mata kuliah <nama> berhasil diperbarui\" (+ \"; dosen pengampu sekarang <nama>\" bila dosen diganti) atau \"Tidak ada perubahan pada mata kuliah\"\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 403 bukan laboran\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
+						"description": "Hanya LABORAN. Semua field opsional: `subject_code` (tepat 9 angka), `subject_name` (maks. 100), `semester` (1–8), `lecturer_id` (akun DOSEN); yang tidak dikirim memakai nilai sekarang. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Bila dosen diganti, dosen baru langsung bisa membaca semua kelas, pertemuan, dan presensi mata kuliah itu, sedangkan dosen lama tidak lagi.\n\n- 200 \"Mata kuliah <nama> berhasil diperbarui\" (+ \"; dosen pengampu sekarang <nama>\" bila dosen diganti) atau \"Tidak ada perubahan pada mata kuliah\"\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 403 bukan laboran\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
 				}
@@ -1298,7 +1298,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Detail satu kelas: mata kuliah, jadwal, ruang, `sessionId`, dosen, jumlah peserta, jumlah pertemuan (`meetings`), dan jumlah pertemuan yang sudah berisi presensi (`recorded_meetings`). DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\")."
+						"description": "Detail satu kelas: mata kuliah (`subject_code`, `subject_name`, `semester`), jadwal, ruang, `sessionId`, dosen, jumlah peserta, jumlah pertemuan (`meetings`), dan jumlah pertemuan yang sudah berisi presensi (`recorded_meetings`). DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\")."
 					},
 					"response": []
 				},
@@ -2813,7 +2813,7 @@
 		},
 		{
 			"key": "newSubjectCode",
-			"value": "PM01",
+			"value": "900000001",
 			"type": "string",
 			"description": "Kode mata kuliah baru"
 		},

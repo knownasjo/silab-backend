@@ -643,8 +643,8 @@ nama kembar, dan berakhir 500 bila `lecturer_id` salah.
 kuliah!"):
 
 - Field yang tidak dikirim memakai nilai sekarang. Spasi berlebih dirapikan.
-  Kode wajib diisi dan paling banyak 20 karakter, nama wajib diisi dan paling
-  banyak 100 karakter, semester 1–8 (boleh dikirim sebagai angka), dan
+  Kode wajib diisi dan harus tepat 9 angka (400 "Kode mata kuliah harus 9
+  angka!"), nama wajib diisi dan paling banyak 100 karakter, semester 1–8 (boleh dikirim sebagai angka), dan
   `lecturer_id` harus akun berperan DOSEN (400 "Dosen pengampu harus akun
   dosen yang terdaftar!").
 - Kode dan nama tidak boleh sama dengan mata kuliah lain, tanpa membedakan
@@ -658,6 +658,12 @@ kuliah!"):
   (`action: "updated"`) dan `class` untuk tiap kelasnya dikirim ke semua, dan
   `activation` ke mahasiswa yang mengambil mata kuliah itu, supaya nama mata
   kuliah dan nama dosen di aplikasi mereka ikut berubah.
+
+**Kode mata kuliah** adalah kode resmi kurikulum, 9 angka. Aturan ini berlaku
+untuk semua mata kuliah, jadi mengubah mata kuliah yang kodenya belum 9 angka
+ditolak sampai kodenya diganti. Kode contoh di data uji ("001", "002", "003",
+"005") sudah diganti menjadi 553310001, 553310002, 553310003, dan 553310005.
+`GET /class/:id` ikut mengirim `subject_code` untuk judul rekap PDF di web.
 
 **Bila dosen pengampu diganti**, akses dosen mengikuti `lecturer_id` saat itu
 juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali

@@ -430,6 +430,7 @@ export const SGetClassById = async (
         subject: {
           select: {
             semester: true,
+            subject_code: true,
             subject_name: true,
             lecturer: true,
           },
@@ -448,6 +449,7 @@ export const SGetClassById = async (
       id: classData.id,
       subjectId: classData.subjectId,
       name: classData.name,
+      subject_code: classData.subject.subject_code,
       subject_name: classData.subject.subject_name,
       semester: classData.subject.semester,
       quota: classData.quota,
