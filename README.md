@@ -128,6 +128,17 @@ Empat jalan masuk ke kelas memakai aturan yang sama
   pendaftaran yang sedang berjalan.
 - Kunci ditunggu paling lama 10 detik untuk koneksi dan 20 detik untuk
   transaksi, cukup untuk antrean pendaftaran satu kelas.
+- **Batal bayar** (`PUT /activation/:id { status: false }`). Bila mahasiswa
+  sudah punya kelas di mata kuliah itu dan belum punya presensi di kelas
+  tersebut, ia otomatis dikeluarkan dari kelas sehingga kursinya kosong (200
+  "Status pembayaran diubah menjadi belum bayar dan mahasiswa dikeluarkan dari
+  kelas A"). Bila sudah ada presensi, hadir maupun tidak hadir, perubahan
+  ditolak (409 "Mahasiswa sudah punya n presensi di kelas A. Hapus presensinya
+  dulu bila pembayaran memang harus dibatalkan."), sama seperti aturan pindah
+  kelas. Sebelumnya mahasiswa tetap tertinggal di kelas, masih bisa presensi,
+  dan tidak bisa dipindah. Perubahan ini memakai kunci per mahasiswa yang sama,
+  jadi mahasiswa yang memilih kelas tepat saat pembayarannya dibatalkan selalu
+  berakhir tanpa kelas.
 
 Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
@@ -911,7 +922,14 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
    `@@unique([userId, subjectId, academicPeriod])`.
 3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
-4. **Mahasiswa yang status bayarnya dibatalkan tetap berada di kelas.**
+4. **Belum ada fitur membatalkan pendaftaran mata kuliah.** Mahasiswa tidak
+   bisa membatalkan aktivasinya sendiri dan laboran tidak bisa menghapusnya,
+   jadi status "Belum Bayar" menjadi satu-satunya cara membatalkan (salah
+   konfirmasi, pembayaran bermasalah, atau mahasiswa mundur). Aktivasi yang
+   batal tetap tercatat selamanya dan mahasiswa tidak bisa mendaftar ulang mata
+   kuliah itu (lihat batasan 1 dan 2). Sejak aturan batal bayar di bagian
+   "Pendaftaran kelas", mahasiswa yang dibatalkan tidak lagi tertinggal di
+   kelas.
 5. **Jadwal yang diubah langsung di database tidak diperiksa ulang.** Bentrok
    jadwal peserta dan asisten diperiksa di semua endpoint yang memasukkan
    mahasiswa ke kelas atau mengubah jadwal kelas (lihat "Pendaftaran kelas:

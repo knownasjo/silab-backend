@@ -1674,7 +1674,7 @@
 								"{{activationId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Tambahkan `\"classId\": \"...\"` di body untuk sekaligus menetapkan kelas (dicek kuota, kelas lain di mata kuliah yang sama, dan bentrok jadwal dengan kelas yang diikuti atau dipegang sebagai asisten: 409 \"Jadwal bentrok: ... yang diikuti mahasiswa ini.\"). Tanpa `classId`, mahasiswa memilih kelas sendiri lewat \"Pilih Kelas (Mahasiswa)\"; balasannya \"Pembayaran dikonfirmasi. Mahasiswa memilih kelas sendiri di aplikasi.\" (atau \"Status pembayaran berhasil diperbarui\" bila mahasiswa sudah punya kelas)."
+						"description": "Hanya LABORAN. Tambahkan `\"classId\": \"...\"` di body untuk sekaligus menetapkan kelas (dicek kuota, kelas lain di mata kuliah yang sama, dan bentrok jadwal dengan kelas yang diikuti atau dipegang sebagai asisten: 409 \"Jadwal bentrok: ... yang diikuti mahasiswa ini.\"). Tanpa `classId`, mahasiswa memilih kelas sendiri lewat \"Pilih Kelas (Mahasiswa)\"; balasannya \"Pembayaran dikonfirmasi. Mahasiswa memilih kelas sendiri di aplikasi.\" (atau \"Status pembayaran berhasil diperbarui\" bila mahasiswa sudah punya kelas). Dengan `\"status\": false`, mahasiswa yang belum punya presensi otomatis dikeluarkan dari kelasnya (\"... dan mahasiswa dikeluarkan dari kelas A\"); bila sudah ada presensi, ditolak 409."
 					},
 					"response": []
 				},

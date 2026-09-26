@@ -216,19 +216,60 @@ export const SUpdateActivationPaymentStatus = async (
           "Tidak bisa mendaftarkan kelas saat status diubah menjadi belum bayar!"
         );
 
-      await db.trn_activations.update({
-        where: { id },
-        data: {
-          status: false,
-          updated_at: new Date(),
-        },
-      });
+      const removedFrom = await enrollInClasses(
+        [isActivationExist.userId],
+        [],
+        async (tx) => {
+          const enrollment = await findEnrollmentInSubjects(
+            tx,
+            isActivationExist.userId,
+            [isActivationExist.subjectId]
+          );
 
+          if (enrollment) {
+            const recorded = await tx.trn_meeting_participants.count({
+              where: {
+                userId: isActivationExist.userId,
+                meeting: { classId: enrollment.classId },
+              },
+            });
+
+            if (recorded > 0)
+              throw new ConflictError(
+                `Mahasiswa sudah punya ${recorded} presensi di kelas ${enrollment.class.name}. Hapus presensinya dulu bila pembayaran memang harus dibatalkan.`
+              );
+
+            await tx.trn_class_participants.delete({
+              where: {
+                classId_userId: {
+                  classId: enrollment.classId,
+                  userId: isActivationExist.userId,
+                },
+              },
+            });
+          }
+
+          await tx.trn_activations.update({
+            where: { id },
+            data: {
+              status: false,
+              updated_at: new Date(),
+            },
+          });
+
+          return enrollment;
+        }
+      );
+
+      if (removedFrom)
+        publishRealtimeEvent("class", { class_id: removedFrom.classId });
       publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
       return {
         status: true,
-        message: "Status pembayaran diubah menjadi belum bayar",
+        message: removedFrom
+          ? `Status pembayaran diubah menjadi belum bayar dan mahasiswa dikeluarkan dari kelas ${removedFrom.class.name}`
+          : "Status pembayaran diubah menjadi belum bayar",
       };
     }
 
