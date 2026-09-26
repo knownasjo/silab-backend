@@ -1,8 +1,6 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
-import db from "../prisma/client.prisma";
 import { IJWTPayload } from "../interfaces/jwt.interface";
 import { env } from "../config/env.config";
-import { IJWTUserPayload } from "../interfaces/auth.interface";
 
 export const CreateToken = (payload: IJWTPayload) =>
   jwt.sign(payload, env.JWT.SECRET, {
@@ -38,33 +36,3 @@ export const isIssuedBeforePasswordChange = (
   passwordChangedAt: Date | null
 ) =>
   !!passwordChangedAt && (issuedAt ?? 0) * 1000 < passwordChangedAt.getTime();
-
-export const VerifyToken = async (token: string): Promise<IJWTUserPayload> => {
-  try {
-    const tokenData: IJWTPayload = jwt.verify(
-      token,
-      env.JWT.SECRET
-    ) as IJWTPayload;
-
-    if (!tokenData.id || !tokenData) {
-      throw Error("Token tidak valid!");
-    }
-
-    const user = await db.mst_user.findUnique({
-      where: {
-        id: tokenData.id,
-      },
-    });
-
-    if (!user) throw Error("Akun tidak ditemukan!");
-
-    return {
-      id: user?.id,
-      fullname: user?.fullname,
-      nim: user?.nim,
-      role: user?.role,
-    };
-  } catch (error: any) {
-    throw Error(error);
-  }
-};

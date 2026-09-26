@@ -920,7 +920,6 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 
 - [ ] Pastikan jam sesi Senin–Kamis dan isi jam sesi Jumat lewat web
       (Master Data → Jam Sesi)
-- [ ] Seragamkan pesan lima service sisanya ke bahasa Indonesia
 
 ## Catatan lain
 
