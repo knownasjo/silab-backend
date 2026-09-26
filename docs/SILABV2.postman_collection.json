@@ -1341,7 +1341,7 @@
 								"{{newClassId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Semua field opsional: `name`, `quota`, `day`, `room`, `sessionId`; field yang tidak dikirim memakai nilai sekarang, lalu hasilnya dicek dengan aturan yang sama seperti Tambah Kelas. Mata kuliah tidak bisa diganti. Sesi yang sudah nonaktif tetap boleh dipakai kelas yang memang sudah memakainya. Peserta, asisten, pertemuan, dan presensi tetap tersimpan.\n\n- 200 \"Kelas <mata kuliah> A berhasil diperbarui\" (atau \"Tidak ada perubahan pada kelas\")\n- 400 isian tidak valid atau \"Mata kuliah kelas tidak bisa diubah!\"\n- 409 nama kelas sudah dipakai, bentrok ruang, \"Kuota tidak boleh kurang dari jumlah peserta (n)!\", atau \"Jadwal baru bentrok: asisten/peserta ...\" (asisten kelas ini punya kelas lain di jam baru, atau peserta kelas ini menjadi asisten kelas lain di jam baru)"
+						"description": "Hanya LABORAN. Semua field opsional: `name`, `quota`, `day`, `room`, `sessionId`; field yang tidak dikirim memakai nilai sekarang, lalu hasilnya dicek dengan aturan yang sama seperti Tambah Kelas. Mata kuliah tidak bisa diganti. Sesi yang sudah nonaktif tetap boleh dipakai kelas yang memang sudah memakainya. Peserta, asisten, pertemuan, dan presensi tetap tersimpan.\n\n- 200 \"Kelas <mata kuliah> A berhasil diperbarui\" (atau \"Tidak ada perubahan pada kelas\")\n- 400 isian tidak valid atau \"Mata kuliah kelas tidak bisa diubah!\"\n- 409 nama kelas sudah dipakai, bentrok ruang, \"Kuota tidak boleh kurang dari jumlah peserta (n)!\", atau \"Jadwal baru bentrok: asisten/peserta ...\" (asisten kelas ini punya kelas lain di jam baru, atau peserta kelas ini mengikuti praktikum lain atau menjadi asisten kelas lain di jam baru). Pemeriksaan kuota dikunci bersama pendaftaran kelas, jadi kuota tidak bisa diturunkan di bawah jumlah peserta saat ada pendaftaran yang berjalan."
 					},
 					"response": []
 				},
@@ -1442,7 +1442,7 @@
 								"registration"
 							]
 						},
-						"description": "Hanya MAHASISWA. Satu kelas per mata kuliah, mata kuliahnya harus lunas, kuota belum penuh, dan tidak bentrok dengan kelas yang ia pegang sebagai asisten.\n\n- 201 berhasil\n- 400/403/409 aturan di atas tidak terpenuhi"
+						"description": "Hanya MAHASISWA. Satu kelas per mata kuliah, mata kuliahnya harus lunas, kuota belum penuh, dan jadwalnya tidak bentrok dengan kelas yang ia ikuti, kelas yang ia pegang sebagai asisten, maupun kelas lain yang dipilih bersamaan (409 \"Jadwal bentrok: ... yang Anda ikuti.\" / \"... yang juga dipilih.\"). Permintaan yang datang bersamaan diproses bergiliran, jadi kuota tidak bisa terlampaui.\n\n- 201 berhasil\n- 400/403/409 aturan di atas tidak terpenuhi"
 					},
 					"response": []
 				},
@@ -1674,7 +1674,7 @@
 								"{{activationId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Tambahkan `\"classId\": \"...\"` di body untuk sekaligus menetapkan kelas (dicek kuota dan bentrok jadwal asisten). Tanpa `classId`, mahasiswa memilih kelas sendiri lewat \"Pilih Kelas (Mahasiswa)\"."
+						"description": "Hanya LABORAN. Tambahkan `\"classId\": \"...\"` di body untuk sekaligus menetapkan kelas (dicek kuota, kelas lain di mata kuliah yang sama, dan bentrok jadwal dengan kelas yang diikuti atau dipegang sebagai asisten: 409 \"Jadwal bentrok: ... yang diikuti mahasiswa ini.\"). Tanpa `classId`, mahasiswa memilih kelas sendiri lewat \"Pilih Kelas (Mahasiswa)\"; balasannya \"Pembayaran dikonfirmasi. Mahasiswa memilih kelas sendiri di aplikasi.\" (atau \"Status pembayaran berhasil diperbarui\" bila mahasiswa sudah punya kelas)."
 					},
 					"response": []
 				},
@@ -1718,7 +1718,7 @@
 								"class"
 							]
 						},
-						"description": "Hanya LABORAN. Memindah mahasiswa ke kelas lain pada mata kuliah yang sama (dicek kuota dan bentrok jadwal asisten)."
+						"description": "Hanya LABORAN. Memindah mahasiswa ke kelas lain pada mata kuliah yang sama (dicek kuota dan bentrok jadwal dengan kelas lain yang ia ikuti atau pegang sebagai asisten; kelas yang ditinggalkan tidak dihitung)."
 					},
 					"response": []
 				}

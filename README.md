@@ -78,7 +78,9 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
    (`PUT`/`DELETE /class/:id`)
 2. Mahasiswa mendaftar mata kuliah (`POST /activation`) → status `false`
 3. Pembayaran **offline**; laboran menandai lunas (`PUT /activation/:id`)
-   dan sekaligus memilih kelas lewat `classId` di body
+   dan boleh sekaligus memilih kelas lewat `classId` di body. Tanpa
+   `classId`, mahasiswa memilih kelasnya sendiri di aplikasi (balasan
+   "Pembayaran dikonfirmasi. Mahasiswa memilih kelas sendiri di aplikasi.")
 4. Asisten/laboran membuat pertemuan (`POST /meeting`) — token 6 karakter
    digenerate otomatis
 5. Asisten/laboran membuka sesi presensi (`PUT /meeting/:id/status`)
@@ -86,11 +88,46 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
    berganti setiap 10 detik
 7. Mahasiswa scan QR berisi token → presensi tercatat
 
-Jalur alternatif (dipakai aplikasi mobile): setelah lunas, mahasiswa memilih
-kelasnya sendiri lewat `GET /class/registration` → `POST /class/registration`.
+Bila laboran tidak menetapkan kelas, mahasiswa memilih kelasnya sendiri di
+aplikasi mobile lewat `GET /class/registration` → `POST /class/registration`.
 Aturannya sama dengan saat laboran menetapkan kelas dari web: mata kuliahnya
-harus sudah lunas, satu kelas per mata kuliah, dan kuota belum penuh. Mata
-kuliah yang sudah punya kelas tidak ditawarkan lagi.
+harus sudah lunas, satu kelas per mata kuliah, kuota belum penuh, dan jadwalnya
+tidak bentrok (lihat "Pendaftaran kelas: bentrok jadwal dan rebutan kursi").
+Mata kuliah yang sudah punya kelas tidak ditawarkan lagi. Web Pembayaran
+sebelumnya mewajibkan laboran memilih kelas saat mengonfirmasi bayar, sehingga
+jalur ini hampir tidak pernah tercapai dan mata kuliah yang belum punya kelas
+tidak bisa dikonfirmasi; sekarang kelas boleh dikosongkan.
+
+### Pendaftaran kelas: bentrok jadwal dan rebutan kursi
+
+Empat jalan masuk ke kelas memakai aturan yang sama
+(`src/utils/EnrollmentRules/enrollment.rules.ts`):
+
+| Jalan masuk | Pesan bentrok |
+|---|---|
+| Mahasiswa memilih kelas (`POST /class/registration`) | "Jadwal bentrok: X kelas A (Senin, 07.00 - 08.40) bersamaan dengan Y kelas B yang Anda ikuti." |
+| Laboran konfirmasi bayar dengan `classId` (`PUT /activation/:id`) | "... yang diikuti mahasiswa ini." |
+| Laboran memindah kelas (`PUT /activation/:id/class`) | "... yang diikuti mahasiswa ini." Kelas yang ditinggalkan tidak dihitung. |
+| Laboran mengubah jadwal kelas (`PUT /class/:id`) | "Jadwal baru bentrok: peserta Z mengikuti praktikum Y kelas B (...)." |
+
+- Mahasiswa yang memilih beberapa kelas sekaligus juga ditolak bila pilihannya
+  saling bentrok ("... yang juga dipilih."). Bentrok dengan kelas yang ia
+  pegang sebagai asisten tetap diperiksa seperti sebelumnya.
+- **Rebutan kursi terakhir.** Pemeriksaan kuota, kelas yang sudah dimiliki,
+  dan jadwal dijalankan di dalam satu transaksi yang dikunci per mahasiswa dan
+  per kelas (`pg_advisory_xact_lock`, `enrollInClasses`). Permintaan yang
+  datang bersamaan diproses bergiliran, jadi kuota tidak bisa terlampaui dan
+  satu mahasiswa tidak bisa mendapat dua kelas untuk mata kuliah yang sama.
+  Uji dengan 8 mahasiswa yang memilih kelas berkuota 3 secara bersamaan: kode
+  lama menerima kedelapannya (8/3), kode baru tepat 3 dan sisanya 409 "Kelas A
+  ... sudah penuh!".
+- `PUT /activation/:id` dengan `classId` kini juga menolak mahasiswa yang
+  sudah punya kelas lain di mata kuliah itu (409 "Mahasiswa sudah terdaftar di
+  kelas C untuk ...!"). Pemeriksaan kuota di `PUT /class/:id` ikut dikunci,
+  jadi kuota tidak bisa diturunkan di bawah jumlah peserta ketika ada
+  pendaftaran yang sedang berjalan.
+- Kunci ditunggu paling lama 10 detik untuk koneksi dan 20 detik untuk
+  transaksi, cukup untuk antrean pendaftaran satu kelas.
 
 Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
@@ -584,7 +621,7 @@ selain itu 403 "Hanya laboran yang dapat mengubah kelas!"):
 - Bila hari atau jam berubah, **jadwal anggota kelas diperiksa** (409 "Jadwal
   baru bentrok: ..."): asisten kelas ini tidak boleh punya kelas lain (sebagai
   praktikan maupun asisten) di jam baru, dan peserta kelas ini tidak boleh
-  menjadi asisten kelas lain di jam baru. Aturan ini sama dengan saat asisten
+  mengikuti praktikum lain maupun menjadi asisten kelas lain di jam baru. Aturan ini sama dengan saat asisten
   ditambahkan dan saat mahasiswa memilih kelas
   (`assertNoMemberScheduleClash` di `src/utils/AssistantRules/assistant.rules.ts`).
 - Peserta, asisten, pertemuan, dan presensi tetap tersimpan. Jadwal baru
@@ -875,10 +912,11 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
 4. **Mahasiswa yang status bayarnya dibatalkan tetap berada di kelas.**
-5. **Bentrok jadwal hanya diperiksa terhadap kelas yang dipegang sebagai
-   asisten.** Dua kelas praktikum milik satu mahasiswa boleh berjadwal sama,
-   baik saat memilih kelas maupun saat laboran mengubah jadwal kelas. Jadwal
-   yang diubah langsung di database juga tidak diperiksa ulang.
+5. **Jadwal yang diubah langsung di database tidak diperiksa ulang.** Bentrok
+   jadwal peserta dan asisten diperiksa di semua endpoint yang memasukkan
+   mahasiswa ke kelas atau mengubah jadwal kelas (lihat "Pendaftaran kelas:
+   bentrok jadwal dan rebutan kursi"), tetapi data yang diubah langsung di
+   database, misalnya lewat dashboard Supabase, tidak diperiksa.
 6. **QR yang berganti hanya menghentikan titip absen tertunda** (lewat foto).
    Siaran langsung, misalnya teman di kelas melakukan video call lalu
    mahasiswa yang absen memindai dari layar saat itu juga, tetap bisa lolos.

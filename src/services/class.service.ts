@@ -30,6 +30,12 @@ import {
 } from "../utils/AssistantRules/assistant.rules";
 import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
 import {
+  assertNoParticipantScheduleClash,
+  enrollInClasses,
+  findEnrollmentInSubjects,
+  findFullClass,
+} from "../utils/EnrollmentRules/enrollment.rules";
+import {
   DAY_LABELS,
   dayGroupOf,
   formatSchedule,
@@ -204,7 +210,6 @@ export const SUpdateClass = async (
     where: { id, deleted_at: null },
     include: {
       subject: { select: { subject_name: true } },
-      participants: { where: { deleted_at: null }, select: { userId: true } },
     },
   });
 
@@ -220,11 +225,6 @@ export const SUpdateClass = async (
     room: body?.room ?? current.room,
     sessionId: body?.sessionId ?? current.sessionId ?? undefined,
   });
-
-  if (fields.quota < current.participants.length)
-    throw new ConflictError(
-      `Kuota tidak boleh kurang dari jumlah peserta (${current.participants.length})!`
-    );
 
   const session = await findClassSession(fields, current.sessionId);
   const schedule = {
@@ -260,15 +260,26 @@ export const SUpdateClass = async (
 
   if (isRescheduled) await assertNoMemberScheduleClash(id, schedule);
 
-  await db.mst_class.update({
-    where: { id },
-    data: {
-      ...fields,
-      startAt: session.startAt,
-      endAt: session.endAt,
-      updated_by: req.user.id,
-      updated_at: new Date(),
-    },
+  await enrollInClasses([], [id], async (tx) => {
+    const participants = await tx.trn_class_participants.count({
+      where: { classId: id, deleted_at: null },
+    });
+
+    if (fields.quota < participants)
+      throw new ConflictError(
+        `Kuota tidak boleh kurang dari jumlah peserta (${participants})!`
+      );
+
+    await tx.mst_class.update({
+      where: { id },
+      data: {
+        ...fields,
+        startAt: session.startAt,
+        endAt: session.endAt,
+        updated_by: req.user!.id,
+        updated_at: new Date(),
+      },
+    });
   });
 
   publishRealtimeEvent("class", { class_id: id, action: "updated" });
@@ -554,74 +565,70 @@ export const SClassRegistration = async (
   )
     throw new BadRequestError("Pilih minimal satu kelas!");
 
-  const classes = await db.mst_class.findMany({
-    where: {
-      id: { in: classIds },
-      deleted_at: null,
-    },
-    include: {
-      subject: { select: { subject_name: true } },
-      participants: {
-        where: { deleted_at: null },
-        select: { userId: true },
+  const classes = await enrollInClasses([user.id], classIds, async (tx) => {
+    const classes = await tx.mst_class.findMany({
+      where: {
+        id: { in: classIds },
+        deleted_at: null,
       },
-    },
-  });
+      include: {
+        subject: { select: { subject_name: true } },
+      },
+    });
 
-  if (classes.length !== new Set(classIds).size)
-    throw new NotFoundError("Kelas tidak ditemukan!");
+    if (classes.length !== new Set(classIds).size)
+      throw new NotFoundError("Kelas tidak ditemukan!");
 
-  const subjectIds = classes.map((c) => c.subjectId);
+    const subjectIds = classes.map((c) => c.subjectId);
 
-  if (new Set(subjectIds).size !== subjectIds.length)
-    throw new BadRequestError("Pilih satu kelas untuk setiap mata kuliah!");
+    if (new Set(subjectIds).size !== subjectIds.length)
+      throw new BadRequestError("Pilih satu kelas untuk setiap mata kuliah!");
 
-  const paidActivations = await db.trn_activations.findMany({
-    where: {
-      userId: user.id,
-      subjectId: { in: subjectIds },
-      status: true,
-      deleted_at: null,
-    },
-    select: { subjectId: true },
-  });
+    const paidActivations = await tx.trn_activations.findMany({
+      where: {
+        userId: user.id,
+        subjectId: { in: subjectIds },
+        status: true,
+        deleted_at: null,
+      },
+      select: { subjectId: true },
+    });
 
-  const unpaidClass = classes.find(
-    (c) => !paidActivations.some((a) => a.subjectId === c.subjectId)
-  );
-
-  if (unpaidClass)
-    throw new ForbiddenError(
-      `Pembayaran praktikum ${unpaidClass.subject.subject_name} belum dikonfirmasi!`
+    const unpaidClass = classes.find(
+      (c) => !paidActivations.some((a) => a.subjectId === c.subjectId)
     );
 
-  const existingEnrollment = await db.trn_class_participants.findFirst({
-    where: {
-      userId: user.id,
-      deleted_at: null,
-      class: { subjectId: { in: subjectIds }, deleted_at: null },
-    },
-    include: {
-      class: { include: { subject: { select: { subject_name: true } } } },
-    },
-  });
+    if (unpaidClass)
+      throw new ForbiddenError(
+        `Pembayaran praktikum ${unpaidClass.subject.subject_name} belum dikonfirmasi!`
+      );
 
-  if (existingEnrollment)
-    throw new ConflictError(
-      `Anda sudah terdaftar di kelas ${existingEnrollment.class.name} untuk ${existingEnrollment.class.subject.subject_name}!`
+    const existingEnrollment = await findEnrollmentInSubjects(
+      tx,
+      user.id,
+      subjectIds
     );
 
-  const fullClass = classes.find((c) => c.participants.length >= c.quota);
+    if (existingEnrollment)
+      throw new ConflictError(
+        `Anda sudah terdaftar di kelas ${existingEnrollment.class.name} untuk ${existingEnrollment.class.subject.subject_name}!`
+      );
 
-  if (fullClass)
-    throw new ConflictError(
-      `Kelas ${fullClass.name} ${fullClass.subject.subject_name} sudah penuh!`
-    );
+    const fullClass = await findFullClass(tx, classes);
 
-  await assertNoAssistantScheduleClash(user.id, classes, "Anda pegang");
+    if (fullClass)
+      throw new ConflictError(
+        `Kelas ${fullClass.name} ${fullClass.subject.subject_name} sudah penuh!`
+      );
 
-  await db.trn_class_participants.createMany({
-    data: classes.map((c) => ({ userId: user.id, classId: c.id })),
+    await assertNoAssistantScheduleClash(user.id, classes, "Anda pegang", tx);
+    await assertNoParticipantScheduleClash(tx, user.id, classes, "Anda ikuti");
+
+    await tx.trn_class_participants.createMany({
+      data: classes.map((c) => ({ userId: user.id, classId: c.id })),
+    });
+
+    return classes;
   });
 
   classes.forEach((c) => publishRealtimeEvent("class", { class_id: c.id }));

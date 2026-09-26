@@ -20,6 +20,12 @@ import {
   assertNoAssistantScheduleClash,
   assertNotAssistantOfSubjects,
 } from "../utils/AssistantRules/assistant.rules";
+import {
+  assertNoParticipantScheduleClash,
+  enrollInClasses,
+  findEnrollmentInSubjects,
+  findFullClass,
+} from "../utils/EnrollmentRules/enrollment.rules";
 
 export const SAddStudentActivation = async (
   body: IAddActivationRequestBody,
@@ -237,64 +243,89 @@ export const SUpdateActivationPaymentStatus = async (
 
       publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
+      const enrollment = await findEnrollmentInSubjects(
+        db,
+        isActivationExist.userId,
+        [isActivationExist.subjectId]
+      );
+
       return {
         status: true,
-        message: "Status pembayaran berhasil diperbarui",
+        message: enrollment
+          ? "Status pembayaran berhasil diperbarui"
+          : "Pembayaran dikonfirmasi. Mahasiswa memilih kelas sendiri di aplikasi.",
       };
     }
 
-    const classData = await db.mst_class.findFirst({
-      where: {
-        id: classId,
-        deleted_at: null,
-      },
-      include: {
-        subject: { select: { subject_name: true } },
-        participants: {
-          where: { deleted_at: null },
-          select: { userId: true },
-        },
-      },
-    });
+    const classData = await enrollInClasses(
+      [isActivationExist.userId],
+      [classId],
+      async (tx) => {
+        const classData = await tx.mst_class.findFirst({
+          where: {
+            id: classId,
+            deleted_at: null,
+          },
+          include: {
+            subject: { select: { subject_name: true } },
+          },
+        });
 
-    if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
+        if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
 
-    if (classData.subjectId !== isActivationExist.subjectId)
-      throw new ConflictError(
-        "Kelas tidak termasuk dalam mata kuliah yang didaftarkan!"
-      );
+        if (classData.subjectId !== isActivationExist.subjectId)
+          throw new ConflictError(
+            "Kelas tidak termasuk dalam mata kuliah yang didaftarkan!"
+          );
 
-    const isAlreadyEnrolled = classData.participants.some(
-      (p) => p.userId === isActivationExist.userId
+        const enrollment = await findEnrollmentInSubjects(
+          tx,
+          isActivationExist.userId,
+          [classData.subjectId]
+        );
+
+        if (enrollment)
+          throw new ConflictError(
+            enrollment.classId === classId
+              ? "Mahasiswa sudah terdaftar di kelas ini!"
+              : `Mahasiswa sudah terdaftar di kelas ${enrollment.class.name} untuk ${enrollment.class.subject.subject_name}!`
+          );
+
+        if (await findFullClass(tx, [classData]))
+          throw new ConflictError("Kuota kelas sudah penuh!");
+
+        await assertNoAssistantScheduleClash(
+          isActivationExist.userId,
+          [classData],
+          "dipegang mahasiswa ini",
+          tx
+        );
+
+        await assertNoParticipantScheduleClash(
+          tx,
+          isActivationExist.userId,
+          [classData],
+          "diikuti mahasiswa ini"
+        );
+
+        await tx.trn_activations.update({
+          where: { id },
+          data: {
+            status: true,
+            updated_at: new Date(),
+          },
+        });
+
+        await tx.trn_class_participants.create({
+          data: {
+            classId: classId,
+            userId: isActivationExist.userId,
+          },
+        });
+
+        return classData;
+      }
     );
-
-    if (isAlreadyEnrolled)
-      throw new ConflictError("Mahasiswa sudah terdaftar di kelas ini!");
-
-    if (classData.participants.length >= classData.quota)
-      throw new ConflictError("Kuota kelas sudah penuh!");
-
-    await assertNoAssistantScheduleClash(
-      isActivationExist.userId,
-      [classData],
-      "dipegang mahasiswa ini"
-    );
-
-    await db.$transaction([
-      db.trn_activations.update({
-        where: { id },
-        data: {
-          status: true,
-          updated_at: new Date(),
-        },
-      }),
-      db.trn_class_participants.create({
-        data: {
-          classId: classId,
-          userId: isActivationExist.userId,
-        },
-      }),
-    ]);
 
     publishRealtimeEvent("class", { class_id: classId });
     publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
@@ -332,87 +363,102 @@ export const SUpdateStudentClass = async (
         "Tidak bisa memindahkan kelas sebelum pembayaran dikonfirmasi!"
       );
 
-    const targetClass = await db.mst_class.findFirst({
-      where: {
-        id: classId,
-        deleted_at: null,
-      },
-      include: {
-        subject: { select: { subject_name: true } },
-        participants: {
-          where: { deleted_at: null },
-          select: { userId: true },
-        },
-      },
-    });
+    const { currentEnrollment, targetClass } = await enrollInClasses(
+      [activation.userId],
+      [classId],
+      async (tx) => {
+        const targetClass = await tx.mst_class.findFirst({
+          where: {
+            id: classId,
+            deleted_at: null,
+          },
+          include: {
+            subject: { select: { subject_name: true } },
+          },
+        });
 
-    if (!targetClass) throw new NotFoundError("Kelas tujuan tidak ditemukan!");
+        if (!targetClass)
+          throw new NotFoundError("Kelas tujuan tidak ditemukan!");
 
-    if (targetClass.subjectId !== activation.subjectId)
-      throw new ConflictError(
-        "Kelas tujuan tidak termasuk dalam mata kuliah yang didaftarkan!"
-      );
+        if (targetClass.subjectId !== activation.subjectId)
+          throw new ConflictError(
+            "Kelas tujuan tidak termasuk dalam mata kuliah yang didaftarkan!"
+          );
 
-    const currentEnrollment = await db.trn_class_participants.findFirst({
-      where: {
-        userId: activation.userId,
-        deleted_at: null,
-        class: {
-          subjectId: activation.subjectId,
-        },
-      },
-      include: {
-        class: {
-          select: { id: true, name: true },
-        },
-      },
-    });
+        const currentEnrollment = await tx.trn_class_participants.findFirst({
+          where: {
+            userId: activation.userId,
+            deleted_at: null,
+            class: {
+              subjectId: activation.subjectId,
+            },
+          },
+          include: {
+            class: {
+              select: { id: true, name: true },
+            },
+          },
+        });
 
-    if (!currentEnrollment)
-      throw new NotFoundError("Mahasiswa belum terdaftar di kelas mana pun!");
+        if (!currentEnrollment)
+          throw new NotFoundError(
+            "Mahasiswa belum terdaftar di kelas mana pun!"
+          );
 
-    if (currentEnrollment.classId === classId)
-      throw new ConflictError("Mahasiswa sudah berada di kelas ini!");
+        if (currentEnrollment.classId === classId)
+          throw new ConflictError("Mahasiswa sudah berada di kelas ini!");
 
-    if (targetClass.participants.length >= targetClass.quota)
-      throw new ConflictError("Kuota kelas tujuan sudah penuh!");
+        if (await findFullClass(tx, [targetClass]))
+          throw new ConflictError("Kuota kelas tujuan sudah penuh!");
 
-    await assertNoAssistantScheduleClash(
-      activation.userId,
-      [targetClass],
-      "dipegang mahasiswa ini"
-    );
+        await assertNoAssistantScheduleClash(
+          activation.userId,
+          [targetClass],
+          "dipegang mahasiswa ini",
+          tx
+        );
 
-    const existingAttendances = await db.trn_meeting_participants.findMany({
-      where: {
-        userId: activation.userId,
-        meeting: {
-          classId: currentEnrollment.classId,
-        },
-      },
-    });
+        await assertNoParticipantScheduleClash(
+          tx,
+          activation.userId,
+          [targetClass],
+          "diikuti mahasiswa ini",
+          currentEnrollment.classId
+        );
 
-    if (existingAttendances.length > 0)
-      throw new ConflictError(
-        `Mahasiswa sudah memiliki ${existingAttendances.length} catatan presensi di kelas ${currentEnrollment.class.name}. Hapus catatan presensinya terlebih dahulu sebelum memindahkan kelas.`
-      );
+        const existingAttendances = await tx.trn_meeting_participants.count({
+          where: {
+            userId: activation.userId,
+            meeting: {
+              classId: currentEnrollment.classId,
+            },
+          },
+        });
 
-    await db.$transaction([
-      db.trn_class_participants.delete({
-        where: {
-          classId_userId: {
-            classId: currentEnrollment.classId,
+        if (existingAttendances > 0)
+          throw new ConflictError(
+            `Mahasiswa sudah memiliki ${existingAttendances} catatan presensi di kelas ${currentEnrollment.class.name}. Hapus catatan presensinya terlebih dahulu sebelum memindahkan kelas.`
+          );
+
+        await tx.trn_class_participants.delete({
+          where: {
+            classId_userId: {
+              classId: currentEnrollment.classId,
+              userId: activation.userId,
+            },
+          },
+        });
+
+        await tx.trn_class_participants.create({
+          data: {
+            classId: classId,
             userId: activation.userId,
           },
-        },
-      }),
-      db.trn_class_participants.create({
-        data: {
-          classId: classId,
-          userId: activation.userId,
-        },
-      }),
-    ]);
+        });
+
+        return { currentEnrollment, targetClass };
+      }
+    );
 
     publishRealtimeEvent("class", { class_id: currentEnrollment.classId });
     publishRealtimeEvent("class", { class_id: classId });

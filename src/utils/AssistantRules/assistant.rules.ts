@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import db from "../../prisma/client.prisma";
 import { ConflictError } from "../HttpErrors/HttptErrors";
 import { formatSchedule, isScheduleClash } from "../Schedule/schedule";
@@ -10,9 +11,12 @@ interface IClassSchedule {
   subject: { subject_name: string };
 }
 
-const findAssistedClasses = async (userId: string) =>
+const findAssistedClasses = async (
+  userId: string,
+  client: Prisma.TransactionClient = db
+) =>
   (
-    await db.trn_class_collaborator.findMany({
+    await client.trn_class_collaborator.findMany({
       where: { userId, deletedAt: null, class: { deleted_at: null } },
       select: {
         class: {
@@ -46,9 +50,10 @@ export const assertNotAssistantOfSubjects = async (
 export const assertNoAssistantScheduleClash = async (
   userId: string,
   targets: IClassSchedule[],
-  holder: string
+  holder: string,
+  client: Prisma.TransactionClient = db
 ) => {
-  const assisted = await findAssistedClasses(userId);
+  const assisted = await findAssistedClasses(userId, client);
 
   for (const target of targets) {
     const clash = assisted.find((assistedClass) =>
@@ -104,6 +109,10 @@ export const assertNoMemberScheduleClash = async (
         user: {
           select: {
             fullname: true,
+            classEnrollments: {
+              where: { ...elsewhere, deleted_at: null },
+              select: { class: classSchedule },
+            },
             trn_class_collaborator: assistingElsewhere,
           },
         },
@@ -124,13 +133,18 @@ export const assertNoMemberScheduleClash = async (
         ...row.class,
       })),
     ]),
-    ...participants.flatMap(({ user }) =>
-      user.trn_class_collaborator.map((row) => ({
+    ...participants.flatMap(({ user }) => [
+      ...user.classEnrollments.map((row) => ({
+        member: `peserta ${user.fullname}`,
+        activity: "mengikuti praktikum",
+        ...row.class,
+      })),
+      ...user.trn_class_collaborator.map((row) => ({
         member: `peserta ${user.fullname}`,
         activity: "menjadi asisten",
         ...row.class,
-      }))
-    ),
+      })),
+    ]),
   ];
 
   const clash = commitments.find((commitment) =>
