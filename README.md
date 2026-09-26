@@ -374,6 +374,9 @@ hanya untuk akun LABORAN/DOSEN; akun mahasiswa ditolak 403 agar mahasiswa
 memakai Lupa password. Sesi lama akun itu ikut dicabut. Bila laboran mengganti
 password-nya sendiri lewat endpoint ini, sesinya sendiri juga berakhir.
 
+Bila tidak ada laboran yang bisa login, pengelola server memakai
+`npm run ganti-password` (lihat "Ganti password lewat terminal").
+
 ### Profil dan ganti password
 
 Setiap pengguna yang login bisa mengubah nama dan password-nya sendiri. Aplikasi
@@ -806,6 +809,42 @@ dihapus dalam satu transaksi, jadi jika gagal tidak ada yang berubah.
   masih login dengan akun itu kembali ke halaman login pada permintaan
   berikutnya.
 - Database-nya satu-satunya database SILAB di Supabase. Penghapusan permanen.
+
+### Ganti password lewat terminal
+
+Jalan darurat bila akun tidak bisa dipulihkan lewat aplikasi, misalnya semua
+laboran lupa password. Hanya bisa dijalankan oleh pengelola server yang
+memegang folder backend dan `.env`; tidak ada di web maupun aplikasi mobile.
+
+```bash
+npm run ganti-password 60010002
+```
+
+```
+Akun: akun test (LABORAN, 60010002)
+Password baru: ********
+Ulangi password baru: ********
+Ganti password akun ini? (ya/tidak): ya
+Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
+```
+
+- Berlaku untuk semua akun. Laboran dan dosen dikonfirmasi dengan `ya`.
+- Untuk mahasiswa, script menampilkan "ALERT: mahasiswa biasanya memakai Lupa
+  password lewat email. Pakai skrip ini kalau mahasiswa tidak bisa mengakses
+  email kampusnya." dan meminta NIM diketik ulang sebagai konfirmasi.
+- Password diketik saat diminta dan tampil sebagai bintang, bukan ditulis di
+  perintah, jadi tidak tersimpan di riwayat terminal. Minimal 8 karakter dan
+  harus diulang sama persis. Ctrl+C membatalkan tanpa mengubah apa pun.
+- Password disimpan sebagai hash bcrypt dan `password_changed_at` diisi,
+  sama seperti `PUT /user/:niyAtauId/password`, jadi access token lama dibalas
+  `jwt expired` dan refresh token lama 401. Karena script berjalan di luar
+  proses server, koneksi SSE yang sedang terbuka tidak diputus saat itu juga;
+  perangkat itu kembali ke login pada permintaan berikutnya, paling lambat saat
+  access token-nya habis (15 menit).
+- Siapa pun yang memegang akses database memang bisa mengubah password
+  langsung di sana. Script ini tidak menambah hak baru, hanya memastikan
+  caranya aman: di-hash, sesi lama diakhiri, dan ada konfirmasi.
+- Kode: `src/scripts/change-password.ts`.
 
 ## Batasan yang disadari (untuk bab batasan skripsi)
 

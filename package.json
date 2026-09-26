@@ -7,7 +7,8 @@
     "build": "prisma generate && tsc",
     "postinstall": "prisma generate",
     "start": "node ./dist/app.js",
-    "hapus-akun": "ts-node src/scripts/delete-student.ts"
+    "hapus-akun": "ts-node src/scripts/delete-student.ts",
+    "ganti-password": "ts-node src/scripts/change-password.ts"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma"
