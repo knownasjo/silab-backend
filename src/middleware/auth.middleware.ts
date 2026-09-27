@@ -16,38 +16,47 @@ const authErrorMessage = (error: any) => {
   return error?.message || INVALID_TOKEN_MESSAGE;
 };
 
+const verifyToken = (authorization?: string) => {
+  if (!authorization) throw Error(LOGIN_REQUIRED_MESSAGE);
+
+  const userData = jwt.verify(
+    authorization.split(" ")[1],
+    env.JWT.SECRET
+  ) as IJWTUserPayload & JwtPayload;
+
+  if (!userData) throw Error(INVALID_TOKEN_MESSAGE);
+
+  return userData;
+};
+
+const rejectToken = (res: Response, message: string) =>
+  res.status(400).json({ status: false, message });
+
 export const MAuthUser = () => {
   return async (req: Request, res: Response, next: NextFunction) => {
+    let userData: IJWTUserPayload & JwtPayload;
+
     try {
-      const { authorization } = req.headers;
-
-      if (!authorization) throw Error(LOGIN_REQUIRED_MESSAGE);
-
-      const userData = jwt.verify(
-        authorization.split(" ")[1],
-        env.JWT.SECRET
-      ) as IJWTUserPayload & JwtPayload;
-
-      if (!userData) throw Error(INVALID_TOKEN_MESSAGE);
-
-      const user = await db.mst_user.findUnique({
-        where: { id: userData.id },
-      });
-
-      if (
-        !user ||
-        isIssuedBeforePasswordChange(userData.iat, user.password_changed_at)
-      )
-        throw Error(EXPIRED_TOKEN_MESSAGE);
-
-      req.user = user;
-      req.tokenExpiresAt = userData.exp ? userData.exp * 1000 : undefined;
-      next();
+      userData = verifyToken(req.headers.authorization);
     } catch (error: any) {
-      res.status(400).json({
-        status: false,
-        message: authErrorMessage(error),
-      });
+      rejectToken(res, authErrorMessage(error));
+      return;
     }
+
+    const user = await db.mst_user.findUnique({
+      where: { id: userData.id },
+    });
+
+    if (
+      !user ||
+      isIssuedBeforePasswordChange(userData.iat, user.password_changed_at)
+    ) {
+      rejectToken(res, EXPIRED_TOKEN_MESSAGE);
+      return;
+    }
+
+    req.user = user;
+    req.tokenExpiresAt = userData.exp ? userData.exp * 1000 : undefined;
+    next();
   };
 };

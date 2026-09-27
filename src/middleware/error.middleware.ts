@@ -1,5 +1,12 @@
 import { Request, Response, NextFunction } from "express";
+import { Prisma } from "@prisma/client";
 import { BaseError } from "../utils/BaseErrors/BaseErrors";
+
+const DATABASE_BUSY_CODES = ["P2024", "P2028"];
+
+const isDatabaseBusy = (err: Error) =>
+  err instanceof Prisma.PrismaClientKnownRequestError &&
+  DATABASE_BUSY_CODES.includes(err.code);
 
 export const errorHandler = (
   err: Error,
@@ -22,6 +29,15 @@ export const errorHandler = (
   }
 
   console.error(err);
+
+  if (isDatabaseBusy(err)) {
+    res.status(503).json({
+      status: false,
+      message: "Server sedang sibuk, silakan coba lagi sebentar lagi.",
+    });
+    return;
+  }
+
   res.status(500).json({
     status: false,
     message: "Terjadi kesalahan pada server.",

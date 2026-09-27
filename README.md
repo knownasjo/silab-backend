@@ -808,6 +808,14 @@ menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
   server." dan detailnya dicetak di terminal backend. Sebelumnya pesan mentah
   Prisma, termasuk path file di server, dikirim ke klien. Body JSON yang rusak
   dibalas 400 "Format JSON tidak valid!" (`src/middleware/error.middleware.ts`).
+- **Database sibuk dibalas 503.** Saat antrean koneksi database penuh (Prisma
+  `P2024`) atau transaksi tidak sempat dimulai atau keburu habis waktu
+  (`P2028`), misalnya ratusan mahasiswa memilih kelas di detik yang sama,
+  backend membalas 503 "Server sedang sibuk, silakan coba lagi sebentar lagi."
+  Transaksinya sudah dibatalkan, jadi aman diulang. Sebelumnya pendaftaran
+  kelas dibalas 500 tanpa petunjuk, dan middleware login membalas 400 berisi
+  pesan mentah Prisma beserta path file di server. Kini middleware login hanya
+  membalas 400 untuk masalah token; error database diteruskan ke error handler.
 
 ## Bahasa pesan
 
