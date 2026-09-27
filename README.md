@@ -18,6 +18,7 @@ Repo pasangannya: `silab-admin` (frontend web Next.js).
 ```bash
 npm install
 npm run dev        # nodemon + ts-node, port 3000
+npm test           # tes otomatis, lihat Pengujian otomatis
 ```
 
 **Wajib Node.js 22 LTS.** Node 24+ tidak bisa — dependensi
@@ -862,7 +863,148 @@ Semua balasan middleware token tetap berstatus 400 seperti sebelumnya. Pesan
 bawaan kelas error di `src/utils/HttpErrors` juga diterjemahkan, walaupun saat
 ini setiap error selalu membawa pesannya sendiri.
 
+## Pengujian otomatis
+
+Tes ada di folder `tests/` dan ditulis sebagai skrip Node biasa (`.mjs`),
+tanpa framework tambahan. Tes memanggil backend yang sedang berjalan persis
+seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
+
+```bash
+npm run dev                 # terminal 1: backend harus sudah jalan
+npm test                    # terminal 2: semua tes API, sekitar 3–4 menit
+npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
+node tests/api/pesan.mjs    # satu tes saja
+npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
+```
+
+Setiap baris hasil diawali `LULUS` atau `GAGAL`. `npm test` diakhiri
+ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
+
+```
+== Ringkasan
+LULUS batal-bayar                  16/16
+LULUS event-asisten                6/6
+...
+Total: 163/163 cek lulus dari 9 tes, 199 detik
+Data uji sudah bersih.
+```
+
+| Tes | Yang diperiksa | Cek |
+|---|---|---|
+| `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
+| `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
+| `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman, 404, 413, JSON rusak | 33 |
+| `input-salah` | 422 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
+| `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
+| `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
+| `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
+| `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
+| `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
+
+Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
+tidak berubah.
+
+### Data uji
+
+Tes tidak memakai akun di bagian Akun uji. Setiap tes membuat laboran, dosen,
+mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
+lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
+server lab.
+
+- Setiap file tes punya blok 2 angka sendiri (API 11–19, web 51–56, uji beban
+  90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
+  sesi nomor 9131–9136, email `uji-<nim>@example.test`.
+- Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
+  dengan jadwal kelas asli.
+- Password akun uji dibuat acak setiap kali tes jalan dan tidak disimpan.
+- Data blok itu dihapus sebelum tes (sisa tes yang terhenti di tengah) dan
+  sesudahnya, termasuk semua yang dibuat lewat API oleh akun uji.
+- Sebelum dan sesudah tes, isi tabel utama di luar data uji dibandingkan.
+  Cek ini bisa gagal bila ada orang lain yang sedang memakai aplikasi saat tes
+  berjalan, walaupun tesnya sendiri benar.
+- Jalankan tes satu per satu: `npm test` backend, `npm test` web, dan uji
+  beban bergantian, jangan bersamaan. Pengecekan akhir "data uji sudah
+  bersih" menghitung data uji dari semua blok.
+- Bila `NODE_ENV=production`, tes menolak jalan karena `.env` kemungkinan
+  menunjuk database asli. Tambahkan `IZINKAN_UJI=ya` bila memang disengaja,
+  misalnya mengukur beban di server lab sebelum dipakai mahasiswa.
+- `nodemonConfig` di `package.json` mengabaikan folder `tests/`, supaya
+  mengubah tes atau menyimpan hasil uji beban tidak me-restart backend di
+  tengah tes. Pengaturan ini baru berlaku setelah `npm run dev` dijalankan
+  ulang.
+
+| Variabel | Bawaan | Kegunaan |
+|---|---|---|
+| `SILAB_API` | `http://localhost:3000` | alamat backend yang diuji |
+| `IZINKAN_UJI` | – | harus `ya` bila `NODE_ENV=production` |
+| `STUDENTS` | `120` | jumlah mahasiswa di uji beban (2–999) |
+| `SCENARIOS` | `rebutan,tersebar,bertahap,scan` | skenario uji beban yang dijalankan |
+| `SPREAD_MS` | `60000` | rentang waktu kedatangan di skenario bertahap |
+| `LABEL` | tanggal dan jam | nama file hasil uji beban |
+
+Tes browser untuk web ada di repo `silab` (folder `tests/`) dan memakai alat
+bantu data uji dari folder ini.
+
+### Uji beban
+
+`npm run uji-beban` meniru aplikasi HP: setiap mahasiswa login, membuka
+koneksi real-time, dan memuat ulang layar saat ada event, dengan cara
+menggabungkan pembaruan yang sama seperti aplikasi HP sekarang. Skenarionya:
+
+1. **Buka aplikasi**: semua mahasiswa login dan membuka layar pilih kelas dan
+   profil bersamaan.
+2. **Rebutan**: semua memilih kelas A (kuota 30) di detik yang sama, tanpa
+   mencoba lagi.
+3. **Tersebar**: semua memilih kelas A/B/C/D merata di detik yang sama, tanpa
+   mencoba lagi.
+4. **Bertahap**: mahasiswa datang acak dalam 60 detik, separuh mengincar
+   kelas A, yang kehabisan pindah ke kelas lain, dan yang dibalas sibuk
+   mencoba lagi (paling banyak 3 kali per kelas, menyerah setelah 20 detik
+   seperti HP).
+5. **Scan QR**: 60 mahasiswa di 2 kelas scan presensi di detik yang sama.
+
+Untuk tiap skenario, hasil menampilkan waktu tunggu (median, 95%, terlama),
+jumlah balasan per jenis, CPU dan memori server (hanya bila backend berjalan
+di mesin yang sama), lalu cek kebenaran:
+
+- tidak ada error 500 dan tidak ada pesan mentah Prisma yang bocor ke HP;
+- rebutan dan tersebar: jumlah yang dibalas "berhasil" sama dengan yang
+  tercatat di kelas, tidak ada kelas melebihi kuota, dan setiap mahasiswa
+  mendapat jawaban jelas (berhasil, kelas penuh, atau server sibuk);
+- bertahap: semua mahasiswa yang kebagian kursi benar-benar dapat kelas;
+- scan QR: semua presensi tercatat;
+- antrean pembaruan real-time tuntas dan tidak ada koneksi real-time yang
+  diputus server.
+
+Balasan 503 "Server sedang sibuk" tidak dianggap gagal, karena memang itu
+balasan yang dirancang saat antrean database penuh. Mahasiswa yang menerimanya
+cukup mencoba lagi, seperti di skenario bertahap.
+
+Contoh hasil dari laptop ke Supabase (27 September 2026, 120 mahasiswa):
+
+| Skenario | Hasil |
+|---|---|
+| Rebutan | 30 berhasil, 1 kelas penuh, 89 dibalas sibuk; kelas A berisi 30 |
+| Tersebar | 64 berhasil, 56 dibalas sibuk; kelas A/B/C/D berisi 16/16/16/16 |
+| Bertahap | 120 dari 120 dapat kelas; median 6,1 detik, terlama 15,1 detik |
+| Scan QR | 60 presensi tercatat; median 2,6 detik, terlama 2,9 detik |
+
+```bash
+STUDENTS=240 LABEL=dua-angkatan npm run uji-beban
+SCENARIOS=rebutan,scan npm run uji-beban
+SILAB_API=http://<ip-server-lab>:3000 IZINKAN_UJI=ya npm run uji-beban
+```
+
+Hasil lengkapnya disimpan sebagai JSON di `tests/hasil/` (tidak ikut git).
+Waktu tunggu sangat bergantung pada jarak ke database: dari laptop ke Supabase
+satu bolak-balik sekitar 190 ms, dan setiap pendaftaran kelas butuh beberapa
+bolak-balik di dalam transaksi. Karena itu angka yang paling berguna untuk bab
+pengujian adalah hasil yang dijalankan dari server lab sendiri.
+
 ## Akun uji
+
+Akun berikut untuk uji manual lewat web, HP, dan Postman. Tes otomatis tidak
+memakainya.
 
 Pola password: nama awal akun dalam huruf kecil. Laboran dan dosen memakai NIY
 8 angka (sebelumnya 2000016002, 2000016001, dan 2000016201).

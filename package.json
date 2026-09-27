@@ -8,10 +8,17 @@
     "postinstall": "prisma generate",
     "start": "node ./dist/app.js",
     "hapus-akun": "ts-node src/scripts/delete-student.ts",
-    "ganti-password": "ts-node src/scripts/change-password.ts"
+    "ganti-password": "ts-node src/scripts/change-password.ts",
+    "test": "node tests/jalankan.mjs",
+    "uji-beban": "node tests/beban/uji-beban.mjs"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "tests/**"
+    ]
   },
   "keywords": [],
   "author": "",
