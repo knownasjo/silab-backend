@@ -473,7 +473,7 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 | `ready` | `{}` | stream baru tersambung | pembuka stream |
 | `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
 | `subject` | `subject_id` (+ `action: "updated"` saat diubah) | mata kuliah ditambah atau diubah | semua |
-| `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
+| `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus; `assistants` saat asisten ditambah atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
 | `activation` | `{}` (atau `class_id` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
 | `meeting` | `class_id`, `meeting_id` (+ `action`: `created`, `updated`, atau `deleted` saat pertemuan ditambah, diubah judulnya, atau dihapus) | pertemuan ditambah, diubah judulnya, atau dihapus, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
 | `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |

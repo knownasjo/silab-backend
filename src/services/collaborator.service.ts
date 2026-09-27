@@ -139,7 +139,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
     }),
   ]);
 
-  publishRealtimeEvent("class", { class_id: classId });
+  publishRealtimeEvent("class", { class_id: classId, action: "assistants" });
 
   return {
     status: true,
@@ -165,7 +165,7 @@ export const SRemoveCollaborator = async (
   if (count === 0)
     throw new NotFoundError("Asisten tidak ditemukan di kelas ini!");
 
-  publishRealtimeEvent("class", { class_id: classId });
+  publishRealtimeEvent("class", { class_id: classId, action: "assistants" });
 
   return {
     status: true,
