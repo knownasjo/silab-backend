@@ -808,6 +808,28 @@ menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
   server." dan detailnya dicetak di terminal backend. Sebelumnya pesan mentah
   Prisma, termasuk path file di server, dikirim ke klien. Body JSON yang rusak
   dibalas 400 "Format JSON tidak valid!" (`src/middleware/error.middleware.ts`).
+- **Input keliru dibalas 4xx, bukan 500.** Diuji dengan 422 permintaan berisi
+  isian salah ke semua endpoint (isian kosong, tipe data salah, tanpa body, ID
+  tidak ada): sebelumnya 40 berakhir 500 "Terjadi kesalahan pada server.",
+  kini tidak ada.
+  - Permintaan tanpa body JSON diperlakukan sebagai `{}` (`src/app.ts`).
+    Express 5 membiarkan `req.body` kosong, sehingga service yang membaca
+    isinya error.
+  - `PUT /activation/:id`: `status` wajib `true` atau `false`. Dulu isian
+    kosong atau salah ketik (`"Status": false`) dianggap **sudah bayar**,
+    padahal laboran mungkin bermaksud membatalkan. `classId`, bila ada, harus
+    berupa teks.
+  - `PUT /activation/:id/class`: `classId` harus berupa teks.
+  - `POST /activation`: `subjectIds` harus daftar ID mata kuliah yang ada
+    (404 "Mata kuliah tidak ditemukan!"); pesan 409 kini menyebut nama mata
+    kuliah, bukan ID-nya.
+  - `PUT /meeting/:id/status`: `status` wajib boolean. Dulu nilai apa pun
+    dipaksa menjadi boolean, sehingga `"status": "false"` (teks) justru
+    membuka sesi.
+  - Judul dan isi pengumuman yang bukan teks dibalas 400.
+  - Alamat yang tidak dikenal dibalas 404 JSON "Alamat tidak ditemukan!"
+    (dulu halaman HTML Express), dan body di atas 100 KB dibalas 413 "Isi
+    permintaan terlalu besar!" (dulu 500).
 - **Database sibuk dibalas 503.** Saat antrean koneksi database penuh (Prisma
   `P2024`) atau transaksi tidak sempat dimulai atau keburu habis waktu
   (`P2028`), misalnya ratusan mahasiswa memilih kelas di detik yang sama,

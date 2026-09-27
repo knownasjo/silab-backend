@@ -38,6 +38,23 @@ export const SAddStudentActivation = async (
     if (user?.role !== "MAHASISWA")
       throw new UnauthorizedError("Anda tidak memiliki akses!");
 
+    if (
+      !Array.isArray(subjectIds) ||
+      subjectIds.length === 0 ||
+      subjectIds.some(
+        (subjectId) => typeof subjectId !== "string" || !subjectId
+      )
+    )
+      throw new BadRequestError("Pilih minimal satu mata kuliah!");
+
+    const subjects = await db.mst_subject.findMany({
+      where: { id: { in: subjectIds }, deleted_at: null },
+      select: { id: true, subject_name: true },
+    });
+
+    if (subjects.length !== new Set(subjectIds).size)
+      throw new NotFoundError("Mata kuliah tidak ditemukan!");
+
     const existingActivations = await db.trn_activations.findMany({
       where: {
         userId: user.id,
@@ -48,9 +65,11 @@ export const SAddStudentActivation = async (
     });
 
     if (existingActivations.length > 0) {
-      const alreadyActivatedIds = existingActivations.map((a) => a.subjectId);
+      const alreadyActivatedNames = subjects
+        .filter((s) => existingActivations.some((a) => a.subjectId === s.id))
+        .map((s) => s.subject_name);
       throw new ConflictError(
-        `Mata kuliah berikut sudah pernah didaftarkan: ${alreadyActivatedIds.join(", ")}`
+        `Mata kuliah berikut sudah pernah didaftarkan: ${alreadyActivatedNames.join(", ")}`
       );
     }
 
@@ -200,7 +219,13 @@ export const SUpdateActivationPaymentStatus = async (
     if (user?.role !== "LABORAN")
       throw new UnauthorizedError("Anda tidak memiliki akses!");
 
-    const newStatus = typeof status === "boolean" ? status : true;
+    if (typeof status !== "boolean")
+      throw new BadRequestError(
+        "Status pembayaran wajib diisi (true atau false)!"
+      );
+
+    if (classId != null && (typeof classId !== "string" || !classId))
+      throw new BadRequestError("Kelas tidak valid!");
 
     const isActivationExist = await db.trn_activations.findUnique({
       where: {
@@ -210,7 +235,7 @@ export const SUpdateActivationPaymentStatus = async (
 
     if (!isActivationExist) throw new NotFoundError("Data aktivasi tidak ditemukan!");
 
-    if (!newStatus) {
+    if (!status) {
       if (classId)
         throw new BadRequestError(
           "Tidak bisa mendaftarkan kelas saat status diubah menjadi belum bayar!"
@@ -391,7 +416,8 @@ export const SUpdateStudentClass = async (
     if (user?.role !== "LABORAN")
       throw new UnauthorizedError("Anda tidak memiliki akses!");
 
-    if (!classId) throw new BadRequestError("Kelas tujuan wajib dipilih!");
+    if (typeof classId !== "string" || !classId)
+      throw new BadRequestError("Kelas tujuan wajib dipilih!");
 
     const activation = await db.trn_activations.findUnique({
       where: { id },

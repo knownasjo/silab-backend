@@ -16,6 +16,9 @@ import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 const MAX_BODY_LENGTH = 200;
 const MAX_TITLE_LENGTH = 150;
 
+const readText = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+
 export const SAddAnnouncement = async (
   body: IAddAnnouncementRequestBody,
   req: Request
@@ -28,8 +31,8 @@ export const SAddAnnouncement = async (
 
     const { type, title, body: announcementBody } = body;
 
-    const cleanTitle = (title ?? "").trim();
-    const cleanBody = (announcementBody ?? "").trim();
+    const cleanTitle = readText(title);
+    const cleanBody = readText(announcementBody);
 
     if (cleanTitle === "")
       throw new BadRequestError("Judul pengumuman wajib diisi!");
@@ -150,8 +153,8 @@ export const SUpdateAnnouncement = async (
 
     const { type, title, body: announcementBody } = body;
 
-    const cleanTitle = (title ?? "").trim();
-    const cleanBody = (announcementBody ?? "").trim();
+    const cleanTitle = readText(title);
+    const cleanBody = readText(announcementBody);
 
     if (cleanTitle === "")
       throw new BadRequestError("Judul pengumuman wajib diisi!");

@@ -4,6 +4,11 @@ import { BaseError } from "../utils/BaseErrors/BaseErrors";
 
 const DATABASE_BUSY_CODES = ["P2024", "P2028"];
 
+const BODY_ERROR_MESSAGES: Record<string, string> = {
+  "entity.parse.failed": "Format JSON tidak valid!",
+  "entity.too.large": "Isi permintaan terlalu besar!",
+};
+
 const isDatabaseBusy = (err: Error) =>
   err instanceof Prisma.PrismaClientKnownRequestError &&
   DATABASE_BUSY_CODES.includes(err.code);
@@ -23,8 +28,12 @@ export const errorHandler = (
     return;
   }
 
-  if ((err as { type?: string }).type === "entity.parse.failed") {
-    res.status(400).json({ status: false, message: "Format JSON tidak valid!" });
+  const { type, status } = err as { type?: string; status?: number };
+
+  if (type && BODY_ERROR_MESSAGES[type]) {
+    res
+      .status(status ?? 400)
+      .json({ status: false, message: BODY_ERROR_MESSAGES[type] });
     return;
   }
 

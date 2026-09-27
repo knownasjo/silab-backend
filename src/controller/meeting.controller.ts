@@ -7,6 +7,7 @@ import {
   SUpdateMeeting,
   SUpdateMeetingStatus,
 } from "../services/meeting.service";
+import { BadRequestError } from "../utils/HttpErrors/HttptErrors";
 
 export const CAddClassMeeting = async (
   req: Request,
@@ -61,7 +62,12 @@ export const CUpdateMeetingStatus = async (
 ) => {
   try {
     const meetingId = req.params.id.toString();
-    const status = Boolean(req.body.status);
+    const { status } = req.body;
+
+    if (typeof status !== "boolean")
+      throw new BadRequestError(
+        "Status sesi presensi wajib diisi (true atau false)!"
+      );
 
     const resData = await SUpdateMeetingStatus(meetingId, status, req);
 
