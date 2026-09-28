@@ -1,12 +1,17 @@
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { db, TestData } from "../bantuan/data.mjs";
+import { db, findActivePeriod, TestData } from "../bantuan/data.mjs";
 import { check, runTest, section } from "../bantuan/uji.mjs";
 
 const data = new TestData("21");
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const TERMS = { GANJIL: "Ganjil", GENAP: "Genap" };
 const label = (period) => `${period.year} ${TERMS[period.term]}`;
+const nextOf = (period) => {
+  if (period.term === "GANJIL") return { year: period.year, term: "GENAP" };
+  const start = Number(period.year.split("/")[1]);
+  return { year: `${start}/${start + 1}`, term: "GANJIL" };
+};
 const OLD = { year: "1921/1922", term: "GANJIL" };
 const OLD_NAME = label(OLD);
 
@@ -99,17 +104,6 @@ await runTest("Skrip hapus-periode", data, async () => {
     run.output
   );
 
-  run = await runScript([label(active)]);
-  check(
-    "periode aktif ditolak sebelum konfirmasi",
-    run.code === 1 &&
-      run.output.includes(
-        `Periode ${label(active)} sedang aktif dan tidak bisa dihapus.`
-      ) &&
-      !run.output.includes("Ketik HAPUS"),
-    run.output
-  );
-
   run = await runScript([OLD_NAME], "hapus\n");
   const summary = [
     `Periode yang akan dihapus: ${OLD_NAME}`,
@@ -133,7 +127,11 @@ await runTest("Skrip hapus-periode", data, async () => {
       run.output.includes("Dibatalkan, tidak ada data yang dihapus."),
     run.output
   );
-  check("  data periode lama utuh", (await oldData()) === FULL, await oldData());
+  check(
+    "  data periode lama utuh",
+    (await oldData()) === FULL,
+    await oldData()
+  );
 
   section("Menghapus periode lama");
   run = await runScript(["1921/1922", "ganjil"], "HAPUS\n");
@@ -175,5 +173,72 @@ await runTest("Skrip hapus-periode", data, async () => {
   check(
     "  periode aktif tetap sama",
     (await db.mst_academic_period.count({ where: { id: active.id } })) === 1
+  );
+
+  section("Semester yang terlanjur dimulai");
+  const accidental = await db.mst_academic_period.create({
+    data: { ...nextOf(active), created_by: data.laboran.id },
+  });
+  const accidentalName = label(accidental);
+  const extraClass = await data.classOf(subject, "B", "TUESDAY", 2, {
+    period: accidental,
+  });
+  run = await runScript([accidentalName]);
+  check(
+    "periode aktif yang sudah berisi kelas ditolak sebelum konfirmasi",
+    run.code === 1 &&
+      run.output.includes(
+        `Periode ${accidentalName} sedang aktif dan sudah berisi 1 kelas dan 0 pendaftaran mata kuliah, jadi tidak bisa dihapus.`
+      ) &&
+      !run.output.includes("Ketik HAPUS"),
+    run.output
+  );
+  const blocked = await db.mst_academic_period
+    .delete({ where: { id: accidental.id } })
+    .then(
+      () => "terhapus",
+      (error) => error.code
+    );
+  check(
+    "  database sendiri menolak menghapus periode yang masih punya kelas",
+    blocked === "P2003",
+    blocked
+  );
+  await db.mst_class.delete({ where: { id: extraClass.id } });
+
+  run = await runScript([accidentalName], "hapus\n");
+  check(
+    "periode aktif kosong: ringkasan menyebut periode yang aktif kembali",
+    run.output.includes(
+      `Periode yang akan dihapus: ${accidentalName} (aktif, masih kosong)`
+    ) &&
+      run.output.includes(
+        `Setelah dihapus, periode ${label(active)} aktif kembali`
+      ),
+    run.output
+  );
+  check(
+    "  selain HAPUS dibatalkan",
+    run.code === 1 &&
+      run.output.includes("Dibatalkan, tidak ada data yang dihapus.") &&
+      (await db.mst_academic_period.count({ where: { id: accidental.id } })) ===
+        1,
+    run.output
+  );
+
+  run = await runScript([accidentalName], "HAPUS\n");
+  check(
+    "HAPUS: semester yang terlanjur dimulai dihapus",
+    run.code === 0 &&
+      run.output.includes(
+        `Periode ${accidentalName} sudah dihapus. Periode aktif sekarang ${label(
+          active
+        )}.`
+      ),
+    run.output
+  );
+  check(
+    "  periode sebelumnya aktif kembali",
+    (await findActivePeriod())?.id === active.id
   );
 });

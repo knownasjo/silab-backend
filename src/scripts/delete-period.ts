@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config({ quiet: true });
 
 import readline from "readline/promises";
-import { AcademicTerm, mst_academic_period } from "@prisma/client";
+import { AcademicTerm, mst_academic_period, Prisma } from "@prisma/client";
 import db from "../prisma/client.prisma";
 import {
   findActivePeriod,
@@ -126,6 +126,66 @@ const deletePeriodData = (period: mst_academic_period) =>
     { maxWait: 10_000, timeout: 120_000 }
   );
 
+const deleteActivePeriod = async (
+  period: mst_academic_period,
+  counts: Awaited<ReturnType<typeof countPeriodData>>
+) => {
+  if (counts.classes || counts.activations) {
+    console.log(
+      `Periode ${periodLabel(
+        period
+      )} sedang aktif dan sudah berisi ${formatCount(
+        counts.classes
+      )} kelas dan ${formatCount(
+        counts.activations
+      )} pendaftaran mata kuliah, jadi tidak bisa dihapus.`
+    );
+    return 1;
+  }
+
+  const previous = await db.mst_academic_period.findFirst({
+    where: { id: { not: period.id } },
+    orderBy: LATEST_PERIOD_FIRST,
+  });
+
+  console.log(
+    `Periode yang akan dihapus: ${periodLabel(period)} (aktif, masih kosong)`
+  );
+  console.log(
+    previous
+      ? `Setelah dihapus, periode ${periodLabel(
+          previous
+        )} aktif kembali dan bisa diubah lagi.\nSesi presensi yang ditutup saat semester ini dimulai tetap tertutup.`
+      : "Setelah dihapus, belum ada periode akademik; laboran perlu memulai periode pertama lagi."
+  );
+
+  if (!(await confirmDeletion())) return 1;
+
+  try {
+    await db.mst_academic_period.delete({ where: { id: period.id } });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    ) {
+      console.log(
+        `\nPeriode ${periodLabel(
+          period
+        )} baru saja diisi kelas atau pendaftaran, jadi tidak dihapus.`
+      );
+      return 1;
+    }
+    throw error;
+  }
+
+  console.log(
+    `\nPeriode ${periodLabel(period)} sudah dihapus.${
+      previous ? ` Periode aktif sekarang ${periodLabel(previous)}.` : ""
+    }`
+  );
+  return 0;
+};
+
 const deletePeriod = async (name: string) => {
   const parsed = parseName(name);
 
@@ -145,16 +205,12 @@ const deletePeriod = async (name: string) => {
     return 1;
   }
 
-  const active = await findActivePeriod();
+  const [active, counts] = await Promise.all([
+    findActivePeriod(),
+    countPeriodData(period),
+  ]);
 
-  if (active?.id === period.id) {
-    console.log(
-      `Periode ${periodLabel(period)} sedang aktif dan tidak bisa dihapus.`
-    );
-    return 1;
-  }
-
-  const counts = await countPeriodData(period);
+  if (active?.id === period.id) return deleteActivePeriod(period, counts);
 
   console.log(`Periode yang akan dihapus: ${periodLabel(period)}`);
   console.log("\nData yang ikut terhapus:");

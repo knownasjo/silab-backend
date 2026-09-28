@@ -640,9 +640,11 @@ berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
   periode akademik. Laboran perlu memulai semester terlebih dahulu!"
 - Periode tidak bisa dihapus lewat API maupun web. Periode lama yang sudah
   tidak diperlukan dihapus pengelola server lewat terminal dengan
-  `npm run hapus-periode` (lihat "Menghapus periode lama"). Relasi ke kelas
-  dan pendaftaran memakai `ON DELETE RESTRICT`, jadi periode yang masih berisi
-  data tidak bisa terhapus langsung dari database tanpa skrip itu.
+  `npm run hapus-periode` (lihat "Menghapus periode lama"); semester yang
+  terlanjur dimulai juga bisa dibatalkan dengan skrip itu selama masih
+  kosong. Relasi ke kelas dan pendaftaran memakai `ON DELETE RESTRICT`, jadi
+  periode yang masih berisi data tidak bisa terhapus langsung dari database
+  tanpa skrip itu.
 - Laboran memulai semester baru dari web, Master Data → Periode Akademik
   (lihat README web). Postman folder Periode Akademik tetap bisa dipakai.
   Aplikasi HP otomatis hanya menampilkan periode aktif.
@@ -955,7 +957,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS event-asisten                6/6
 ...
-Total: 209/209 cek lulus dari 11 tes, 301 detik
+Total: 214/214 cek lulus dari 11 tes, 322 detik
 Data uji sudah bersih.
 ```
 
@@ -971,7 +973,7 @@ Data uji sudah bersih.
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif | 31 |
-| `hapus-periode` | skrip `npm run hapus-periode` pada periode lama buatan tes: nama salah dan periode aktif ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode itu tanpa menyentuh akun, mata kuliah, dan periode aktif | 15 |
+| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali | 20 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -998,8 +1000,11 @@ server lab.
   menutupnya.
 - Tes `hapus-periode` membuat periode lama "1921/1922 Ganjil" yang lebih tua
   dari periode asli, jadi tidak pernah menjadi periode aktif, lalu menghapusnya
-  lewat skrip. Skrip juga dijalankan dengan nama periode aktif asli untuk
-  memastikan penolakannya; skrip berhenti sebelum meminta konfirmasi.
+  lewat skrip. Di akhir, tes membuat periode berikutnya (misalnya 2026/2027
+  Genap) langsung di database sebagai semester yang terlanjur dimulai, lalu
+  menghapusnya lewat skrip. Selama sekitar 15–20 detik itu data asli ikut hanya
+  bisa dilihat, tetapi tidak ada sesi presensi yang ditutup dan tidak ada event
+  real-time yang dikirim.
 - Data blok itu dihapus sebelum tes (sisa tes yang terhenti di tengah) dan
   sesudahnya, termasuk semua yang dibuat lewat API oleh akun uji.
 - Sebelum dan sesudah tes, isi tabel utama di luar data uji dibandingkan.
@@ -1170,17 +1175,32 @@ Script `src/scripts/delete-period.ts`:
   berpengaruh (`npm run hapus-periode 2026/2027 ganjil`). Bila nama tidak
   dikenali atau periodenya tidak ada, script menampilkan daftar periode yang
   ada beserta tanda "(aktif)".
-- Periode aktif ditolak: "Periode … sedang aktif dan tidak bisa dihapus."
 - Hanya `HAPUS` (huruf besar) yang melanjutkan; jawaban lain membatalkan.
-- Presensi, pertemuan, peserta kelas, asisten, kelas (termasuk yang sudah
-  dihapus dari web), pendaftaran mata kuliah, lalu periodenya dihapus dalam
-  satu transaksi, jadi jika gagal tidak ada yang berubah. Transaksi memakai
-  kunci yang sama dengan `POST /period` dan memeriksa ulang bahwa periode itu
-  bukan periode aktif.
+- Untuk periode lama: presensi, pertemuan, peserta kelas, asisten, kelas,
+  pendaftaran mata kuliah, lalu periodenya dihapus dalam satu transaksi, jadi
+  jika gagal tidak ada yang berubah. Transaksi memakai kunci yang sama dengan
+  `POST /period` dan memeriksa ulang bahwa periode itu bukan periode aktif.
+- Periode aktif hanya bisa dihapus bila masih kosong (0 kelas dan 0
+  pendaftaran mata kuliah), untuk membatalkan semester yang terlanjur dimulai:
+
+  ```
+  Periode yang akan dihapus: 2026/2027 Genap (aktif, masih kosong)
+  Setelah dihapus, periode 2026/2027 Ganjil aktif kembali dan bisa diubah lagi.
+  Sesi presensi yang ditutup saat semester ini dimulai tetap tertutup.
+  ```
+
+  Periode aktif yang sudah berisi data ditolak: "Periode 2026/2027 Genap
+  sedang aktif dan sudah berisi 3 kelas dan 12 pendaftaran mata kuliah, jadi
+  tidak bisa dihapus." Untuk periode aktif, script hanya menghapus baris
+  periodenya; bila kelas atau pendaftaran baru masuk tepat sebelum `HAPUS`,
+  database menolaknya (`ON DELETE RESTRICT`) dan tidak ada yang terhapus. Bila
+  periode itu satu-satunya, setelahnya laboran perlu memulai periode pertama
+  lagi.
 - Script berjalan di luar server, jadi tidak mengirim pembaruan real-time.
-  Halaman web yang sedang membuka arsip periode itu baru berubah setelah
-  di-refresh. Aplikasi HP tidak terpengaruh karena hanya menampilkan periode
-  aktif.
+  Halaman web yang sedang membuka periode itu baru berubah setelah
+  di-refresh. Aplikasi HP tidak terpengaruh oleh penghapusan periode lama;
+  setelah periode aktif yang kosong dihapus, HP baru menampilkan semester
+  sebelumnya lagi saat aplikasi dibuka ulang dari background.
 - Database-nya satu-satunya database SILAB di Supabase. Penghapusan permanen.
 
 ### Ganti password lewat terminal
@@ -1223,10 +1243,10 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 
 1. **Periode akademik hanya Ganjil dan Genap, dan hanya maju.** Tidak ada
    semester antara. Semester baru selalu periode berikutnya dan tidak bisa
-   dibatalkan dari aplikasi. Skrip `npm run hapus-periode` hanya menghapus
-   periode yang sudah tidak aktif, jadi semester yang terlanjur dimulai tetap
-   aktif. Periode lama sepenuhnya hanya bisa dilihat, jadi
-   koreksi presensi atau pembayaran semester lalu harus selesai sebelum
+   dibatalkan dari aplikasi. Semester yang terlanjur dimulai hanya bisa
+   dibatalkan pengelola server lewat `npm run hapus-periode`, dan hanya selama
+   belum ada kelas maupun pendaftaran di dalamnya. Periode lama sepenuhnya
+   hanya bisa dilihat, jadi koreksi presensi atau pembayaran semester lalu harus selesai sebelum
    semester baru dimulai. (Sebelum 28 September 2026 tidak ada periode sama
    sekali, sehingga semester kedua tidak bisa dipakai; lihat "Periode
    akademik".)
