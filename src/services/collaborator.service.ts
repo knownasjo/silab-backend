@@ -14,6 +14,10 @@ import {
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 import { formatSchedule, isScheduleClash } from "../utils/Schedule/schedule";
 import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
+import {
+  assertClassInActivePeriod,
+  assertPeriodActive,
+} from "../utils/PeriodRules/period.rules";
 
 const classSchedule = {
   select: {
@@ -55,6 +59,8 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
 
   if (!targetClass) throw new NotFoundError("Kelas tidak ditemukan!");
 
+  await assertPeriodActive(targetClass.periodId);
+
   const users = await db.mst_user.findMany({
     where: { id: { in: userIds } },
     select: { id: true, fullname: true, role: true },
@@ -86,6 +92,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
       where: {
         userId: user.id,
         subjectId: targetClass.subjectId,
+        periodId: targetClass.periodId,
         deleted_at: null,
       },
       select: { id: true },
@@ -101,7 +108,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
         where: {
           userId: user.id,
           deleted_at: null,
-          class: { deleted_at: null },
+          class: { deleted_at: null, periodId: targetClass.periodId },
         },
         select: { class: classSchedule },
       }),
@@ -110,7 +117,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
           userId: user.id,
           deletedAt: null,
           classId: { not: classId },
-          class: { deleted_at: null },
+          class: { deleted_at: null, periodId: targetClass.periodId },
         },
         select: { class: classSchedule },
       }),
@@ -157,6 +164,8 @@ export const SRemoveCollaborator = async (
 
   const classId = req.params.classId?.toString() ?? "";
   const userId = req.params.userId?.toString() ?? "";
+
+  await assertClassInActivePeriod(classId);
 
   const { count } = await db.trn_class_collaborator.deleteMany({
     where: { classId, userId },

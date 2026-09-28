@@ -19,6 +19,7 @@ import {
   isValidTime,
   toMinutes,
 } from "../utils/Schedule/schedule";
+import { findActivePeriod } from "../utils/PeriodRules/period.rules";
 
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -186,12 +187,14 @@ export const SUpdateSession = async (
 
   await assertNoConflict(session.day_group, number, startAt, endAt, session.id);
 
-  const classes = timesChanged
-    ? await db.mst_class.findMany({
-        where: { sessionId: session.id },
-        select: { id: true },
-      })
-    : [];
+  const period = await findActivePeriod();
+  const classes =
+    timesChanged && period
+      ? await db.mst_class.findMany({
+          where: { sessionId: session.id, periodId: period.id },
+          select: { id: true },
+        })
+      : [];
 
   const [updated] = await db.$transaction([
     db.mst_session.update({

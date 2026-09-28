@@ -26,6 +26,11 @@ import {
   findEnrollmentInSubjects,
   findFullClass,
 } from "../utils/EnrollmentRules/enrollment.rules";
+import {
+  assertPeriodActive,
+  getActivePeriod,
+  resolveViewPeriod,
+} from "../utils/PeriodRules/period.rules";
 
 export const SAddStudentActivation = async (
   body: IAddActivationRequestBody,
@@ -55,9 +60,12 @@ export const SAddStudentActivation = async (
     if (subjects.length !== new Set(subjectIds).size)
       throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
+    const period = await getActivePeriod();
+
     const existingActivations = await db.trn_activations.findMany({
       where: {
         userId: user.id,
+        periodId: period.id,
         subjectId: {
           in: subjectIds,
         },
@@ -73,12 +81,13 @@ export const SAddStudentActivation = async (
       );
     }
 
-    await assertNotAssistantOfSubjects(user.id, subjectIds);
+    await assertNotAssistantOfSubjects(user.id, subjectIds, period.id);
 
     await db.trn_activations.createMany({
       data: subjectIds.map((subjectId) => ({
         userId: user.id,
         subjectId,
+        periodId: period.id,
       })),
       skipDuplicates: true,
     });
@@ -107,8 +116,13 @@ export const SGetAllActivations = async (
         "Data pembayaran praktikum hanya bisa dilihat laboran!"
       );
 
+    const period = await resolveViewPeriod(req);
+
+    if (!period) return { status: true, message: "Berhasil", data: [] };
+
     const whereCondition = {
       deleted_at: null,
+      periodId: period.id,
       ...(user?.role === "MAHASISWA" && {
         userId: user.id,
       }),
@@ -148,6 +162,7 @@ export const SGetAllActivations = async (
     const classesData = await db.mst_class.findMany({
       where: {
         subjectId: { in: subjectIds },
+        periodId: period.id,
         deleted_at: null,
       },
       include: {
@@ -235,6 +250,8 @@ export const SUpdateActivationPaymentStatus = async (
 
     if (!isActivationExist) throw new NotFoundError("Data aktivasi tidak ditemukan!");
 
+    await assertPeriodActive(isActivationExist.periodId);
+
     if (!status) {
       if (classId)
         throw new BadRequestError(
@@ -248,7 +265,8 @@ export const SUpdateActivationPaymentStatus = async (
           const enrollment = await findEnrollmentInSubjects(
             tx,
             isActivationExist.userId,
-            [isActivationExist.subjectId]
+            [isActivationExist.subjectId],
+            isActivationExist.periodId
           );
 
           if (enrollment) {
@@ -312,7 +330,8 @@ export const SUpdateActivationPaymentStatus = async (
       const enrollment = await findEnrollmentInSubjects(
         db,
         isActivationExist.userId,
-        [isActivationExist.subjectId]
+        [isActivationExist.subjectId],
+        isActivationExist.periodId
       );
 
       return {
@@ -330,6 +349,7 @@ export const SUpdateActivationPaymentStatus = async (
         const classData = await tx.mst_class.findFirst({
           where: {
             id: classId,
+            periodId: isActivationExist.periodId,
             deleted_at: null,
           },
           include: {
@@ -347,7 +367,8 @@ export const SUpdateActivationPaymentStatus = async (
         const enrollment = await findEnrollmentInSubjects(
           tx,
           isActivationExist.userId,
-          [classData.subjectId]
+          [classData.subjectId],
+          isActivationExist.periodId
         );
 
         if (enrollment)
@@ -425,6 +446,8 @@ export const SUpdateStudentClass = async (
 
     if (!activation) throw new NotFoundError("Data aktivasi tidak ditemukan!");
 
+    await assertPeriodActive(activation.periodId);
+
     if (!activation.status)
       throw new ConflictError(
         "Tidak bisa memindahkan kelas sebelum pembayaran dikonfirmasi!"
@@ -437,6 +460,7 @@ export const SUpdateStudentClass = async (
         const targetClass = await tx.mst_class.findFirst({
           where: {
             id: classId,
+            periodId: activation.periodId,
             deleted_at: null,
           },
           include: {
@@ -458,6 +482,7 @@ export const SUpdateStudentClass = async (
             deleted_at: null,
             class: {
               subjectId: activation.subjectId,
+              periodId: activation.periodId,
             },
           },
           include: {

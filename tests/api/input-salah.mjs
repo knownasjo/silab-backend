@@ -80,6 +80,7 @@ const ROUTES = [
   ["PUT", "/meeting/:meeting/attendances/:student", "laboran", ["status"]],
   ["DELETE", "/meeting/:none/attendances/:none", "laboran"],
   ["GET", "/session", "student"],
+  ["GET", "/period", "student"],
   [
     "POST",
     "/session",

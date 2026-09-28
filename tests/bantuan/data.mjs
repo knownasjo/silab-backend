@@ -84,7 +84,14 @@ const realDataQueries = {
       where: { announcementAuthor: notTestUser },
       orderBy: { id: "asc" },
     }),
+  mst_academic_period: () =>
+    db.mst_academic_period.findMany({ orderBy: { id: "asc" } }),
 };
+
+export const findActivePeriod = () =>
+  db.mst_academic_period.findFirst({
+    orderBy: [{ year: "desc" }, { term: "desc" }],
+  });
 
 export const retry = async (work, attempts = 5) => {
   for (let attempt = 1; ; attempt++) {
@@ -148,6 +155,11 @@ export class TestData {
     this.passwordHash = await bcrypt.hash(this.password, 4);
     this.laboran = await this.user("LABORAN", "Laboran Uji");
     this.lecturer = await this.user("DOSEN", "Dosen Uji");
+    this.period = await findActivePeriod();
+    if (!this.period)
+      throw new Error(
+        "Belum ada periode akademik di database. Mulai semester dulu lewat POST /period."
+      );
     return this;
   }
 
@@ -232,12 +244,13 @@ export class TestData {
     name,
     day,
     sessionNumber,
-    { room = "PSI", quota = 30 } = {}
+    { room = "PSI", quota = 30, period = this.period } = {}
   ) {
     const session = (await this.sessions())[sessionNumber - 1];
     return db.mst_class.create({
       data: {
         subjectId: subject.id,
+        periodId: period.id,
         name,
         quota,
         day,
@@ -250,9 +263,14 @@ export class TestData {
     });
   }
 
-  activate(user, subject, status) {
+  activate(user, subject, status, period = this.period) {
     return db.trn_activations.create({
-      data: { userId: user.id, subjectId: subject.id, status },
+      data: {
+        userId: user.id,
+        subjectId: subject.id,
+        periodId: period.id,
+        status,
+      },
     });
   }
 
@@ -333,6 +351,9 @@ export class TestData {
         },
       });
       await db.mst_class.deleteMany({ where: { id: { in: classes } } });
+      await db.mst_academic_period.deleteMany({
+        where: { created_by: { in: users } },
+      });
       await db.mst_subject.deleteMany({ where: { id: { in: subjects } } });
       await db.mst_session.deleteMany({
         where: {

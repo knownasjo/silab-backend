@@ -392,11 +392,13 @@ try {
       ...users.map((u) => ({
         userId: u.id,
         subjectId: rushSubject.id,
+        periodId: data.period.id,
         status: true,
       })),
       ...users.slice(0, SCANNERS).map((u) => ({
         userId: u.id,
         subjectId: scanSubject.id,
+        periodId: data.period.id,
         status: true,
       })),
     ],

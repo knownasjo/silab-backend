@@ -10,8 +10,13 @@ interface IEnrollTarget {
   startAt: string;
   endAt: string;
   quota: number;
+  periodId: string;
   subject: { subject_name: string };
 }
+
+export const periodsOf = (targets: { periodId: string }[]) => [
+  ...new Set(targets.map((target) => target.periodId)),
+];
 
 export const enrollInClasses = <T>(
   userIds: string[],
@@ -52,13 +57,14 @@ export const findEnrollmentInSubjects = (
   tx: Prisma.TransactionClient,
   userId: string,
   subjectIds: string[],
+  periodId: string,
   exceptClassId?: string
 ) =>
   tx.trn_class_participants.findFirst({
     where: {
       userId,
       deleted_at: null,
-      class: { subjectId: { in: subjectIds }, deleted_at: null },
+      class: { subjectId: { in: subjectIds }, deleted_at: null, periodId },
       ...(exceptClassId && { classId: { not: exceptClassId } }),
     },
     include: {
@@ -78,7 +84,7 @@ export const assertNoParticipantScheduleClash = async (
       where: {
         userId,
         deleted_at: null,
-        class: { deleted_at: null },
+        class: { deleted_at: null, periodId: { in: periodsOf(targets) } },
         ...(exceptClassId && { classId: { not: exceptClassId } }),
       },
       select: {

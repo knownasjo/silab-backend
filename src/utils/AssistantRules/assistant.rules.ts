@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import db from "../../prisma/client.prisma";
+import { periodsOf } from "../EnrollmentRules/enrollment.rules";
 import { ConflictError } from "../HttpErrors/HttptErrors";
 import { formatSchedule, isScheduleClash } from "../Schedule/schedule";
 
@@ -8,16 +9,22 @@ interface IClassSchedule {
   day: string;
   startAt: string;
   endAt: string;
+  periodId: string;
   subject: { subject_name: string };
 }
 
 const findAssistedClasses = async (
   userId: string,
+  periodIds: string[],
   client: Prisma.TransactionClient = db
 ) =>
   (
     await client.trn_class_collaborator.findMany({
-      where: { userId, deletedAt: null, class: { deleted_at: null } },
+      where: {
+        userId,
+        deletedAt: null,
+        class: { deleted_at: null, periodId: { in: periodIds } },
+      },
       select: {
         class: {
           select: {
@@ -35,10 +42,11 @@ const findAssistedClasses = async (
 
 export const assertNotAssistantOfSubjects = async (
   userId: string,
-  subjectIds: string[]
+  subjectIds: string[],
+  periodId: string
 ) => {
-  const assisted = (await findAssistedClasses(userId)).find((assistedClass) =>
-    subjectIds.includes(assistedClass.subjectId)
+  const assisted = (await findAssistedClasses(userId, [periodId])).find(
+    (assistedClass) => subjectIds.includes(assistedClass.subjectId)
   );
 
   if (assisted)
@@ -53,7 +61,11 @@ export const assertNoAssistantScheduleClash = async (
   holder: string,
   client: Prisma.TransactionClient = db
 ) => {
-  const assisted = await findAssistedClasses(userId, client);
+  const assisted = await findAssistedClasses(
+    userId,
+    periodsOf(targets),
+    client
+  );
 
   for (const target of targets) {
     const clash = assisted.find((assistedClass) =>
@@ -79,9 +91,13 @@ const classSchedule = {
 
 export const assertNoMemberScheduleClash = async (
   classId: string,
-  schedule: { day: string; startAt: string; endAt: string }
+  schedule: { day: string; startAt: string; endAt: string },
+  periodId: string
 ) => {
-  const elsewhere = { classId: { not: classId }, class: { deleted_at: null } };
+  const elsewhere = {
+    classId: { not: classId },
+    class: { deleted_at: null, periodId },
+  };
   const assistingElsewhere = {
     where: { ...elsewhere, deletedAt: null },
     select: { class: classSchedule },

@@ -88,6 +88,9 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
 6. Asisten/laboran menampilkan QR (`GET /meeting/:id/qr`); token di dalamnya
    berganti setiap 10 detik
 7. Mahasiswa scan QR berisi token → presensi tercatat
+8. Di akhir semester, laboran memulai semester baru (`POST /period`). Kelas
+   dan pendaftaran semester lama menjadi arsip yang hanya bisa dilihat, dan
+   semua langkah di atas diulang di periode baru (lihat "Periode akademik")
 
 Bila laboran tidak menetapkan kelas, mahasiswa memilih kelasnya sendiri di
 aplikasi mobile lewat `GET /class/registration` → `POST /class/registration`.
@@ -162,7 +165,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | PUT | `/subject/:id` | LABORAN (lihat "Tambah dan ubah mata kuliah") |
 | POST | `/class` | LABORAN (lihat "Tambah kelas dan jam sesi") |
-| GET | `/class` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu). Berisi `sessionId` tiap kelas |
+| GET | `/class?periodId=` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu). Berisi `sessionId` tiap kelas. Hanya periode aktif; LABORAN dan DOSEN boleh meminta periode lain lewat `periodId` |
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
@@ -175,7 +178,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/session/:id` | LABORAN (ubah jam, nomor, atau status aktif) |
 | DELETE | `/session/:id` | LABORAN (hanya sesi yang belum dipakai kelas) |
 | POST | `/activation` | MAHASISWA |
-| GET | `/activation?status=&name=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak |
+| GET | `/activation?status=&name=&periodId=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak. Hanya periode aktif; LABORAN boleh meminta periode lain |
 | PUT | `/activation/:id` | LABORAN |
 | PUT | `/activation/:id/class` | LABORAN |
 | POST | `/meeting` | LABORAN, asisten kelas itu |
@@ -200,7 +203,9 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/collaborator/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | DELETE | `/collaborator/:classId/:userId` | LABORAN |
 | GET | `/events` | login; stream SSE real-time |
-| GET | `/dashboard/dosen` | DOSEN (angka dashboard, lihat "Akses dosen") |
+| GET | `/dashboard/dosen?periodId=` | DOSEN (angka dashboard, lihat "Akses dosen"; periode aktif kecuali `periodId` diisi) |
+| GET | `/period` | login (daftar periode akademik, lihat "Periode akademik") |
+| POST | `/period` | LABORAN (mulai semester baru) |
 
 ### Koleksi Postman
 
@@ -479,6 +484,7 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 | `meeting` | `class_id`, `meeting_id` (+ `action`: `created`, `updated`, atau `deleted` saat pertemuan ditambah, diubah judulnya, atau dihapus) | pertemuan ditambah, diubah judulnya, atau dihapus, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
 | `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |
 | `session` | `session_id` | jam sesi ditambah, diubah, dinonaktifkan, atau dihapus | semua |
+| `period` | `period_id`, `action: "started"` | laboran memulai semester baru | semua; web dan HP sebaiknya memuat ulang semua data |
 | `ping` | `{}` | setiap 25 detik | semua, untuk menjaga koneksi |
 
 - Event hanya memberi tahu **apa** yang berubah, bukan datanya. Klien memanggil
@@ -576,6 +582,68 @@ menolak dosen seperti sebelumnya.
   - Kelas dan pertemuan yang `deleted_at`-nya terisi tidak dihitung.
 - Dosen tetap menerima semua event real-time seperti laboran, sehingga
   dashboard dan halaman kelasnya ikut berubah tanpa refresh.
+
+### Periode akademik
+
+Kelas (`mst_class.periodId`) dan pendaftaran mata kuliah beserta pembayarannya
+(`trn_activations.periodId`) melekat ke satu periode di `mst_academic_period`,
+misalnya "2026/2027 Ganjil". Mata kuliah, jam sesi, akun, dan pengumuman
+berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
+(28 September 2026) dimasukkan ke 2026/2027 Ganjil.
+
+- **Periode aktif selalu periode terbaru**, diurutkan menurut tahun ajaran
+  lalu Ganjil/Genap. Tidak ada tanda aktif terpisah, jadi tidak mungkin ada
+  dua periode aktif. Periode hanya Ganjil dan Genap; tidak ada semester
+  antara karena lab tidak membuka praktikum di semester pendek.
+- **`POST /period`** (hanya LABORAN, selain itu 403 "Hanya laboran yang dapat
+  memulai semester baru!") membuat periode berikutnya secara otomatis:
+  2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil. Laboran tidak mengetik
+  nama, jadi tidak bisa salah ketik atau melompati semester. Hanya bila belum
+  ada periode sama sekali (database baru), body wajib berisi periode pertama
+  `{ "year": "2026/2027", "term": "GANJIL" }`. Sesi presensi yang masih terbuka
+  di periode lama ditutup otomatis. Balasan 201 "Semester 2026/2027 Genap
+  dimulai" (ditambah "; n sesi presensi yang masih terbuka di … ditutup" bila
+  ada) `{ id, name, closed_meetings }`, lalu event `period`
+  (`action: "started"`) dikirim ke semua.
+- **Periode lama hanya bisa dilihat.** Ubah dan hapus kelas, tambah/ubah/hapus
+  pertemuan, buka dan tutup sesi presensi, QR, ubah dan hapus presensi, ubah
+  pembayaran, pindah kelas, serta tambah dan hapus asisten di periode lama
+  dibalas 409 "Periode 2026/2027 Ganjil sudah selesai, data hanya bisa
+  dilihat." Pemeriksaan ini ada di `src/utils/PeriodRules/period.rules.ts`;
+  untuk pertemuan dan presensi, pemeriksaannya ikut di
+  `assertCanManageClass`.
+- **Semua aturan hanya berlaku di dalam satu periode:** nama kelas, ruang yang
+  bentrok, bentrok jadwal mahasiswa dan asisten, kuota, "sudah terdaftar di
+  kelas", dan "sedang mengikuti praktikum mata kuliah ini". Akibatnya:
+  - kelas A di hari, jam, dan ruang yang sama boleh dibuat lagi di semester
+    berikutnya;
+  - mahasiswa boleh mengulang mata kuliah (aturan unik aktivasi kini
+    `@@unique([userId, subjectId, periodId])`);
+  - mahasiswa yang lulus mata kuliah itu semester lalu boleh menjadi
+    asistennya.
+- **Mahasiswa dan asisten (aplikasi HP) hanya menerima data periode aktif:**
+  `GET /class/me`, `GET /class/registration`, `GET /activation`, dan
+  `GET /class` untuk kelas yang diasisteni. Mata kuliah yang pernah diambil
+  tidak lagi tampil sebagai "sudah didaftarkan", jadi bisa dipilih lagi.
+- **Laboran dan dosen** melihat periode aktif secara bawaan dan boleh meminta
+  periode lain lewat `?periodId=` di `GET /class`, `GET /activation`
+  (laboran), dan `GET /dashboard/dosen`. Detail kelas (`GET /class/:id`) dari
+  periode mana pun tetap bisa dibuka dan kini berisi
+  `period: { id, name, is_active }`, begitu juga daftar pertemuan dan
+  presensinya.
+- **Mengubah jam sesi hanya mengubah jam kelas periode aktif.** Kelas periode
+  lama tetap memakai jam lamanya.
+- `GET /period` (semua yang login) mengembalikan periode dari yang terbaru:
+  `[{ id, year, term, name, is_active, classes, activations }]`.
+- Bila belum ada periode sama sekali, daftar kelas dan pendaftaran dibalas
+  kosong, sedangkan tambah kelas dan daftar mata kuliah dibalas 409 "Belum ada
+  periode akademik. Laboran perlu memulai semester terlebih dahulu!"
+- Periode tidak bisa dihapus lewat API. Relasi ke kelas dan pendaftaran
+  memakai `ON DELETE RESTRICT`, jadi periode yang masih berisi data juga tidak
+  bisa terhapus langsung dari database.
+- Laboran memulai semester baru dari web, Master Data → Periode Akademik
+  (lihat README web). Postman folder Periode Akademik tetap bisa dipakai.
+  Aplikasi HP otomatis hanya menampilkan periode aktif.
 
 ### Tambah kelas dan jam sesi
 
@@ -871,7 +939,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 3–4 menit
+npm test                    # terminal 2: semua tes API, sekitar 4–5 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -885,7 +953,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS event-asisten                6/6
 ...
-Total: 163/163 cek lulus dari 9 tes, 199 detik
+Total: 194/194 cek lulus dari 10 tes, 252 detik
 Data uji sudah bersih.
 ```
 
@@ -894,12 +962,13 @@ Data uji sudah bersih.
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
 | `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman, 404, 413, JSON rusak | 33 |
-| `input-salah` | 422 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
+| `input-salah` | 423 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
+| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif | 31 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -911,12 +980,19 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–19, web 51–56, uji beban
+- Setiap file tes punya blok 2 angka sendiri (API 11–20, web 51–56, uji beban
   90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
   dengan jadwal kelas asli.
 - Password akun uji dibuat acak setiap kali tes jalan dan tidak disimpan.
+- Kelas dan pendaftaran uji dibuat di periode aktif, jadi database harus sudah
+  punya minimal satu periode akademik.
+- Tes `periode` sungguh-sungguh memulai semester berikutnya selama beberapa
+  detik, lalu menghapusnya sehingga periode sebelumnya aktif kembali. Selama
+  itu data asli ikut hanya bisa dilihat. Tes ini menolak jalan bila ada sesi
+  presensi asli yang sedang terbuka, karena pergantian semester akan
+  menutupnya.
 - Data blok itu dihapus sebelum tes (sisa tes yang terhenti di tengah) dan
   sesudahnya, termasuk semua yang dibuat lewat API oleh akun uji.
 - Sebelum dan sesudah tes, isi tabel utama di luar data uji dibandingkan.
@@ -1091,22 +1167,26 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 
 ## Batasan yang disadari (untuk bab batasan skripsi)
 
-1. **Tidak ada periode akademik.** `mst_subject.semester` adalah semester
-   kurikulum, bukan tahun ajaran. Akibatnya data aktivasi menumpuk selamanya
-   dan halaman Pembayaran menampilkan seluruh angkatan.
-2. **Mahasiswa tidak bisa mengulang mata kuliah.** `trn_activations` punya
-   `@@unique([userId, subjectId])`, sehingga satu mahasiswa hanya boleh punya
-   satu aktivasi per mata kuliah — selamanya. Solusinya menambah atribut
-   periode akademik lalu mengubah constraint menjadi
-   `@@unique([userId, subjectId, academicPeriod])`.
+1. **Periode akademik hanya Ganjil dan Genap, dan hanya maju.** Tidak ada
+   semester antara. Semester baru selalu periode berikutnya dan tidak bisa
+   dibatalkan dari aplikasi; periode yang terlanjur dibuat hanya bisa dihapus
+   oleh pengelola server. Periode lama sepenuhnya hanya bisa dilihat, jadi
+   koreksi presensi atau pembayaran semester lalu harus selesai sebelum
+   semester baru dimulai. (Sebelum 28 September 2026 tidak ada periode sama
+   sekali, sehingga semester kedua tidak bisa dipakai; lihat "Periode
+   akademik".)
+2. **Mahasiswa hanya bisa mengulang di periode berikutnya.** Aturan unik
+   aktivasi `@@unique([userId, subjectId, periodId])` berarti satu pendaftaran
+   per mata kuliah per periode. Mendaftar ulang mata kuliah yang sama di
+   periode yang sama tidak bisa.
 3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
 4. **Belum ada fitur membatalkan pendaftaran mata kuliah.** Mahasiswa tidak
    bisa membatalkan aktivasinya sendiri dan laboran tidak bisa menghapusnya,
    jadi status "Belum Bayar" menjadi satu-satunya cara membatalkan (salah
    konfirmasi, pembayaran bermasalah, atau mahasiswa mundur). Aktivasi yang
-   batal tetap tercatat selamanya dan mahasiswa tidak bisa mendaftar ulang mata
-   kuliah itu (lihat batasan 1 dan 2). Sejak aturan batal bayar di bagian
+   batal tetap tercatat di periodenya, dan mahasiswa baru bisa mendaftar ulang
+   mata kuliah itu di periode berikutnya (lihat batasan 2). Sejak aturan batal bayar di bagian
    "Pendaftaran kelas", mahasiswa yang dibatalkan tidak lagi tertinggal di
    kelas.
 5. **Jadwal yang diubah langsung di database tidak diperiksa ulang.** Bentrok
@@ -1140,8 +1220,9 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
     dashboard dosen dan menurunkan rata-rata kehadiran. Solusinya menambah
     kolom waktu pertama kali sesi dibuka.
 
-11. **Jam kelas tidak punya riwayat.** Mengubah jam sesi langsung mengubah jam
-    semua kelasnya, dan mengubah jadwal satu kelas juga menimpa jadwal
+11. **Jam kelas tidak punya riwayat di dalam satu periode.** Mengubah jam sesi
+    langsung mengubah jam semua kelasnya di periode aktif (kelas periode lama
+    tidak ikut berubah), dan mengubah jadwal satu kelas juga menimpa jadwal
     lamanya, termasuk untuk pertemuan yang sudah lewat. Tidak ada catatan jam
     lama.
 
@@ -1154,11 +1235,14 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 13. **Riwayat dosen pengampu tidak disimpan.** `mst_subject.lecturer_id` hanya
     menyimpan dosen saat ini. Bila dosen diganti di tengah semester, dosen
     baru melihat seluruh data sejak awal dan dosen lama kehilangan akses ke
-    data saat ia mengampu. Menyimpan riwayat butuh tabel dosen per periode,
-    yang bergantung pada batasan 1 (belum ada periode akademik).
+    data saat ia mengampu, termasuk kelas di periode lama. Menyimpan riwayat
+    butuh tabel dosen pengampu per periode; periodenya sudah ada, tetapi
+    dosen pengampu masih satu per mata kuliah.
 
 ## Pekerjaan yang masih tersisa
 
+- [ ] Periode akademik di aplikasi HP: memuat ulang layar saat event `period`
+- [ ] Skrip terminal `npm run hapus-periode` untuk periode yang tidak aktif
 - [ ] Pastikan jam sesi Senin–Kamis dan isi jam sesi Jumat lewat web
       (Master Data → Jam Sesi)
 

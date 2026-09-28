@@ -113,11 +113,11 @@ await runTest("Batal bayar", data, async () => {
 
   section("Bersamaan");
   let consistent = 0;
+  const a4 = await data.activate(s4, X, true);
   for (let round = 0; round < 3; round++) {
-    const a4 = await db.trn_activations.upsert({
-      where: { userId_subjectId: { userId: s4.id, subjectId: X.id } },
-      update: { status: true },
-      create: { userId: s4.id, subjectId: X.id, status: true },
+    await db.trn_activations.update({
+      where: { id: a4.id },
+      data: { status: true },
     });
     await db.trn_class_participants.deleteMany({ where: { userId: s4.id } });
     const race = await Promise.all([

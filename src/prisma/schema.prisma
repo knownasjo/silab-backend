@@ -33,6 +33,11 @@ enum SessionDayGroup {
     FRIDAY
 }
 
+enum AcademicTerm {
+    GANJIL
+    GENAP
+}
+
 enum AnnouncementTypes {
     ASSISTANT
     PRACTICUM
@@ -83,9 +88,23 @@ model mst_subject {
     @@index([id, subject_code])
 }
 
+model mst_academic_period {
+    id         String       @id @default(uuid())
+    year       String
+    term       AcademicTerm
+    created_by String?
+    created_at DateTime     @default(now())
+
+    classes     mst_class[]       @relation(name: "ClassPeriod")
+    activations trn_activations[] @relation(name: "ActivationPeriod")
+
+    @@unique([year, term])
+}
+
 model mst_class {
     id         String     @id @default(uuid())
     subjectId  String
+    periodId   String
     name       String
     quota      Int
     day        DaysOfWeek
@@ -102,10 +121,12 @@ model mst_class {
     participants           trn_class_participants[] @relation(name: "ClassParticipants")
     trn_meetings           trn_meetings[]           @relation(name: "ClassMeeting")
     subject                mst_subject              @relation(fields: [subjectId], references: [id])
+    period                 mst_academic_period      @relation(name: "ClassPeriod", fields: [periodId], references: [id])
     session                mst_session?             @relation(name: "ClassSession", fields: [sessionId], references: [id])
     trn_class_collaborator trn_class_collaborator[] @relation(name: "ClassCollaborators")
 
     @@index([id, subjectId])
+    @@index([periodId])
 }
 
 model mst_session {
@@ -143,17 +164,20 @@ model trn_activations {
     id         String    @id @default(uuid())
     userId     String
     subjectId  String
+    periodId   String
     status     Boolean   @default(false)
     createdAt  DateTime  @default(now())
     updated_at DateTime?
     deleted_at DateTime?
 
-    user    mst_user    @relation(name: "UserActivation", fields: [userId], references: [id])
-    subject mst_subject @relation(name: "SubjectActivation", fields: [subjectId], references: [id])
+    user    mst_user             @relation(name: "UserActivation", fields: [userId], references: [id])
+    subject mst_subject          @relation(name: "SubjectActivation", fields: [subjectId], references: [id])
+    period  mst_academic_period  @relation(name: "ActivationPeriod", fields: [periodId], references: [id])
 
-    @@unique([userId, subjectId])
+    @@unique([userId, subjectId, periodId])
     @@index([userId])
     @@index([subjectId])
+    @@index([periodId])
 }
 
 model trn_meetings {

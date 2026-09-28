@@ -1,6 +1,7 @@
 import { mst_user } from "@prisma/client";
 import db from "../../prisma/client.prisma";
 import { ForbiddenError } from "../HttpErrors/HttptErrors";
+import { assertClassInActivePeriod } from "../PeriodRules/period.rules";
 
 export const isClassAssistant = async (userId: string, classId: string) =>
   Boolean(
@@ -25,6 +26,8 @@ export const assertCanManageClass = async (
     throw new ForbiddenError(
       "Hanya laboran atau asisten kelas ini yang dapat melakukannya!"
     );
+
+  await assertClassInActivePeriod(classId);
 };
 
 export const isLecturer = (user: mst_user | undefined) =>

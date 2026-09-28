@@ -8,7 +8,8 @@ export type RealtimeEventType =
   | "activation"
   | "meeting"
   | "attendance"
-  | "session";
+  | "session"
+  | "period";
 
 export interface IRealtimeSubscriber {
   userId: string;

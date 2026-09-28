@@ -49,6 +49,7 @@ export interface IGetClassByIdResponseBody {
   participants: number;
   meetings: number;
   recorded_meetings: number;
+  period: { id: string; name: string; is_active: boolean } | null;
 }
 
 export interface IGetAllClassByPaidActivationsResponseBody {

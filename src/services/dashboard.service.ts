@@ -3,6 +3,7 @@ import { IBaseResponse } from "../interfaces/global.interface";
 import { ILecturerDashboardResponseBody } from "../interfaces/dashboard.interface";
 import db from "../prisma/client.prisma";
 import { ForbiddenError } from "../utils/HttpErrors/HttptErrors";
+import { resolveViewPeriod } from "../utils/PeriodRules/period.rules";
 
 export const SGetLecturerDashboard = async (
   req: Request
@@ -12,8 +13,14 @@ export const SGetLecturerDashboard = async (
   if (user?.role !== "DOSEN")
     throw new ForbiddenError("Ringkasan ini hanya untuk dosen!");
 
+  const period = await resolveViewPeriod(req);
+
   const classes = await db.mst_class.findMany({
-    where: { deleted_at: null, subject: { lecturer_id: user.id } },
+    where: {
+      deleted_at: null,
+      periodId: period?.id ?? "",
+      subject: { lecturer_id: user.id },
+    },
     select: {
       participants: { where: { deleted_at: null }, select: { userId: true } },
       trn_meetings: {

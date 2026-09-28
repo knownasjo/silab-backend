@@ -41,6 +41,13 @@ import {
   formatSchedule,
   isScheduleClash,
 } from "../utils/Schedule/schedule";
+import {
+  assertPeriodActive,
+  findActivePeriod,
+  getActivePeriod,
+  periodLabel,
+  resolveViewPeriod,
+} from "../utils/PeriodRules/period.rules";
 
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -114,12 +121,14 @@ const assertClassNameFree = async (
   subjectId: string,
   subjectName: string,
   name: string,
+  periodId: string,
   exceptId?: string
 ) => {
   const duplicate = await db.mst_class.findFirst({
     where: {
       subjectId,
       name,
+      periodId,
       deleted_at: null,
       ...(exceptId && { id: { not: exceptId } }),
     },
@@ -131,12 +140,14 @@ const assertClassNameFree = async (
 
 const assertRoomFree = async (
   schedule: { day: DaysOfWeek; room: ClassRoom; startAt: string; endAt: string },
+  periodId: string,
   exceptId?: string
 ) => {
   const sameRoom = await db.mst_class.findMany({
     where: {
       day: schedule.day,
       room: schedule.room,
+      periodId,
       deleted_at: null,
       ...(exceptId && { id: { not: exceptId } }),
     },
@@ -169,19 +180,29 @@ export const SAddClass = async (
 
   if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
+  const period = await getActivePeriod();
   const session = await findClassSession(fields);
 
-  await assertClassNameFree(subjectId, subject.subject_name, fields.name);
-  await assertRoomFree({
-    day: fields.day,
-    room: fields.room,
-    startAt: session.startAt,
-    endAt: session.endAt,
-  });
+  await assertClassNameFree(
+    subjectId,
+    subject.subject_name,
+    fields.name,
+    period.id
+  );
+  await assertRoomFree(
+    {
+      day: fields.day,
+      room: fields.room,
+      startAt: session.startAt,
+      endAt: session.endAt,
+    },
+    period.id
+  );
 
   const newClass = await db.mst_class.create({
     data: {
       subjectId,
+      periodId: period.id,
       ...fields,
       startAt: session.startAt,
       endAt: session.endAt,
@@ -214,6 +235,8 @@ export const SUpdateClass = async (
   });
 
   if (!current) throw new NotFoundError("Kelas tidak ditemukan!");
+
+  await assertPeriodActive(current.periodId);
 
   if (body?.subjectId !== undefined && body.subjectId !== current.subjectId)
     throw new BadRequestError("Mata kuliah kelas tidak bisa diubah!");
@@ -253,12 +276,14 @@ export const SUpdateClass = async (
       current.subjectId,
       current.subject.subject_name,
       fields.name,
+      current.periodId,
       id
     );
 
-  if (isMoved) await assertRoomFree(schedule, id);
+  if (isMoved) await assertRoomFree(schedule, current.periodId, id);
 
-  if (isRescheduled) await assertNoMemberScheduleClash(id, schedule);
+  if (isRescheduled)
+    await assertNoMemberScheduleClash(id, schedule, current.periodId);
 
   await enrollInClasses([], [id], async (tx) => {
     const participants = await tx.trn_class_participants.count({
@@ -315,6 +340,8 @@ export const SDeleteClass = async (
 
   if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
 
+  await assertPeriodActive(classData.periodId);
+
   const recordedMeetings = classData.trn_meetings.filter(
     (meeting) => meeting._count.participants > 0
   ).length;
@@ -368,10 +395,14 @@ export const SGetAllClasses = async (
 ): Promise<IBaseResponse<IGetClassResponseBody[]>> => {
   try {
     const user = req.user;
+    const period = await resolveViewPeriod(req);
+
+    if (!period) return { status: true, message: "Berhasil", data: [] };
 
     const classesData = await db.mst_class.findMany({
       where: {
         deleted_at: null,
+        periodId: period.id,
         ...(user?.role === "MAHASISWA" && {
           trn_class_collaborator: {
             some: { userId: user.id, deletedAt: null },
@@ -449,12 +480,15 @@ export const SGetClassById = async (
         trn_meetings: {
           select: { _count: { select: { participants: true } } },
         },
+        period: true,
       },
     });
 
     if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
 
     await assertLecturerOfClass(req.user, classData.id);
+
+    const activePeriod = await findActivePeriod();
 
     const data: IGetClassByIdResponseBody = {
       id: classData.id,
@@ -476,6 +510,11 @@ export const SGetClassById = async (
       recorded_meetings: classData.trn_meetings.filter(
         (meeting) => meeting._count.participants > 0
       ).length,
+      period: classData.period && {
+        id: classData.period.id,
+        name: periodLabel(classData.period),
+        is_active: classData.period.id === activePeriod?.id,
+      },
     };
 
     return {
@@ -497,15 +536,20 @@ export const SGetAllClassByPaidActivations = async (
     if (user?.role !== "MAHASISWA")
       throw new UnauthorizedError("Anda tidak memiliki akses!");
 
+    const period = await findActivePeriod();
+
+    if (!period) return { status: true, message: "Berhasil", data: [] };
+
     const studentActivation = await db.trn_activations.findMany({
       where: {
         userId: user.id,
+        periodId: period.id,
         status: true,
         deleted_at: null,
       },
     });
 
-    const enrolledSubjectIds = await getEnrolledSubjectIds(user.id);
+    const enrolledSubjectIds = await getEnrolledSubjectIds(user.id, period.id);
 
     const subjectIds = studentActivation
       .map((data) => data.subjectId)
@@ -516,6 +560,7 @@ export const SGetAllClassByPaidActivations = async (
         subjectId: {
           in: subjectIds,
         },
+        periodId: period.id,
         deleted_at: null,
       },
       include: {
@@ -565,10 +610,13 @@ export const SClassRegistration = async (
   )
     throw new BadRequestError("Pilih minimal satu kelas!");
 
+  const period = await getActivePeriod();
+
   const classes = await enrollInClasses([user.id], classIds, async (tx) => {
     const classes = await tx.mst_class.findMany({
       where: {
         id: { in: classIds },
+        periodId: period.id,
         deleted_at: null,
       },
       include: {
@@ -588,6 +636,7 @@ export const SClassRegistration = async (
       where: {
         userId: user.id,
         subjectId: { in: subjectIds },
+        periodId: period.id,
         status: true,
         deleted_at: null,
       },
@@ -606,7 +655,8 @@ export const SClassRegistration = async (
     const existingEnrollment = await findEnrollmentInSubjects(
       tx,
       user.id,
-      subjectIds
+      subjectIds,
+      period.id
     );
 
     if (existingEnrollment)
@@ -648,11 +698,15 @@ export const SGetMyClasses = async (
   if (user?.role !== "MAHASISWA")
     throw new UnauthorizedError("Anda tidak memiliki akses!");
 
+  const period = await findActivePeriod();
+
+  if (!period) return { status: true, message: "Berhasil", data: [] };
+
   const enrollments = await db.trn_class_participants.findMany({
     where: {
       userId: user.id,
       deleted_at: null,
-      class: { deleted_at: null },
+      class: { deleted_at: null, periodId: period.id },
     },
     include: {
       class: {
@@ -687,12 +741,15 @@ export const SGetMyClasses = async (
   };
 };
 
-const getEnrolledSubjectIds = async (userId: string): Promise<string[]> => {
+const getEnrolledSubjectIds = async (
+  userId: string,
+  periodId: string
+): Promise<string[]> => {
   const enrollments = await db.trn_class_participants.findMany({
     where: {
       userId,
       deleted_at: null,
-      class: { deleted_at: null },
+      class: { deleted_at: null, periodId },
     },
     select: { class: { select: { subjectId: true } } },
   });
