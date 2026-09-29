@@ -2383,7 +2383,7 @@
 								"announcement"
 							]
 						},
-						"description": "Hanya LABORAN. `type`: BASIC, PRACTICUM, ASSISTANT, atau INHALL."
+						"description": "Hanya LABORAN. `type`: BASIC, PRACTICUM, ASSISTANT, atau INHALL. `title` paling panjang 150 karakter dan `body` 1000 karakter (400 \"Deskripsi pengumuman maksimal 1000 karakter!\")."
 					},
 					"response": []
 				},
@@ -2496,7 +2496,7 @@
 								"{{announcementId}}"
 							]
 						},
-						"description": "Hanya LABORAN."
+						"description": "Hanya LABORAN. Batas panjang sama dengan Tambah Pengumuman."
 					},
 					"response": []
 				},

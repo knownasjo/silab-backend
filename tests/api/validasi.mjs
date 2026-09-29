@@ -216,6 +216,16 @@ await runTest("Input keliru ditolak dengan pesan jelas", data, async () => {
     })
   );
   expect("pengumuman lengkap", posted, 201);
+  expect(
+    "isi lebih dari 1000 karakter ditolak",
+    await call(
+      "POST",
+      "/announcement",
+      as(laboran, { type: "BASIC", title: "Judul", body: "x".repeat(1001) })
+    ),
+    400,
+    "Deskripsi pengumuman maksimal 1000 karakter!"
+  );
   const announcement = await db.mst_announcement.findFirst({
     where: { author: data.laboran.id },
   });
@@ -228,6 +238,15 @@ await runTest("Input keliru ditolak dengan pesan jelas", data, async () => {
     ),
     400,
     "Deskripsi pengumuman wajib diisi!"
+  );
+  expect(
+    "ubah dengan isi tepat 1000 karakter",
+    await call(
+      "PUT",
+      `/announcement/${announcement.id}`,
+      as(laboran, { type: "BASIC", title: "Judul", body: "x".repeat(1000) })
+    ),
+    200
   );
   expect(
     "ubah dengan isian lengkap",

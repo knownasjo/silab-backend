@@ -954,7 +954,9 @@ menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
   - `PUT /meeting/:id/status`: `status` wajib boolean. Dulu nilai apa pun
     dipaksa menjadi boolean, sehingga `"status": "false"` (teks) justru
     membuka sesi.
-  - Judul dan isi pengumuman yang bukan teks dibalas 400.
+  - Judul dan isi pengumuman yang bukan teks dibalas 400. Judul paling
+    panjang 150 karakter dan isi 1000 karakter (sebelum 30 September 2026:
+    200), dihitung setelah spasi di awal dan akhir dibuang.
   - Alamat yang tidak dikenal dibalas 404 JSON "Alamat tidak ditemukan!"
     (dulu halaman HTML Express), dan body di atas 100 KB dibalas 413 "Isi
     permintaan terlalu besar!" (dulu 500).
@@ -1020,7 +1022,7 @@ Data uji sudah bersih.
 |---|---|---|
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
-| `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman, 404, 413, JSON rusak | 33 |
+| `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak | 35 |
 | `input-salah` | 437 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |

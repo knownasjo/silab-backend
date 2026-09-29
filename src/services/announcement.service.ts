@@ -13,7 +13,7 @@ import {
 } from "../utils/HttpErrors/HttptErrors";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
-const MAX_BODY_LENGTH = 200;
+const MAX_BODY_LENGTH = 1000;
 const MAX_TITLE_LENGTH = 150;
 
 const readText = (value: unknown) =>
