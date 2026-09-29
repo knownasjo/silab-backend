@@ -33,6 +33,12 @@ enum SessionDayGroup {
     FRIDAY
 }
 
+enum DeviceCheck {
+    BIASA
+    TIDAK_BIASA
+    SUDAH_DICEK
+}
+
 enum AcademicTerm {
     GANJIL
     GENAP
@@ -63,6 +69,7 @@ model mst_user {
     mst_announcement         mst_announcement[]         @relation(name: "AnnouncementAuthor")
     trn_class_collaborator   trn_class_collaborator[]   @relation(name: "ClassCollaborators")
     trn_password_resets      trn_password_resets?       @relation(name: "UserPasswordReset")
+    devices                  trn_user_devices[]         @relation(name: "UserDevices")
 
     @@index([id, nim])
 }
@@ -197,16 +204,33 @@ model trn_meetings {
 }
 
 model trn_meeting_participants {
-    meetingId String
-    userId    String
-    status    Boolean
-    createdAt DateTime @default(now())
+    meetingId    String
+    userId       String
+    status       Boolean
+    device_id    String?
+    device_check DeviceCheck?
+    createdAt    DateTime     @default(now())
 
     meeting trn_meetings @relation("MeetingParticipants", fields: [meetingId], references: [id])
     user    mst_user     @relation("MeetingParticipants", fields: [userId], references: [id])
 
     @@unique([meetingId, userId])
+    @@unique([meetingId, device_id])
     @@index([meetingId, userId])
+}
+
+model trn_user_devices {
+    id            String   @id @default(uuid())
+    userId        String
+    device_id     String
+    is_usual      Boolean  @default(false)
+    first_seen_at DateTime @default(now())
+    last_seen_at  DateTime @default(now())
+
+    user mst_user @relation(name: "UserDevices", fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, device_id])
+    @@index([device_id])
 }
 
 model mst_announcement {

@@ -1,5 +1,6 @@
 export interface IAddAttendanceRequestBody {
   token: string;
+  device_id?: string;
 }
 
 export interface IAddAttendanceResponseBody {

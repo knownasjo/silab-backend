@@ -1,4 +1,4 @@
-import { db, TestData } from "../bantuan/data.mjs";
+import { db, newDeviceId, TestData } from "../bantuan/data.mjs";
 import { call, check, expect, login, runTest } from "../bantuan/uji.mjs";
 
 const data = new TestData("18");
@@ -21,13 +21,14 @@ await runTest("Scan QR presensi bersamaan", data, async () => {
     typeof qrToken === "string",
     qr.message
   );
+  const device = newDeviceId();
   const scan = () =>
     call(
       "POST",
       `/subject/classes/${cls.id}/meetings/${meeting.id}/attendances`,
       {
         token: mahasiswa,
-        body: { token: qrToken },
+        body: { token: qrToken, device_id: device },
       }
     );
 

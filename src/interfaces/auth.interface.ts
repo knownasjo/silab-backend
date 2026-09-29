@@ -8,6 +8,7 @@ export interface IJWTUserPayload {
 export interface IUserLoginRequestBody {
   nim: string;
   password: string;
+  device_id?: string;
 }
 
 export interface IUserLoginResponseBody {

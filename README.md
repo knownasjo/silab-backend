@@ -240,7 +240,7 @@ dengan `npm run hapus-akun <NIM>`.
 ```
 POST /subject/classes/:classId/meetings/:meetingId/attendances
 Authorization: Bearer <token mahasiswa>
-Body: { "token": "S8Bxpm" }
+Body: { "token": "S8Bxpm", "device_id": "<kode HP, 64 heksadesimal>" }
 → 201
 ```
 
@@ -248,8 +248,8 @@ Jalur ini sama dengan yang dipanggil aplikasi Flutter
 (`classes_api_service.dart`, fungsi `addUserAttendance`).
 
 Urutan validasi: token wajib ada → role MAHASISWA → pertemuan milik kelas itu →
-sesi sedang dibuka → token QR masih berlaku → mahasiswa peserta kelas → belum
-pernah presensi.
+sesi sedang dibuka → token QR masih berlaku → mahasiswa peserta kelas → kode HP
+ada → belum pernah presensi → HP belum dipakai akun lain di pertemuan itu.
 
 ### QR presensi berganti setiap 10 detik
 
@@ -287,8 +287,46 @@ tidak hadir. Kodenya ada di `src/utils/QrToken/qr.token.ts`.
 - Kolom `trn_meetings.token` masih diisi saat pertemuan dibuat (kolomnya
   wajib), tetapi **tidak lagi dipakai untuk validasi** dan tidak lagi dikirim
   oleh `GET /meeting/:classId`.
-- Aplikasi Flutter tidak perlu diubah: QR tetap hanya berisi token, dan
-  aplikasi mengirim apa pun yang dipindai.
+- QR tetap hanya berisi token, dan aplikasi mengirim apa pun yang dipindai.
+
+### Satu HP satu akun per pertemuan
+
+Tujuannya mencegah titip akun: mahasiswa yang hadir login dengan akun teman
+yang tidak hadir, lalu memindai QR untuknya dari HP yang sama. Aturannya ada di
+`src/utils/DeviceRules/device.rules.ts`.
+
+- **Kode HP.** Aplikasi mengirim `device_id` saat login dan saat scan: SHA-256
+  dari Android ID (nanti dari kode yang disimpan di Keychain iPhone), 64
+  karakter heksadesimal, lewat paket `flutter_udid`. Kode ini tetap sama
+  walaupun aplikasi dihapus lalu dipasang ulang, dan baru berubah setelah reset
+  pabrik atau bila APK ditandatangani dengan kunci lain. Server hanya menyimpan
+  hash tersebut, bukan Android ID aslinya.
+- **Satu kode HP hanya untuk satu akun per pertemuan.** Scan kedua dengan kode
+  yang sama untuk akun lain dibalas 409 "HP ini sudah dipakai presensi akun lain
+  di pertemuan ini." Aturan ini juga dijaga unique
+  `trn_meeting_participants(meetingId, device_id)`, jadi scan bersamaan dari
+  satu HP pun hanya satu yang tercatat. Pertemuan lain tidak terpengaruh.
+- **Kode HP wajib saat scan.** Tanpa `device_id`, atau bila bukan 64 karakter
+  heksadesimal, balasannya 400 "Perbarui aplikasi SILAB ke versi terbaru untuk
+  melakukan presensi." Pemeriksaan ini dilakukan setelah sesi, token QR, dan
+  keanggotaan kelas, jadi pesan-pesan lama tetap sama. Saat login, kode HP
+  boleh tidak dikirim (web staf, aplikasi lama) dan kode yang rusak diabaikan.
+- **Perangkat biasa.** Setiap HP yang dipakai mahasiswa dicatat di
+  `trn_user_devices` (pertama kali terlihat, terakhir login), dengan satu
+  perintah `INSERT ... ON CONFLICT` sehingga login atau scan bersamaan tidak
+  bentrok. HP baru dari scan baru dicatat setelah presensinya berhasil. HP pertama sebuah akun,
+  baik saat login maupun saat scan pertama, menjadi perangkat biasanya
+  (`is_usual`). Presensi dicatat bersama kode HP dan `device_check`: `BIASA`
+  bila HP itu perangkat biasa akun tersebut, `TIDAK_BIASA` bila bukan. Akun
+  yang sudah ada sebelum aturan ini menjadikan HP yang pertama dipakai login
+  atau scan sesudahnya sebagai perangkat biasa.
+- **Presensi manual** oleh laboran atau asisten tidak punya kode HP
+  (`device_id` kosong), jadi tidak terkena aturan ini. Ini jalan keluar bagi
+  mahasiswa yang jujur, misalnya HP-nya mati lalu meminjam HP teman yang sudah
+  dipakai presensi.
+- Kode HP akun ikut terhapus bila akunnya dihapus (`ON DELETE CASCADE`).
+- Laboran login di web tanpa kode HP, dan kode HP akun LABORAN/DOSEN tidak
+  dicatat.
 
 ### Endpoint untuk aplikasi mobile
 
@@ -943,7 +981,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 4–5 menit
+npm test                    # terminal 2: semua tes API, sekitar 5–6 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -957,7 +995,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS event-asisten                6/6
 ...
-Total: 214/214 cek lulus dari 11 tes, 322 detik
+Total: 242/242 cek lulus dari 12 tes, 331 detik
 Data uji sudah bersih.
 ```
 
@@ -971,6 +1009,7 @@ Data uji sudah bersih.
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
+| `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP | 28 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif | 31 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali | 20 |
@@ -985,7 +1024,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–21, web 51–57, uji beban
+- Setiap file tes punya blok 2 angka sendiri (API 11–22, web 51–57, uji beban
   90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
@@ -1076,6 +1115,21 @@ Contoh hasil dari laptop ke Supabase (27 September 2026, 120 mahasiswa):
 | Tersebar | 64 berhasil, 56 dibalas sibuk; kelas A/B/C/D berisi 16/16/16/16 |
 | Bertahap | 120 dari 120 dapat kelas; median 6,1 detik, terlama 15,1 detik |
 | Scan QR | 60 presensi tercatat; median 2,6 detik, terlama 2,9 detik |
+
+Setelah aturan satu HP satu akun per pertemuan (29 September 2026, skenario
+scan saja, setiap HP simulasi mengirim kode HP saat login dan scan):
+
+| Diukur | Tanpa kode HP | Dengan kode HP |
+|---|---|---|
+| 120 login bersamaan | median 0,71 detik, terlama 1,26 detik | median 1,85 detik, terlama 2,38 detik |
+| 60 scan QR bersamaan | median 2,6 detik (27 September) | median 2,65 detik, terlama 2,92 detik |
+
+Login lebih lama karena ikut mencatat HP: satu perintah SQL tambahan yang
+memakai koneksi database yang sama dengan login lain, dan baru terasa saat
+ratusan mahasiswa login di detik yang sama. Scan tetap secepat sebelumnya:
+pertemuan, keanggotaan kelas, dan daftar HP akun dibaca bersamaan, lalu
+"sudah presensi" dan "HP sudah dipakai" dijaga unique database, bukan
+diperiksa dengan query terpisah.
 
 ```bash
 STUDENTS=240 LABEL=dua-angkatan npm run uji-beban
@@ -1272,10 +1326,14 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 6. **QR yang berganti hanya menghentikan titip absen tertunda** (lewat foto).
    Siaran langsung, misalnya teman di kelas melakukan video call lalu
    mahasiswa yang absen memindai dari layar saat itu juga, tetap bisa lolos.
-7. **Titip akun tidak tercegah.** Mahasiswa yang absen bisa memberikan NIM dan
-   password ke teman yang hadir, lalu teman itu memindai dari HP-nya sendiri.
-   Penangkalnya adalah membatasi satu perangkat untuk satu akun per pertemuan,
-   yang butuh perubahan di aplikasi mobile.
+7. **Titip akun hanya tercegah dari HP yang sama.** Dengan aturan satu HP satu
+   akun per pertemuan, teman yang hadir tidak bisa memindai untuk akun lain
+   dari HP yang sudah ia pakai. Yang masih lolos: teman membawa HP kedua,
+   mahasiswa yang absen menitipkan HP-nya sendiri, atau permintaan dikirim
+   langsung ke server dengan kode HP palsu. Kecuali titip HP, presensi seperti
+   itu tercatat `TIDAK_BIASA`. Kode HP juga berubah setelah reset pabrik, dan
+   di iPhone bergantung pada isi Keychain yang tetap ada setelah aplikasi
+   dihapus, perilaku iOS yang tidak dijamin resmi oleh Apple.
 8. **Sesi tidak bisa dicabut satu per satu.** Token tidak disimpan di
    database, jadi Keluar hanya menghapusnya dari perangkat. Pencabutan hanya
    bisa sekaligus untuk semua perangkat, yaitu dengan mengganti password.

@@ -74,6 +74,11 @@ const realDataQueries = {
       where: { user: notTestUser },
       orderBy: [{ meetingId: "asc" }, { userId: "asc" }],
     }),
+  trn_user_devices: () =>
+    db.trn_user_devices.findMany({
+      where: { user: notTestUser },
+      orderBy: { id: "asc" },
+    }),
   trn_class_collaborator: () =>
     db.trn_class_collaborator.findMany({
       where: { user: notTestUser },
@@ -87,6 +92,8 @@ const realDataQueries = {
   mst_academic_period: () =>
     db.mst_academic_period.findMany({ orderBy: { id: "asc" } }),
 };
+
+export const newDeviceId = () => randomBytes(32).toString("hex");
 
 export const findActivePeriod = () =>
   db.mst_academic_period.findFirst({

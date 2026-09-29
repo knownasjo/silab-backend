@@ -17,6 +17,13 @@ import {
 import { checkQrToken } from "../utils/QrToken/qr.token";
 import { publishClassAssistantsEvent } from "../utils/RealtimeEvents/realtime.events";
 import { assertCanManageClass } from "../utils/ClassAccess/class.access";
+import {
+  DEVICE_USED,
+  isUsualDevice,
+  loadDevices,
+  rememberDevice,
+  requireDeviceId,
+} from "../utils/DeviceRules/device.rules";
 import { Prisma } from "@prisma/client";
 
 const ALREADY_ATTENDED = "Anda sudah melakukan presensi untuk pertemuan ini!";
@@ -39,13 +46,23 @@ export const SAddAttendance = async (
     if (user?.role !== "MAHASISWA")
       throw new UnauthorizedError("Hanya mahasiswa yang dapat melakukan presensi!");
 
-    const meeting = await db.trn_meetings.findFirst({
-      where: {
-        id: meetingId,
-        classId: classId,
-        deleted_at: null,
-      },
-    });
+    const [meeting, isClassParticipant, devices] = await Promise.all([
+      db.trn_meetings.findFirst({
+        where: {
+          id: meetingId,
+          classId: classId,
+          deleted_at: null,
+        },
+      }),
+      db.trn_class_participants.findFirst({
+        where: {
+          classId: classId,
+          userId: user.id,
+          deleted_at: null,
+        },
+      }),
+      loadDevices(user.id),
+    ]);
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
 
@@ -62,27 +79,15 @@ export const SAddAttendance = async (
     if (tokenStatus === "INVALID")
       throw new BadRequestError("Token presensi tidak valid!");
 
-    const isClassParticipant = await db.trn_class_participants.findFirst({
-      where: {
-        classId: classId,
-        userId: user.id,
-        deleted_at: null,
-      },
-    });
-
     if (!isClassParticipant)
       throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
 
-    const existingAttendance = await db.trn_meeting_participants.findUnique({
-      where: {
-        meetingId_userId: {
-          meetingId: meetingId,
-          userId: user.id,
-        },
-      },
-    });
+    const deviceId = requireDeviceId(body.device_id);
 
-    if (existingAttendance) throw new ConflictError(ALREADY_ATTENDED);
+    const isKnownDevice = devices.some(
+      (device) => device.device_id === deviceId
+    );
+    const isUsual = isUsualDevice(devices, deviceId);
 
     const attendance = await db.trn_meeting_participants
       .create({
@@ -90,17 +95,30 @@ export const SAddAttendance = async (
           meetingId: meetingId,
           userId: user.id,
           status: true,
+          device_id: deviceId,
+          device_check: isUsual ? "BIASA" : "TIDAK_BIASA",
         },
       })
-      .catch((error) => {
+      .catch(async (error) => {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === "P2002"
-        )
-          throw new ConflictError(ALREADY_ATTENDED);
+        ) {
+          const ownAttendance = await db.trn_meeting_participants.findUnique({
+            where: {
+              meetingId_userId: { meetingId: meetingId, userId: user.id },
+            },
+          });
+
+          throw new ConflictError(
+            ownAttendance ? ALREADY_ATTENDED : DEVICE_USED
+          );
+        }
 
         throw error;
       });
+
+    if (!isKnownDevice) await rememberDevice(user.id, deviceId);
 
     void publishClassAssistantsEvent(
       meeting.classId,

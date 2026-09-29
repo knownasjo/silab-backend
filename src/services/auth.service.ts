@@ -43,6 +43,7 @@ import {
   sendVerificationCode,
 } from "../utils/VerificationCode/verification.code";
 import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
+import { readDeviceId, rememberDevice } from "../utils/DeviceRules/device.rules";
 import bcrypt from "bcryptjs";
 
 const CAMPUS_EMAIL = /^[a-z]+(\d{10})@webmail\.uad\.ac\.id$/;
@@ -131,6 +132,11 @@ export const SUserLogin = async (
     const isPassSame = await bcrypt.compare(password, userData.password);
 
     if (!isPassSame) throw new UnauthorizedError("NIM/NIY atau password salah!");
+
+    const deviceId = readDeviceId(body?.device_id);
+
+    if (deviceId && userData.role === UserRole.MAHASISWA)
+      await rememberDevice(userData.id, deviceId);
 
     return {
       status: true,

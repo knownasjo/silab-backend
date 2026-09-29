@@ -44,7 +44,7 @@ const ROUTES = [
     "POST",
     "/subject/classes/:class/meetings/:meeting/attendances",
     "student",
-    ["token"],
+    ["token", "device_id"],
   ],
   [
     "POST",

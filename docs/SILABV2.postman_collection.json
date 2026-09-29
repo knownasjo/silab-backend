@@ -84,7 +84,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"nim\": \"2000016099\",\n  \"password\": \"mahasiswa001\"\n}",
+							"raw": "{\n  \"nim\": \"2000016099\",\n  \"password\": \"mahasiswa001\",\n  \"device_id\": \"{{deviceId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -101,7 +101,7 @@
 								"login"
 							]
 						},
-						"description": "Masuk dengan NIM dan password akun uji mahasiswa. Token disimpan otomatis ke variabel `accessTokenMahasiswa` dan `refreshTokenMahasiswa`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran"
+						"description": "Masuk dengan NIM dan password akun uji mahasiswa. Token disimpan otomatis ke variabel `accessTokenMahasiswa` dan `refreshTokenMahasiswa`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran\n\n`device_id` (opsional) adalah kode HP dari aplikasi: 64 karakter heksadesimal (SHA-256 dari Android ID / kode Keychain iPhone). Untuk MAHASISWA, HP itu dicatat di `trn_user_devices`; HP pertama sebuah akun menjadi perangkat biasanya. Kode yang rusak atau tidak dikirim diabaikan, login tetap berhasil."
 					},
 					"response": []
 				},
@@ -2076,7 +2076,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"token\": \"{{qrToken}}\"\n}",
+							"raw": "{\n  \"token\": \"{{qrToken}}\",\n  \"device_id\": \"{{deviceId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2097,7 +2097,7 @@
 								"attendances"
 							]
 						},
-						"description": "Hanya MAHASISWA peserta kelas. Urutan pemeriksaan: token ada → MAHASISWA → pertemuan milik kelas → sesi dibuka → token QR masih berlaku → peserta kelas → belum presensi.\n\n- 201 presensi tercatat\n- 403 \"Sesi presensi belum dibuka!\" / \"Anda tidak terdaftar di kelas ini!\"\n- 400/409 token kedaluwarsa atau sudah presensi"
+						"description": "Hanya MAHASISWA peserta kelas. Urutan pemeriksaan: token ada → MAHASISWA → pertemuan milik kelas → sesi dibuka → token QR masih berlaku → peserta kelas → kode HP ada → belum presensi → HP belum dipakai akun lain di pertemuan ini.\n\n- 201 presensi tercatat\n- 403 \"Sesi presensi belum dibuka!\" / \"Anda tidak terdaftar di kelas ini!\"\n- 400/409 token kedaluwarsa atau sudah presensi\n- 400 \"Perbarui aplikasi SILAB ke versi terbaru untuk melakukan presensi.\" bila `device_id` tidak ada atau bukan 64 karakter heksadesimal\n- 409 \"HP ini sudah dipakai presensi akun lain di pertemuan ini.\" bila kode HP yang sama sudah dipakai akun lain di pertemuan itu\n\nPresensi dicatat bersama kode HP dan status perangkat: `BIASA` bila HP itu perangkat biasa akun tersebut, `TIDAK_BIASA` bila bukan. Untuk mencoba penolakan, login akun lain lalu scan dengan `deviceId` yang sama."
 					},
 					"response": []
 				},
@@ -3009,6 +3009,10 @@
 			"value": "",
 			"type": "string",
 			"description": "Terisi otomatis oleh Semua Periode (periode aktif)"
+		},
+		{
+			"key": "deviceId",
+			"value": "45476ead463396fafdcc592dbd308b4e8619112c4da49371a3050d25943e3479"
 		}
 	]
 }

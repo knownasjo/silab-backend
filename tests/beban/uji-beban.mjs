@@ -1,7 +1,12 @@
 import { execFile, execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { db, snapshotRealData, TestData } from "../bantuan/data.mjs";
+import {
+  db,
+  newDeviceId,
+  snapshotRealData,
+  TestData,
+} from "../bantuan/data.mjs";
 import {
   API,
   call,
@@ -105,12 +110,14 @@ class Phone {
     this.profileLoaded = false;
     this.meetingsClassId = null;
     this.streams = [];
+    this.deviceId = newDeviceId();
   }
 
   async login() {
     const res = await timed("POST", "/auth/login", null, {
       nim: this.user.nim,
       password: data.password,
+      device_id: this.deviceId,
     });
     record("POST /auth/login", res);
     this.token = res.json.data?.accessToken;
@@ -642,7 +649,7 @@ try {
           "POST",
           `/subject/classes/${cls.id}/meetings/${meeting.id}/attendances`,
           p.token,
-          { token }
+          { token, device_id: p.deviceId }
         );
         record("POST presensi (scan QR)", res);
       })
