@@ -188,6 +188,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | DELETE | `/meeting/:id` | LABORAN, asisten kelas itu (hanya pertemuan tanpa presensi yang sesinya ditutup) |
 | PUT | `/meeting/:id/status` | LABORAN, asisten kelas itu |
 | PUT | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
+| PUT | `/meeting/:id/attendances/:userId/device` | LABORAN, asisten kelas itu (cek HP tidak biasa: Ada / Tidak ada) |
 | DELETE | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
 | POST | `/subject/classes/:classId/meetings/:meetingId/attendances` | MAHASISWA |
 | POST | `/user` | LABORAN (buat akun role apa pun, langsung aktif) |
@@ -320,6 +321,22 @@ yang tidak hadir, lalu memindai QR untuknya dari HP yang sama. Aturannya ada di
   bila HP itu perangkat biasa akun tersebut, `TIDAK_BIASA` bila bukan. Akun
   yang sudah ada sebelum aturan ini menjadikan HP yang pertama dipakai login
   atau scan sesudahnya sebagai perangkat biasa.
+- **Dicek asisten.** `GET /meeting/:classId` untuk laboran, asisten, dan dosen
+  menyertakan `device_check` tiap mahasiswa (`null` bila belum presensi atau
+  presensi manual); mahasiswa tidak menerimanya. Web menandai presensi
+  `TIDAK_BIASA` dengan ⚠, lalu asisten memanggil nama mahasiswa itu dan
+  menjawab lewat `PUT /meeting/:id/attendances/:userId/device` dengan
+  `{ "present": true }` (Ada) atau `{ "present": false }` (Tidak ada):
+  - **Ada**: presensi tetap hadir, dan HP itu menjadi satu-satunya perangkat
+    biasa akun tersebut, menggantikan yang lama (biasanya karena ganti HP).
+  - **Tidak ada**: presensi diubah menjadi tidak hadir. Perangkat biasa tidak
+    berubah.
+  - Keduanya mengubah `device_check` menjadi `SUDAH_DICEK`, jadi tanda ⚠
+    hilang, dan mengirim event real-time `attendance`.
+  - Hanya laboran atau asisten kelas itu di periode aktif; dosen hanya melihat.
+    Presensi yang tidak bertanda `TIDAK_BIASA` dibalas 409 "Presensi ini tidak
+    perlu dicek.", dan bila dua staf menekan bersamaan hanya yang pertama
+    tersimpan, yang lain dibalas 409 "Presensi ini sudah dicek."
 - **Presensi manual** oleh laboran atau asisten tidak punya kode HP
   (`device_id` kosong), jadi tidak terkena aturan ini. Ini jalan keluar bagi
   mahasiswa yang jujur, misalnya HP-nya mati lalu meminjam HP teman yang sudah
@@ -981,7 +998,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 5–6 menit
+npm test                    # terminal 2: semua tes API, sekitar 6–7 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -995,7 +1012,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS event-asisten                6/6
 ...
-Total: 242/242 cek lulus dari 12 tes, 331 detik
+Total: 266/266 cek lulus dari 12 tes, 392 detik
 Data uji sudah bersih.
 ```
 
@@ -1004,14 +1021,14 @@ Data uji sudah bersih.
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
 | `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman, 404, 413, JSON rusak | 33 |
-| `input-salah` | 423 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
+| `input-salah` | 437 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
-| `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP | 28 |
+| `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
-| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif | 31 |
+| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif | 32 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali | 20 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1331,9 +1348,13 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
    dari HP yang sudah ia pakai. Yang masih lolos: teman membawa HP kedua,
    mahasiswa yang absen menitipkan HP-nya sendiri, atau permintaan dikirim
    langsung ke server dengan kode HP palsu. Kecuali titip HP, presensi seperti
-   itu tercatat `TIDAK_BIASA`. Kode HP juga berubah setelah reset pabrik, dan
-   di iPhone bergantung pada isi Keychain yang tetap ada setelah aplikasi
-   dihapus, perilaku iOS yang tidak dijamin resmi oleh Apple.
+   itu tercatat `TIDAK_BIASA` dan ditandai ⚠ di web, tetapi tetap bergantung
+   pada asisten yang benar-benar memanggil nama mahasiswanya. Asisten yang
+   keliru menekan Ada menjadikan HP teman itu perangkat biasa akun tersebut,
+   sehingga presensi berikutnya dari HP itu tidak ditandai lagi. Kode HP juga
+   berubah setelah reset pabrik, dan di iPhone bergantung pada isi Keychain
+   yang tetap ada setelah aplikasi dihapus, perilaku iOS yang tidak dijamin
+   resmi oleh Apple.
 8. **Sesi tidak bisa dicabut satu per satu.** Token tidak disimpan di
    database, jadi Keluar hanya menghapusnya dari perangkat. Pencabutan hanya
    bisa sekaligus untuk semua perangkat, yaitu dengan mengganti password.

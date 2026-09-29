@@ -1,3 +1,5 @@
+import { DeviceCheck } from "@prisma/client";
+
 export interface IAddClassMeetingRequestBody {
   classId: string;
   meetingName: string;
@@ -28,4 +30,5 @@ export interface IMeetingParticipants {
   nim: string;
   submitted_at: string | null;
   is_attended: boolean;
+  device_check: DeviceCheck | null;
 }

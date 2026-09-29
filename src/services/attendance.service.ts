@@ -2,6 +2,7 @@ import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
   IAddAttendanceRequestBody,
+  ICheckAttendanceDeviceRequestBody,
   IAddAttendanceResponseBody,
   IUpdateAttendanceRequestBody,
   IUpdateAttendanceResponseBody,
@@ -21,12 +22,14 @@ import {
   DEVICE_USED,
   isUsualDevice,
   loadDevices,
+  makeUsualDevice,
   rememberDevice,
   requireDeviceId,
 } from "../utils/DeviceRules/device.rules";
 import { Prisma } from "@prisma/client";
 
 const ALREADY_ATTENDED = "Anda sudah melakukan presensi untuk pertemuan ini!";
+const ALREADY_CHECKED = "Presensi ini sudah dicek.";
 
 export const SAddAttendance = async (
   classId: string,
@@ -222,6 +225,97 @@ export const SUpdateAttendanceManually = async (
         student_name: student.fullname,
         nim: student.nim,
         is_attended: attendance.status,
+        submitted_at: attendance.createdAt,
+      },
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const SCheckAttendanceDevice = async (
+  meetingId: string,
+  userId: string,
+  body: ICheckAttendanceDeviceRequestBody,
+  req: Request
+): Promise<IBaseResponse<IUpdateAttendanceResponseBody>> => {
+  try {
+    const user = req.user;
+    const { present } = body;
+
+    if (typeof present !== "boolean")
+      throw new BadRequestError("Pilihan harus berupa true atau false!");
+
+    const meeting = await db.trn_meetings.findFirst({
+      where: {
+        id: meetingId,
+        deleted_at: null,
+      },
+    });
+
+    if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
+
+    await assertCanManageClass(user, meeting.classId);
+
+    const attendance = await db.trn_meeting_participants.findUnique({
+      where: {
+        meetingId_userId: {
+          meetingId: meetingId,
+          userId: userId,
+        },
+      },
+      include: {
+        user: { select: { id: true, fullname: true, nim: true } },
+      },
+    });
+
+    if (!attendance) throw new NotFoundError("Catatan presensi tidak ditemukan!");
+
+    const deviceId = attendance.device_id;
+
+    if (attendance.device_check === "SUDAH_DICEK")
+      throw new ConflictError(ALREADY_CHECKED);
+
+    if (attendance.device_check !== "TIDAK_BIASA" || !deviceId)
+      throw new ConflictError("Presensi ini tidak perlu dicek.");
+
+    await db.$transaction(async (tx) => {
+      const { count } = await tx.trn_meeting_participants.updateMany({
+        where: {
+          meetingId: meetingId,
+          userId: userId,
+          device_check: "TIDAK_BIASA",
+        },
+        data: {
+          status: present,
+          device_check: "SUDAH_DICEK",
+        },
+      });
+
+      if (count === 0) throw new ConflictError(ALREADY_CHECKED);
+
+      if (present) await makeUsualDevice(userId, deviceId, tx);
+    });
+
+    void publishClassAssistantsEvent(
+      meeting.classId,
+      "attendance",
+      { class_id: meeting.classId, meeting_id: meeting.id },
+      [userId]
+    );
+
+    return {
+      status: true,
+      message: present
+        ? `${attendance.user.fullname} ditandai hadir. HP ini sekarang menjadi HP biasanya.`
+        : `${attendance.user.fullname} ditandai tidak hadir.`,
+      data: {
+        meeting_id: meeting.id,
+        meeting_name: meeting.name,
+        student_id: attendance.user.id,
+        student_name: attendance.user.fullname,
+        nim: attendance.user.nim,
+        is_attended: present,
         submitted_at: attendance.createdAt,
       },
     };

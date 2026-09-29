@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import {
   SAddAttendance,
+  SCheckAttendanceDevice,
   SResetAttendance,
   SUpdateAttendanceManually,
 } from "../services/attendance.service";
@@ -32,6 +33,28 @@ export const CUpdateAttendanceManually = async (
     const userId = req.params.userId.toString();
 
     const resData = await SUpdateAttendanceManually(
+      meetingId,
+      userId,
+      req.body,
+      req
+    );
+
+    res.status(200).json(resData);
+  } catch (error: any) {
+    next(error);
+  }
+};
+
+export const CCheckAttendanceDevice = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const meetingId = req.params.id.toString();
+    const userId = req.params.userId.toString();
+
+    const resData = await SCheckAttendanceDevice(
       meetingId,
       userId,
       req.body,

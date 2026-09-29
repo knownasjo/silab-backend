@@ -126,6 +126,12 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
       { status: false },
     ],
     [
+      "cek HP tidak biasa",
+      "PUT",
+      `/meeting/${meeting.id}/attendances/${repeater.id}/device`,
+      { present: true },
+    ],
+    [
       "ubah pembayaran",
       "PUT",
       `/activation/${repeaterOld.id}`,

@@ -15,6 +15,10 @@ export interface IUpdateAttendanceRequestBody {
   status: boolean;
 }
 
+export interface ICheckAttendanceDeviceRequestBody {
+  present: boolean;
+}
+
 export interface IUpdateAttendanceResponseBody {
   meeting_id: string;
   meeting_name: string;

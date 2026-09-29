@@ -1905,7 +1905,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Pertemuan diurutkan menurut judul, dengan angka dibaca sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil diabaikan. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
+						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Setiap mahasiswa juga membawa `device_check` (`BIASA`, `TIDAK_BIASA`, `SUDAH_DICEK`, atau `null` bila belum presensi atau presensi manual); presensi `TIDAK_BIASA` dicek lewat Cek HP Tidak Biasa. Pertemuan diurutkan menurut judul, dengan angka dibaca sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil diabaikan. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
 					},
 					"response": []
 				},
@@ -2143,6 +2143,52 @@
 							]
 						},
 						"description": "LABORAN atau asisten kelas itu. `status: true` hadir, `false` tidak hadir."
+					},
+					"response": []
+				},
+				{
+					"name": "Cek HP Tidak Biasa",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"present\": true\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/meeting/{{meetingId}}/attendances/{{newStudentId}}/device",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"meeting",
+								"{{meetingId}}",
+								"attendances",
+								"{{newStudentId}}",
+								"device"
+							]
+						},
+						"description": "LABORAN atau asisten kelas itu, hanya untuk presensi scan yang bertanda `device_check: \"TIDAK_BIASA\"` (lihat Daftar Pertemuan Kelas). `present: true` (Ada): tetap hadir dan HP itu menjadi perangkat biasa akun tersebut. `present: false` (Tidak ada): diubah menjadi tidak hadir. Keduanya mengubah `device_check` menjadi `SUDAH_DICEK`. Presensi lain dibalas 409 \"Presensi ini tidak perlu dicek.\", dan yang sudah dicek dibalas 409 \"Presensi ini sudah dicek.\""
 					},
 					"response": []
 				},

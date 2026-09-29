@@ -9,6 +9,7 @@ import {
   CUpdateMeetingStatus,
 } from "../controller/meeting.controller";
 import {
+  CCheckAttendanceDevice,
   CResetAttendance,
   CUpdateAttendanceManually,
 } from "../controller/attendance.controller";
@@ -31,6 +32,12 @@ router.put(
   "/:id/attendances/:userId",
   MAuthUser(),
   CUpdateAttendanceManually
+);
+
+router.put(
+  "/:id/attendances/:userId/device",
+  MAuthUser(),
+  CCheckAttendanceDevice
 );
 
 router.delete("/:id/attendances/:userId", MAuthUser(), CResetAttendance);

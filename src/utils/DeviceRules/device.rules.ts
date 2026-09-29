@@ -65,3 +65,20 @@ export const rememberDevice = async (
 
   return device.is_usual;
 };
+
+export const makeUsualDevice = async (
+  userId: string,
+  deviceId: string,
+  client: Client = db
+) => {
+  await client.trn_user_devices.updateMany({
+    where: { userId, is_usual: true, device_id: { not: deviceId } },
+    data: { is_usual: false },
+  });
+
+  await client.trn_user_devices.upsert({
+    where: { userId_device_id: { userId, device_id: deviceId } },
+    update: { is_usual: true },
+    create: { userId, device_id: deviceId, is_usual: true },
+  });
+};

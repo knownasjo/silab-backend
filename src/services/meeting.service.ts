@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { DeviceCheck, Prisma } from "@prisma/client";
 import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
@@ -262,6 +262,7 @@ export const SGetAllClassMeeting = async (
             userId: true,
             createdAt: true,
             status: true,
+            device_check: true,
             user: {
               select: {
                 id: true,
@@ -318,6 +319,7 @@ export const SGetAllClassMeeting = async (
           nim: participant.user.nim,
           submitted_at: null as string | null,
           is_attended: false,
+          device_check: null as DeviceCheck | null,
         }));
 
         meeting.participants.forEach((meetingParticipant) => {
@@ -327,6 +329,7 @@ export const SGetAllClassMeeting = async (
           if (student) {
             student.is_attended = meetingParticipant.status;
             student.submitted_at = meetingParticipant.createdAt.toISOString();
+            student.device_check = meetingParticipant.device_check;
           }
         });
 
