@@ -75,7 +75,8 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
 
 1. Laboran membuat mata kuliah (`POST /subject`) dan kelas (`POST /class`),
    lalu bisa mengubah mata kuliah termasuk dosen pengampunya
-   (`PUT /subject/:id`) serta mengubah atau menghapus kelas
+   (`PUT /subject/:id`), menghapus mata kuliah yang belum pernah dipakai
+   (`DELETE /subject/:id`), serta mengubah atau menghapus kelas
    (`PUT`/`DELETE /class/:id`)
 2. Mahasiswa mendaftar mata kuliah (`POST /activation`) → status `false`.
    Selama belum lunas, mahasiswa boleh membatalkannya sendiri dan laboran
@@ -203,6 +204,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu). Berisi `lecturer_id`, urut menurut waktu dibuat |
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | PUT | `/subject/:id` | LABORAN (lihat "Tambah dan ubah mata kuliah") |
+| DELETE | `/subject/:id` | LABORAN; hanya mata kuliah tanpa kelas dan pendaftaran (lihat "Hapus mata kuliah") |
 | POST | `/class` | LABORAN (lihat "Tambah kelas dan jam sesi") |
 | GET | `/class?periodId=` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu). Berisi `sessionId` tiap kelas. Hanya periode aktif; LABORAN dan DOSEN boleh meminta periode lain lewat `periodId` |
 | GET | `/class/registration` | MAHASISWA |
@@ -574,7 +576,7 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 |---|---|---|---|
 | `ready` | `{}` | stream baru tersambung | pembuka stream |
 | `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
-| `subject` | `subject_id` (+ `action: "updated"` saat diubah) | mata kuliah ditambah atau diubah | semua |
+| `subject` | `subject_id` + `action` (`created`, `updated`, `deleted`) | mata kuliah ditambah, diubah, atau dihapus | semua |
 | `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus; `assistants` saat asisten ditambah atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
 | `activation` | `{}` (atau `class_id` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
 | `meeting` | `class_id`, `meeting_id` (+ `action`: `created`, `updated`, atau `deleted` saat pertemuan ditambah, diubah judulnya, atau dihapus) | pertemuan ditambah, diubah judulnya, atau dihapus, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
@@ -920,6 +922,36 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 - dosen lama langsung kehilangan akses (403), termasuk ke riwayat saat ia
   masih mengampu. Riwayat dosen pengampu tidak disimpan (lihat batasan 13).
 
+### Hapus mata kuliah
+
+Laboran menghapus mata kuliah dari tombol "Hapus Mata Kuliah" di dialog Ubah
+Mata Kuliah (halaman Praktikum). `DELETE /subject/:id` hanya untuk mata kuliah
+yang **belum pernah dipakai**: 0 kelas dan 0 pendaftaran di semua semester,
+termasuk semester lama. Biasanya ini mata kuliah yang salah ketik atau dibuat
+untuk percobaan. Mata kuliah yang sudah dipakai tidak bisa dihapus, karena
+kelas, pembayaran, dan presensi semester lama akan kehilangan nama mata
+kuliahnya.
+
+- Berhasil: 200 "Mata kuliah <nama> berhasil dihapus". Barisnya dihapus
+  permanen, jadi kode dan namanya bisa dipakai lagi. Event `subject`
+  (`action: "deleted"`) membuat daftar mata kuliah di web dan di aplikasi
+  mahasiswa (Pendaftaran Praktikum) langsung berubah.
+- Sudah dipakai: 409 "<nama> sudah punya 2 kelas dan 3 pendaftaran, jadi
+  tidak bisa dihapus." (hanya bagian yang ada yang disebut, misalnya "sudah
+  punya 1 kelas").
+- Selain laboran: 403 "Hanya laboran yang dapat menghapus mata kuliah!".
+  Mata kuliah yang tidak ada: 404 "Mata kuliah tidak ditemukan!".
+- **Bersamaan.** Bila mahasiswa mendaftar (`POST /activation`) atau laboran
+  menambah kelas (`POST /class`) tepat saat mata kuliahnya dihapus, database
+  menolak baris yang merujuk mata kuliah yang sudah hilang.
+  `rethrowIfSubjectDeleted` (`src/utils/SubjectRules/subject.rules.ts`)
+  mengubah penolakan itu menjadi 404 "Mata kuliah tidak ditemukan!";
+  sebaliknya bila pendaftaran atau kelas lebih dulu tersimpan, penghapusan
+  dibalas 409. Prisma 6 menaruh nama constraint di `meta.constraint`, bukan
+  `meta.field_name`. Tanpa penanganan ini, pendaftaran dan tambah kelas yang
+  kalah cepat dibalas 500 di 9 dari 9 putaran uji (jeda 0–400 ms) untuk
+  keduanya.
+
 ### Tambah, ubah, hapus, dan urutan pertemuan
 
 `POST /meeting` (LABORAN atau asisten kelas itu) memeriksa, berurutan:
@@ -1076,7 +1108,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 300/300 cek lulus dari 13 tes, 458 detik
+Total: 318/318 cek lulus dari 14 tes, 463 detik
 Data uji sudah bersih.
 ```
 
@@ -1085,9 +1117,10 @@ Data uji sudah bersih.
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
 | `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak | 35 |
-| `input-salah` | 440 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
+| `input-salah` | 444 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
+| `hapus-matkul` | hapus mata kuliah: hanya laboran, mata kuliah kosong terhapus dan hilang dari daftar mahasiswa, event `subject` (`deleted`), kode dan nama bisa dipakai lagi; ditolak bila sudah punya kelas atau pendaftaran (jumlahnya disebut); hapus bersamaan dengan mahasiswa mendaftar dan dengan tambah kelas pada jeda 0–400 ms tanpa error server | 18 |
 | `batal-daftar` | mahasiswa membatalkan pendaftaran sendiri dan bisa mendaftar lagi, laboran menghapus pendaftaran siapa pun; ditolak bila sudah lunas, masih punya kelas, milik orang lain, atau diminta dosen; batal bersamaan dengan konfirmasi bayar pada jeda 0–400 ms tanpa error server | 22 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
@@ -1106,7 +1139,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–23, web 51–60, uji
+- Setiap file tes punya blok 2 angka sendiri (API 11–24, web 51–61, uji
   beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan

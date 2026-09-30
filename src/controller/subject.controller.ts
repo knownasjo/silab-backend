@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import {
   SAddSubject,
+  SDeleteSubject,
   SGetSubject,
   SGetSubjectById,
   SUpdateSubject,
@@ -61,6 +62,20 @@ export const CUpdateSubject = async (
       req.body,
       req
     );
+
+    res.status(200).json(resData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const CDeleteSubject = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SDeleteSubject(req.params.id.toString(), req);
 
     res.status(200).json(resData);
   } catch (error) {

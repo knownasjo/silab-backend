@@ -998,6 +998,96 @@
 						"description": "Hanya LABORAN. Semua field opsional: `subject_code` (tepat 9 angka), `subject_name` (maks. 100), `semester` (1–8), `lecturer_id` (akun DOSEN); yang tidak dikirim memakai nilai sekarang. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Bila dosen diganti, dosen baru langsung bisa membaca semua kelas, pertemuan, dan presensi mata kuliah itu, sedangkan dosen lama tidak lagi.\n\n- 200 \"Mata kuliah <nama> berhasil diperbarui\" (+ \"; dosen pengampu sekarang <nama>\" bila dosen diganti) atau \"Tidak ada perubahan pada mata kuliah\"\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 403 bukan laboran\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
+				},
+				{
+					"name": "Tambah Mata Kuliah Percobaan",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.collectionVariables.set(\"trialSubjectCode\", String(Math.floor(100000000 + Math.random() * 900000000)));",
+									"pm.collectionVariables.set(\"trialSubjectName\", `Percobaan Hapus ${Date.now()}`);"
+								]
+							}
+						},
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) pm.collectionVariables.set(\"trialSubjectId\", pm.response.json().data.id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"subject_code\": \"{{trialSubjectCode}}\",\n  \"subject_name\": \"{{trialSubjectName}}\",\n  \"semester\": \"8\",\n  \"lecturer_id\": \"{{lecturerId}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject"
+							]
+						},
+						"description": "Membuat mata kuliah sementara dengan kode 9 angka dan nama acak (dibuat skrip pre-request), khusus untuk dicoba dihapus lewat \"Hapus Mata Kuliah\". Id-nya disimpan ke `trialSubjectId`. Aturannya sama dengan \"Tambah Mata Kuliah\"."
+					}
+				},
+				{
+					"name": "Hapus Mata Kuliah",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/subject/{{trialSubjectId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"subject",
+								"{{trialSubjectId}}"
+							]
+						},
+						"description": "Hanya LABORAN, dan hanya mata kuliah yang **belum pernah dipakai** (0 kelas dan 0 pendaftaran di semua semester). Barisnya dihapus permanen dan event `subject` (`action: \"deleted\"`) dikirim, jadi daftar mata kuliah di web dan aplikasi langsung berubah.\n\n- 200 \"Mata kuliah <nama> berhasil dihapus\"\n- 409 \"<nama> sudah punya 2 kelas dan 3 pendaftaran, jadi tidak bisa dihapus.\" (coba dengan `{{subjectId}}`)\n- 403 \"Hanya laboran yang dapat menghapus mata kuliah!\"\n- 404 \"Mata kuliah tidak ditemukan!\" (misalnya bila dijalankan dua kali)\n\nMemakai mata kuliah dari \"Tambah Mata Kuliah Percobaan\", bukan `newSubjectId`, karena `newSubjectId` masih dipakai \"Tambah Kelas\"."
+					}
 				}
 			]
 		},
@@ -2984,6 +3074,24 @@
 		},
 		{
 			"key": "newSubjectId",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Mata Kuliah"
+		},
+		{
+			"key": "trialSubjectCode",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Mata Kuliah"
+		},
+		{
+			"key": "trialSubjectName",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Mata Kuliah"
+		},
+		{
+			"key": "trialSubjectId",
 			"value": "",
 			"type": "string",
 			"description": "Terisi otomatis oleh Semua Mata Kuliah"

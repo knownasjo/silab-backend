@@ -6,6 +6,7 @@ import {
   IUpdateSubjectRequestBody,
 } from "../interfaces/subject.interface";
 import db from "../prisma/client.prisma";
+import { Prisma } from "@prisma/client";
 import {
   BadRequestError,
   ConflictError,
@@ -287,5 +288,68 @@ export const SUpdateSubject = async (
     message: isLecturerChanged
       ? `Mata kuliah ${subject_name} berhasil diperbarui; dosen pengampu sekarang ${lecturerName}`
       : `Mata kuliah ${subject_name} berhasil diperbarui`,
+  };
+};
+
+export const SDeleteSubject = async (
+  id: string,
+  req: Request
+): Promise<IBaseResponse> => {
+  if (req.user?.role !== "LABORAN")
+    throw new ForbiddenError("Hanya laboran yang dapat menghapus mata kuliah!");
+
+  const subject = await db.mst_subject.findFirst({
+    where: { id, deleted_at: null },
+  });
+
+  if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
+
+  const usedMessage = async () => {
+    const [classes, activations] = await Promise.all([
+      db.mst_class.count({ where: { subjectId: id } }),
+      db.trn_activations.count({ where: { subjectId: id } }),
+    ]);
+    const used = [
+      classes > 0 && `${classes} kelas`,
+      activations > 0 && `${activations} pendaftaran`,
+    ]
+      .filter(Boolean)
+      .join(" dan ");
+
+    return used
+      ? `${subject.subject_name} sudah punya ${used}, jadi tidak bisa dihapus.`
+      : null;
+  };
+
+  const blocker = await usedMessage();
+
+  if (blocker) throw new ConflictError(blocker);
+
+  try {
+    await db.mst_subject.delete({ where: { id } });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2003"
+    )
+      throw new ConflictError(
+        (await usedMessage()) ??
+          `${subject.subject_name} baru saja dipakai, jadi tidak bisa dihapus.`
+      );
+
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    )
+      throw new NotFoundError("Mata kuliah tidak ditemukan!");
+
+    throw error;
+  }
+
+  publishRealtimeEvent("subject", { subject_id: id, action: "deleted" });
+
+  return {
+    status: true,
+    message: `Mata kuliah ${subject.subject_name} berhasil dihapus`,
   };
 };

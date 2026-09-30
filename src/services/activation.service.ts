@@ -31,6 +31,7 @@ import {
   getActivePeriod,
   resolveViewPeriod,
 } from "../utils/PeriodRules/period.rules";
+import { rethrowIfSubjectDeleted } from "../utils/SubjectRules/subject.rules";
 
 const setPaymentStatus = async (
   tx: Prisma.TransactionClient,
@@ -96,14 +97,16 @@ export const SAddStudentActivation = async (
 
     await assertNotAssistantOfSubjects(user.id, subjectIds, period.id);
 
-    await db.trn_activations.createMany({
-      data: subjectIds.map((subjectId) => ({
-        userId: user.id,
-        subjectId,
-        periodId: period.id,
-      })),
-      skipDuplicates: true,
-    });
+    await db.trn_activations
+      .createMany({
+        data: subjectIds.map((subjectId) => ({
+          userId: user.id,
+          subjectId,
+          periodId: period.id,
+        })),
+        skipDuplicates: true,
+      })
+      .catch(rethrowIfSubjectDeleted);
 
     publishRealtimeEvent("activation", {}, [user.id]);
 

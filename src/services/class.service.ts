@@ -29,6 +29,7 @@ import {
   assertNoMemberScheduleClash,
 } from "../utils/AssistantRules/assistant.rules";
 import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
+import { rethrowIfSubjectDeleted } from "../utils/SubjectRules/subject.rules";
 import {
   assertNoParticipantScheduleClash,
   enrollInClasses,
@@ -204,16 +205,18 @@ export const SAddClass = async (
     period.id
   );
 
-  const newClass = await db.mst_class.create({
-    data: {
-      subjectId,
-      periodId: period.id,
-      ...fields,
-      startAt: session.startAt,
-      endAt: session.endAt,
-      created_by: req.user.id,
-    },
-  });
+  const newClass = await db.mst_class
+    .create({
+      data: {
+        subjectId,
+        periodId: period.id,
+        ...fields,
+        startAt: session.startAt,
+        endAt: session.endAt,
+        created_by: req.user.id,
+      },
+    })
+    .catch(rethrowIfSubjectDeleted);
 
   publishRealtimeEvent("class", { class_id: newClass.id, action: "created" });
 
