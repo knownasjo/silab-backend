@@ -155,7 +155,7 @@ kuliah itu bisa didaftarkan lagi di semester yang sama.
 
 | Siapa | Boleh menghapus | Pesan berhasil |
 |---|---|---|
-| Mahasiswa (tombol "Batalkan" di Profil → Status Pembayaran) | hanya pendaftarannya sendiri | "Pendaftaran X dibatalkan." |
+| Mahasiswa (tombol "Batalkan" di Profil → Pembayaran & Kelas) | hanya pendaftarannya sendiri | "Pendaftaran X dibatalkan." |
 | Laboran (tombol "Hapus" di web Pembayaran) | pendaftaran siapa pun | "Pendaftaran X milik Y dihapus." |
 
 Ditolak bila:
