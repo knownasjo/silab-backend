@@ -1141,7 +1141,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 7–8 menit
+npm test                    # terminal 2: semua tes API, sekitar 9 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1155,7 +1155,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 318/318 cek lulus dari 14 tes, 463 detik
+Total: 366/366 cek lulus dari 15 tes, 524 detik
 Data uji sudah bersih.
 ```
 
@@ -1167,7 +1167,7 @@ Data uji sudah bersih.
 | `input-salah` | 444 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
-| `pengumuman-matkul` | pengumuman untuk semua dan untuk mata kuliah tertentu; jenis pendaftaran dengan mata kuliah ditolak, `subjectIds` rusak atau tidak ada ditolak; yang melihat: mahasiswa tanpa mata kuliah, mahasiswa X belum bayar dan lunas, mahasiswa Y, asisten kelas X, laboran, dosen; pengumuman semester lalu tidak tampil; 404 lewat alamat langsung; mendaftar lalu batal memunculkan lalu menghilangkan pengumuman; mengubah tujuan dan jenis; mata kuliah yang dipakai pengumuman tidak bisa dihapus | 49 |
+| `pengumuman-matkul` | pengumuman untuk semua dan untuk mata kuliah tertentu; jenis pendaftaran dengan mata kuliah ditolak, `subjectIds` rusak atau tidak ada ditolak; yang melihat: mahasiswa tanpa mata kuliah, mahasiswa X belum bayar dan lunas, mahasiswa Y, asisten kelas X, laboran, dosen; pengumuman semester lalu tidak tampil; 404 lewat alamat langsung; mendaftar lalu batal memunculkan lalu menghilangkan pengumuman; mengubah tujuan dan jenis; mata kuliah yang dipakai pengumuman tidak bisa dihapus | 47 |
 | `hapus-matkul` | hapus mata kuliah: hanya laboran, mata kuliah kosong terhapus dan hilang dari daftar mahasiswa, event `subject` (`deleted`), kode dan nama bisa dipakai lagi; ditolak bila sudah punya kelas atau pendaftaran (jumlahnya disebut); hapus bersamaan dengan mahasiswa mendaftar dan dengan tambah kelas pada jeda 0–400 ms tanpa error server | 18 |
 | `batal-daftar` | mahasiswa membatalkan pendaftaran sendiri dan bisa mendaftar lagi, laboran menghapus pendaftaran siapa pun; ditolak bila sudah lunas, masih punya kelas, milik orang lain, atau diminta dosen; batal bersamaan dengan konfirmasi bayar pada jeda 0–400 ms tanpa error server | 22 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
