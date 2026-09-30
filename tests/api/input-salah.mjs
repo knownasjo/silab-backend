@@ -35,6 +35,7 @@ const ROUTES = [
   ["GET", "/activation", "laboran"],
   ["PUT", "/activation/:activation", "laboran", ["classId", "status"]],
   ["PUT", "/activation/:activation/class", "laboran", ["classId"]],
+  ["DELETE", "/activation/:activation", "student"],
   ["POST", "/announcement", "laboran", ["type", "title", "body"]],
   ["GET", "/announcement", "student"],
   ["GET", "/announcement/:announcement", "student"],

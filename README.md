@@ -77,7 +77,10 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
    lalu bisa mengubah mata kuliah termasuk dosen pengampunya
    (`PUT /subject/:id`) serta mengubah atau menghapus kelas
    (`PUT`/`DELETE /class/:id`)
-2. Mahasiswa mendaftar mata kuliah (`POST /activation`) → status `false`
+2. Mahasiswa mendaftar mata kuliah (`POST /activation`) → status `false`.
+   Selama belum lunas, mahasiswa boleh membatalkannya sendiri dan laboran
+   boleh menghapusnya (`DELETE /activation/:id`, lihat "Batal pendaftaran
+   mata kuliah")
 3. Pembayaran **offline**; laboran menandai lunas (`PUT /activation/:id`)
    dan boleh sekaligus memilih kelas lewat `classId` di body. Tanpa
    `classId`, mahasiswa memilih kelasnya sendiri di aplikasi (balasan
@@ -144,6 +147,42 @@ Empat jalan masuk ke kelas memakai aturan yang sama
   jadi mahasiswa yang memilih kelas tepat saat pembayarannya dibatalkan selalu
   berakhir tanpa kelas.
 
+### Batal pendaftaran mata kuliah
+
+`DELETE /activation/:id` menghapus pendaftaran yang **belum lunas**, jadi mata
+kuliah itu bisa didaftarkan lagi di semester yang sama.
+
+| Siapa | Boleh menghapus | Pesan berhasil |
+|---|---|---|
+| Mahasiswa (tombol "Batalkan" di Profil → Status Pembayaran) | hanya pendaftarannya sendiri | "Pendaftaran X dibatalkan." |
+| Laboran (tombol "Hapus" di web Pembayaran) | pendaftaran siapa pun | "Pendaftaran X milik Y dihapus." |
+
+Ditolak bila:
+
+- **Sudah lunas** (409). Mahasiswa mendapat "Pendaftaran yang sudah lunas
+  tidak bisa dibatalkan. Hubungi laboran bila perlu dibatalkan.", laboran
+  mendapat "Pendaftaran yang sudah lunas tidak bisa dihapus. Ubah statusnya
+  menjadi Belum Bayar dulu." Pendaftaran lunas jadi dibatalkan dalam dua
+  langkah: batal bayar (yang mengeluarkan mahasiswa dari kelas bila belum ada
+  presensi), lalu hapus.
+- **Masih punya kelas** (409 "Pendaftaran ini masih punya kelas A, jadi tidak
+  bisa dihapus."). Ini hanya terjadi pada data dari sebelum aturan batal
+  bayar.
+- Milik mahasiswa lain (404, sama seperti ID yang tidak ada), diminta dosen
+  (403), atau periodenya sudah selesai (409, lihat "Periode akademik").
+
+Penghapusan memakai kunci per mahasiswa yang sama dengan pendaftaran kelas dan
+hanya menghapus baris yang masih `status = false`. Konfirmasi dan batal bayar
+(`PUT /activation/:id`) kini juga memastikan barisnya masih ada saat
+menyimpan. Sebelumnya, konfirmasi bayar yang tiba tepat setelah mahasiswa
+membatalkan dibalas 500. Uji dengan jeda 0–400 ms: kode lama berakhir 500
+"Terjadi kesalahan pada server." di 5 dari 17 putaran; kode baru selalu
+berakhir dengan satu pemenang, yaitu hapus 200 dan bayar 404 "Data aktivasi
+tidak ditemukan!", atau bayar 200 dan hapus 409.
+
+Pendaftaran dihapus permanen, bukan *soft delete*. Event real-time
+`activation` dikirim ke mahasiswa itu dan semua staf.
+
 Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
 ## Daftar endpoint
@@ -181,6 +220,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | GET | `/activation?status=&name=&periodId=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak. Hanya periode aktif; LABORAN boleh meminta periode lain |
 | PUT | `/activation/:id` | LABORAN |
 | PUT | `/activation/:id/class` | LABORAN |
+| DELETE | `/activation/:id` | LABORAN, MAHASISWA (hanya miliknya); hanya pendaftaran yang belum lunas |
 | POST | `/meeting` | LABORAN, asisten kelas itu |
 | GET | `/meeting/:classId` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | GET | `/meeting/:id/qr` | LABORAN, asisten kelas itu |
@@ -359,6 +399,7 @@ dengan web; yang ditambahkan hanya data "milik saya":
 | Status presensi per pertemuan | `GET /meeting/:classId` — untuk mahasiswa berisi `is_open`, `submitted_at`, `is_attended` miliknya sendiri, dan ditolak bila bukan peserta kelas |
 | Daftar mata kuliah | `GET /subject` |
 | Daftar & status pembayaran | `POST /activation`, `GET /activation` (sekarang ikut mengirim `created_at`) |
+| Batalkan pendaftaran yang belum lunas | `DELETE /activation/:id` |
 | Pilih kelas | `GET /class/registration`, `POST /class/registration` |
 | Pengumuman | `GET /announcement`, `GET /announcement/:id` |
 | Presensi QR | `POST /subject/classes/:classId/meetings/:meetingId/attendances` |
@@ -1021,7 +1062,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 6–7 menit
+npm test                    # terminal 2: semua tes API, sekitar 7–8 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1033,9 +1074,9 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 ```
 == Ringkasan
 LULUS batal-bayar                  16/16
-LULUS event-asisten                6/6
+LULUS batal-daftar                 22/22
 ...
-Total: 277/277 cek lulus dari 12 tes, 351 detik
+Total: 300/300 cek lulus dari 13 tes, 458 detik
 Data uji sudah bersih.
 ```
 
@@ -1044,14 +1085,15 @@ Data uji sudah bersih.
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
 | `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak | 35 |
-| `input-salah` | 437 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
+| `input-salah` | 440 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
+| `batal-daftar` | mahasiswa membatalkan pendaftaran sendiri dan bisa mendaftar lagi, laboran menghapus pendaftaran siapa pun; ditolak bila sudah lunas, masih punya kelas, milik orang lain, atau diminta dosen; batal bersamaan dengan konfirmasi bayar pada jeda 0–400 ms tanpa error server | 22 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
-| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus | 39 |
+| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 40 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh | 22 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1064,8 +1106,8 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–22, web 51–57, uji beban
-  90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
+- Setiap file tes punya blok 2 angka sendiri (API 11–23, web 51–60, uji
+  beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
   dengan jadwal kelas asli.
@@ -1352,14 +1394,11 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
    periode yang sama tidak bisa.
 3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
-4. **Belum ada fitur membatalkan pendaftaran mata kuliah.** Mahasiswa tidak
-   bisa membatalkan aktivasinya sendiri dan laboran tidak bisa menghapusnya,
-   jadi status "Belum Bayar" menjadi satu-satunya cara membatalkan (salah
-   konfirmasi, pembayaran bermasalah, atau mahasiswa mundur). Aktivasi yang
-   batal tetap tercatat di periodenya, dan mahasiswa baru bisa mendaftar ulang
-   mata kuliah itu di periode berikutnya (lihat batasan 2). Sejak aturan batal bayar di bagian
-   "Pendaftaran kelas", mahasiswa yang dibatalkan tidak lagi tertinggal di
-   kelas.
+4. **Pendaftaran yang dibatalkan tidak meninggalkan jejak.** Pendaftaran
+   yang belum lunas dihapus permanen (lihat "Batal pendaftaran mata kuliah"),
+   jadi tidak ada catatan siapa yang pernah mendaftar lalu mundur. Pendaftaran
+   yang sudah lunas harus diubah laboran ke Belum Bayar dulu, dan itu ditolak
+   bila mahasiswa sudah punya presensi di kelasnya.
 5. **Jadwal yang diubah langsung di database tidak diperiksa ulang.** Bentrok
    jadwal peserta dan asisten diperiksa di semua endpoint yang memasukkan
    mahasiswa ke kelas atau mengubah jadwal kelas (lihat "Pendaftaran kelas:

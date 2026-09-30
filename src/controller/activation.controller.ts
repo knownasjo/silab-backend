@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import {
   SAddStudentActivation,
+  SDeleteActivation,
   SGetAllActivations,
   SUpdateActivationPaymentStatus,
   SUpdateStudentClass,
@@ -55,6 +56,20 @@ export const CUpdateStudentClass = async (
 ) => {
   try {
     const resData = await SUpdateStudentClass(req);
+
+    res.status(200).json(resData);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const CDeleteActivation = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const resData = await SDeleteActivation(req);
 
     res.status(200).json(resData);
   } catch (error) {

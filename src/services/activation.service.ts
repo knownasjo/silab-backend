@@ -32,6 +32,19 @@ import {
   resolveViewPeriod,
 } from "../utils/PeriodRules/period.rules";
 
+const setPaymentStatus = async (
+  tx: Prisma.TransactionClient,
+  id: string,
+  status: boolean
+) => {
+  const { count } = await tx.trn_activations.updateMany({
+    where: { id },
+    data: { status, updated_at: new Date() },
+  });
+
+  if (count === 0) throw new NotFoundError("Data aktivasi tidak ditemukan!");
+};
+
 export const SAddStudentActivation = async (
   body: IAddActivationRequestBody,
   req: Request
@@ -292,13 +305,7 @@ export const SUpdateActivationPaymentStatus = async (
             });
           }
 
-          await tx.trn_activations.update({
-            where: { id },
-            data: {
-              status: false,
-              updated_at: new Date(),
-            },
-          });
+          await setPaymentStatus(tx, id, false);
 
           return enrollment;
         }
@@ -317,13 +324,7 @@ export const SUpdateActivationPaymentStatus = async (
     }
 
     if (!classId) {
-      await db.trn_activations.update({
-        where: { id },
-        data: {
-          status: true,
-          updated_at: new Date(),
-        },
-      });
+      await setPaymentStatus(db, id, true);
 
       publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
@@ -395,13 +396,7 @@ export const SUpdateActivationPaymentStatus = async (
           "diikuti mahasiswa ini"
         );
 
-        await tx.trn_activations.update({
-          where: { id },
-          data: {
-            status: true,
-            updated_at: new Date(),
-          },
-        });
+        await setPaymentStatus(tx, id, true);
 
         await tx.trn_class_participants.create({
           data: {
@@ -559,6 +554,82 @@ export const SUpdateStudentClass = async (
     return {
       status: true,
       message: `Mahasiswa dipindahkan dari kelas ${currentEnrollment.class.name} ke kelas ${targetClass.name}`,
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const SDeleteActivation = async (
+  req: Request
+): Promise<IBaseResponse> => {
+  try {
+    const user = req.user;
+    const id = req.params.id.toString();
+
+    if (user?.role !== "LABORAN" && user?.role !== "MAHASISWA")
+      throw new ForbiddenError(
+        "Hanya laboran atau mahasiswa pemilik pendaftaran yang dapat membatalkannya!"
+      );
+
+    const isStudent = user.role === "MAHASISWA";
+
+    const activation = await db.trn_activations.findUnique({
+      where: { id },
+      include: {
+        user: { select: { fullname: true } },
+        subject: { select: { subject_name: true } },
+      },
+    });
+
+    if (!activation || (isStudent && activation.userId !== user.id))
+      throw new NotFoundError("Data aktivasi tidak ditemukan!");
+
+    await assertPeriodActive(activation.periodId);
+
+    const paidMessage = isStudent
+      ? "Pendaftaran yang sudah lunas tidak bisa dibatalkan. Hubungi laboran bila perlu dibatalkan."
+      : "Pendaftaran yang sudah lunas tidak bisa dihapus. Ubah statusnya menjadi Belum Bayar dulu.";
+
+    if (activation.status) throw new ConflictError(paidMessage);
+
+    const removed = await enrollInClasses(
+      [activation.userId],
+      [],
+      async (tx) => {
+        const enrollment = await findEnrollmentInSubjects(
+          tx,
+          activation.userId,
+          [activation.subjectId],
+          activation.periodId
+        );
+
+        if (enrollment)
+          throw new ConflictError(
+            `Pendaftaran ini masih punya kelas ${enrollment.class.name}, jadi tidak bisa dihapus.`
+          );
+
+        return tx.trn_activations.deleteMany({
+          where: { id, status: false },
+        });
+      }
+    );
+
+    if (removed.count === 0) {
+      const current = await db.trn_activations.findUnique({ where: { id } });
+
+      if (!current) throw new NotFoundError("Data aktivasi tidak ditemukan!");
+
+      throw new ConflictError(paidMessage);
+    }
+
+    publishRealtimeEvent("activation", {}, [activation.userId]);
+
+    return {
+      status: true,
+      message: isStudent
+        ? `Pendaftaran ${activation.subject.subject_name} dibatalkan.`
+        : `Pendaftaran ${activation.subject.subject_name} milik ${activation.user.fullname} dihapus.`,
     };
   } catch (error) {
     throw error;

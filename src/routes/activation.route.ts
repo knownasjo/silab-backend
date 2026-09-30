@@ -2,6 +2,7 @@ import { Router } from "express";
 import { MAuthUser } from "../middleware/auth.middleware";
 import {
   CAddActivation,
+  CDeleteActivation,
   CGetAllActivations,
   CUpdateActivationPaymentStatus,
   CUpdateStudentClass,
@@ -16,5 +17,7 @@ router.get("/", MAuthUser(), CGetAllActivations);
 router.put("/:id", MAuthUser(), CUpdateActivationPaymentStatus);
 
 router.put("/:id/class", MAuthUser(), CUpdateStudentClass);
+
+router.delete("/:id", MAuthUser(), CDeleteActivation);
 
 export default router;

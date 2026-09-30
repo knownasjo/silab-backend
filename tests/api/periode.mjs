@@ -143,6 +143,7 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
       `/activation/${repeaterOld.id}/class`,
       { classId: oldClass.id },
     ],
+    ["hapus pendaftaran", "DELETE", `/activation/${repeaterOld.id}`],
     [
       "tambah asisten",
       "POST",

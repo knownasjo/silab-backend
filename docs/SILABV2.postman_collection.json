@@ -1806,6 +1806,34 @@
 						"description": "Hanya LABORAN. Memindah mahasiswa ke kelas lain pada mata kuliah yang sama (dicek kuota dan bentrok jadwal dengan kelas lain yang ia ikuti atau pegang sebagai asisten; kelas yang ditinggalkan tidak dihitung)."
 					},
 					"response": []
+				},
+				{
+					"name": "Batalkan Pendaftaran (Mahasiswa)",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenBaru}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activation/{{activationId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activation",
+								"{{activationId}}"
+							]
+						},
+						"description": "MAHASISWA (hanya pendaftarannya sendiri) atau LABORAN (pendaftaran siapa pun). Hanya pendaftaran yang **belum lunas**; setelah dihapus, mata kuliah itu bisa didaftarkan lagi di semester yang sama.\n\n- 200 \"Pendaftaran X dibatalkan.\" (mahasiswa) atau \"Pendaftaran X milik Y dihapus.\" (laboran)\n- 409 \"Pendaftaran yang sudah lunas tidak bisa dibatalkan. Hubungi laboran bila perlu dibatalkan.\" (laboran: \"... tidak bisa dihapus. Ubah statusnya menjadi Belum Bayar dulu.\")\n- 409 \"Pendaftaran ini masih punya kelas A, jadi tidak bisa dihapus.\" (data lama)\n- 404 \"Data aktivasi tidak ditemukan!\" bila tidak ada atau milik mahasiswa lain\n- 403 untuk DOSEN, 409 bila periodenya sudah selesai\n\nDalam urutan koleksi ini pendaftaran `activationId` sudah dikonfirmasi lunas, jadi balasannya 409. Untuk mencoba yang berhasil, jalankan \"Daftar Mata Kuliah (Mahasiswa)\" dengan mata kuliah lain lalu pakai id dari \"Status Pembayaran Saya\"."
+					}
 				}
 			]
 		},
