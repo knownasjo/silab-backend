@@ -104,6 +104,7 @@ model mst_academic_period {
 
     classes     mst_class[]       @relation(name: "ClassPeriod")
     activations trn_activations[] @relation(name: "ActivationPeriod")
+    sessions    mst_session[]     @relation(name: "PeriodSessions")
 
     @@unique([year, term])
 }
@@ -138,6 +139,7 @@ model mst_class {
 
 model mst_session {
     id         String          @id @default(uuid())
+    periodId   String
     day_group  SessionDayGroup
     number     Int
     startAt    String
@@ -148,9 +150,10 @@ model mst_session {
     updated_at DateTime?
     created_at DateTime?       @default(now())
 
-    classes mst_class[] @relation(name: "ClassSession")
+    period  mst_academic_period @relation(name: "PeriodSessions", fields: [periodId], references: [id], onDelete: Cascade)
+    classes mst_class[]         @relation(name: "ClassSession")
 
-    @@unique([day_group, number])
+    @@unique([periodId, day_group, number])
 }
 
 model trn_class_participants {

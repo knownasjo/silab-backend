@@ -77,6 +77,7 @@ const countPeriodData = async (period: mst_academic_period) => {
     assistants,
     activations,
     paid,
+    sessions,
   ] = await Promise.all([
     db.mst_class.count({ where: inPeriod }),
     db.trn_meetings.count({ where: inClasses }),
@@ -85,6 +86,7 @@ const countPeriodData = async (period: mst_academic_period) => {
     db.trn_class_collaborator.count({ where: inClasses }),
     db.trn_activations.count({ where: inPeriod }),
     db.trn_activations.count({ where: { ...inPeriod, status: true } }),
+    db.mst_session.count({ where: inPeriod }),
   ]);
 
   return {
@@ -95,6 +97,7 @@ const countPeriodData = async (period: mst_academic_period) => {
     assistants,
     activations,
     paid,
+    sessions,
   };
 };
 
@@ -155,7 +158,11 @@ const deleteActivePeriod = async (
     previous
       ? `Setelah dihapus, periode ${periodLabel(
           previous
-        )} aktif kembali dan bisa diubah lagi.\nSesi presensi yang ditutup saat semester ini dimulai tetap tertutup.`
+        )} aktif kembali dan bisa diubah lagi.\nJam sesi semester ini (${formatCount(
+          counts.sessions
+        )}) ikut terhapus, dan jam sesi ${periodLabel(
+          previous
+        )} dipakai lagi.\nSesi presensi yang ditutup saat semester ini dimulai tetap tertutup.`
       : "Setelah dihapus, belum ada periode akademik; laboran perlu memulai periode pertama lagi."
   );
 
@@ -226,9 +233,8 @@ const deletePeriod = async (name: string) => {
       counts.activations
     )} (${formatCount(counts.paid)} lunas)`
   );
-  console.log(
-    "\nTetap tersimpan: akun, mata kuliah, jam sesi, dan pengumuman."
-  );
+  console.log(`  Jam sesi                : ${formatCount(counts.sessions)}`);
+  console.log("\nTetap tersimpan: akun, mata kuliah, dan pengumuman.");
 
   if (!(await confirmDeletion())) return 1;
 

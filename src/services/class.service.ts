@@ -100,13 +100,18 @@ const readClassFields = (body: IAddClassRequestBody): IClassFields => {
 
 const findClassSession = async (
   fields: IClassFields,
+  periodId: string,
   currentSessionId?: string | null
 ) => {
   const session = await db.mst_session.findUnique({
     where: { id: fields.sessionId },
   });
 
-  if (!session || (!session.is_active && session.id !== currentSessionId))
+  if (
+    !session ||
+    session.periodId !== periodId ||
+    (!session.is_active && session.id !== currentSessionId)
+  )
     throw new BadRequestError("Sesi tidak ditemukan atau sudah nonaktif!");
 
   if (session.day_group !== dayGroupOf(fields.day))
@@ -181,7 +186,7 @@ export const SAddClass = async (
   if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
   const period = await getActivePeriod();
-  const session = await findClassSession(fields);
+  const session = await findClassSession(fields, period.id);
 
   await assertClassNameFree(
     subjectId,
@@ -249,7 +254,11 @@ export const SUpdateClass = async (
     sessionId: body?.sessionId ?? current.sessionId ?? undefined,
   });
 
-  const session = await findClassSession(fields, current.sessionId);
+  const session = await findClassSession(
+    fields,
+    current.periodId,
+    current.sessionId
+  );
   const schedule = {
     day: fields.day,
     room: fields.room,

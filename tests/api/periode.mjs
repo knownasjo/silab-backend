@@ -154,6 +154,13 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
       "DELETE",
       `/collaborator/${oldClass.id}/${oldAssistant.id}`,
     ],
+    [
+      "ubah jam sesi lama",
+      "PUT",
+      `/session/${sessions[0].id}`,
+      { startAt: "18.05", endAt: "18.40" },
+    ],
+    ["hapus jam sesi lama", "DELETE", `/session/${sessions[5].id}`],
   ])
     expect(
       `${labelText}: ditolak`,
@@ -198,6 +205,48 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
     oldPayments.message
   );
 
+  section("Jam sesi semester baru");
+  const copies = await db.mst_session.findMany({
+    where: {
+      periodId: newPeriodId,
+      number: { in: sessions.map((session) => session.number) },
+    },
+    orderBy: { number: "asc" },
+  });
+  check(
+    "jam sesi semester lama disalin ke semester baru",
+    copies.length === sessions.length &&
+      copies.every(
+        (copy, i) =>
+          copy.id !== sessions[i].id &&
+          copy.startAt === sessions[i].startAt &&
+          copy.endAt === sessions[i].endAt &&
+          copy.is_active === sessions[i].is_active
+      ),
+    JSON.stringify(copies)
+  );
+  const [oldCount, newCount] = await Promise.all([
+    db.mst_session.count({ where: { periodId: old.id } }),
+    db.mst_session.count({ where: { periodId: newPeriodId } }),
+  ]);
+  check(
+    "  semua jam sesi ikut disalin, jam sesi lama tetap ada",
+    oldCount === newCount && oldCount >= sessions.length,
+    `lama ${oldCount}, baru ${newCount}`
+  );
+  const listed = (await call("GET", "/session", { token: laboran })).json.data;
+  const listedIds = new Set(listed?.map((session) => session.id));
+  check(
+    "  halaman Jam Sesi hanya berisi jam sesi semester baru, mulai dari 0 kelas",
+    listed?.length === newCount &&
+      copies.every((copy) => listedIds.has(copy.id)) &&
+      !sessions.some((session) => listedIds.has(session.id)) &&
+      listed
+        .filter((session) => copies.some((copy) => copy.id === session.id))
+        .every((session) => session.classes === 0),
+    JSON.stringify(listed?.slice(0, 3))
+  );
+
   section("Semester baru");
   const currentClasses = await call("GET", "/class", { token: laboran });
   check(
@@ -220,18 +269,22 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
     myActivations.code === 200 && myActivations.json.data?.length === 0,
     JSON.stringify(myActivations.json.data)
   );
-  const created = await call(
-    "POST",
-    "/class",
+  const newClassBody = (sessionId) =>
     as(laboran, {
       subjectId: subject.id,
       name: "A",
       quota: 30,
       day: "MONDAY",
       room: "PSI",
-      sessionId: sessions[0].id,
-    })
+      sessionId,
+    });
+  expect(
+    "kelas baru dengan jam sesi semester lama ditolak",
+    await call("POST", "/class", newClassBody(sessions[0].id)),
+    400,
+    "Sesi tidak ditemukan atau sudah nonaktif!"
   );
+  const created = await call("POST", "/class", newClassBody(copies[0].id));
   expect(
     "kelas A dengan hari, jam, dan ruang yang sama boleh dibuat lagi",
     created,
@@ -285,18 +338,25 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
   );
 
   section("Jam sesi");
-  await call(
-    "PUT",
-    `/session/${sessions[0].id}`,
-    as(laboran, { startAt: "18.05", endAt: "18.40" })
+  expect(
+    "mengubah jam sesi semester baru",
+    await call(
+      "PUT",
+      `/session/${copies[0].id}`,
+      as(laboran, { startAt: "18.05", endAt: "18.40" })
+    ),
+    200
   );
-  const [oldAfter, newAfter] = await Promise.all([
+  const [oldAfter, newAfter, oldSessionAfter] = await Promise.all([
     db.mst_class.findUnique({ where: { id: oldClass.id } }),
     db.mst_class.findUnique({ where: { id: newClassId } }),
+    db.mst_session.findUnique({ where: { id: sessions[0].id } }),
   ]);
   check(
-    "mengubah jam sesi hanya mengubah kelas periode aktif",
-    newAfter.startAt === "18.05" && oldAfter.startAt === oldClass.startAt,
-    `baru ${newAfter.startAt}, lama ${oldAfter.startAt}`
+    "  jam kelas baru ikut berubah, kelas dan jam sesi semester lama tetap",
+    newAfter.startAt === "18.05" &&
+      oldAfter.startAt === oldClass.startAt &&
+      oldSessionAfter.startAt === sessions[0].startAt,
+    `baru ${newAfter.startAt}, kelas lama ${oldAfter.startAt}, sesi lama ${oldSessionAfter.startAt}`
   );
 });

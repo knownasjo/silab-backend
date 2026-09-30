@@ -226,13 +226,16 @@ export class TestData {
     });
   }
 
-  async sessions() {
-    if (!this.sessionList) {
-      this.sessionList = [];
+  async sessions(period = this.period) {
+    this.sessionLists ??= new Map();
+    if (!this.sessionLists.has(period.id)) {
+      const list = [];
+      this.sessionLists.set(period.id, list);
       for (const [index, [startAt, endAt]] of SESSION_TIMES.entries()) {
-        this.sessionList.push(
+        list.push(
           await db.mst_session.create({
             data: {
+              periodId: period.id,
               day_group: "WEEKDAY",
               number: this.sessionFrom + index + 1,
               startAt,
@@ -243,7 +246,7 @@ export class TestData {
         );
       }
     }
-    return this.sessionList;
+    return this.sessionLists.get(period.id);
   }
 
   async classOf(
@@ -253,7 +256,7 @@ export class TestData {
     sessionNumber,
     { room = "PSI", quota = 30, period = this.period } = {}
   ) {
-    const session = (await this.sessions())[sessionNumber - 1];
+    const session = (await this.sessions(period))[sessionNumber - 1];
     return db.mst_class.create({
       data: {
         subjectId: subject.id,
@@ -381,7 +384,7 @@ export class TestData {
       });
       await db.mst_user.deleteMany({ where: { id: { in: users } } });
     });
-    this.sessionList = undefined;
+    this.sessionLists = undefined;
     return countTestData(
       this.nimPrefix,
       this.codePrefix,

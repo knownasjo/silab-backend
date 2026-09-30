@@ -113,7 +113,8 @@ await runTest("Skrip hapus-periode", data, async () => {
     "Peserta kelas           : 1",
     "Asisten kelas           : 1",
     "Pendaftaran mata kuliah : 2 (1 lunas)",
-    "Tetap tersimpan: akun, mata kuliah, jam sesi, dan pengumuman.",
+    "Jam sesi                : 6",
+    "Tetap tersimpan: akun, mata kuliah, dan pengumuman.",
   ];
   const missing = summary.filter((line) => !run.output.includes(line));
   check(
@@ -147,6 +148,17 @@ await runTest("Skrip hapus-periode", data, async () => {
     "  periode, kelas, pertemuan, presensi, peserta, asisten, pendaftaran hilang",
     (await oldData()) === "0,0,0,0,0,0,0",
     await oldData()
+  );
+  const sessionsOf = (period) =>
+    db.mst_session.count({ where: { periodId: period.id } });
+  const activeSessions = await sessionsOf(active);
+  check(
+    "  jam sesi periode lama ikut terhapus, jam sesi periode aktif tetap",
+    (await sessionsOf(oldPeriod)) === 0 &&
+      activeSessions >= 6 &&
+      (await db.mst_class.findUnique({ where: { id: currentClass.id } }))
+        ?.sessionId !== null,
+    `lama ${await sessionsOf(oldPeriod)}, aktif ${activeSessions}`
   );
   check(
     "  akun dan mata kuliah tetap ada",
@@ -214,6 +226,11 @@ await runTest("Skrip hapus-periode", data, async () => {
     ) &&
       run.output.includes(
         `Setelah dihapus, periode ${label(active)} aktif kembali`
+      ) &&
+      run.output.includes(
+        `Jam sesi semester ini (6) ikut terhapus, dan jam sesi ${label(
+          active
+        )} dipakai lagi.`
       ),
     run.output
   );
@@ -240,5 +257,13 @@ await runTest("Skrip hapus-periode", data, async () => {
   check(
     "  periode sebelumnya aktif kembali",
     (await findActivePeriod())?.id === active.id
+  );
+  check(
+    "  jam sesi semester itu ikut terhapus, jam sesi periode sebelumnya utuh",
+    (await sessionsOf(accidental)) === 0 &&
+      (await sessionsOf(active)) === activeSessions,
+    `terhapus ${await sessionsOf(accidental)}, aktif ${await sessionsOf(
+      active
+    )}`
   );
 });

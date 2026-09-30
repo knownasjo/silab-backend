@@ -642,7 +642,8 @@ menolak dosen seperti sebelumnya.
 
 Kelas (`mst_class.periodId`) dan pendaftaran mata kuliah beserta pembayarannya
 (`trn_activations.periodId`) melekat ke satu periode di `mst_academic_period`,
-misalnya "2026/2027 Ganjil". Mata kuliah, jam sesi, akun, dan pengumuman
+misalnya "2026/2027 Ganjil". Sejak 30 September 2026 jam sesi
+(`mst_session.periodId`) juga per periode. Mata kuliah, akun, dan pengumuman
 berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
 (28 September 2026) dimasukkan ke 2026/2027 Ganjil.
 
@@ -659,7 +660,9 @@ berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
   di periode lama ditutup otomatis. Balasan 201 "Semester 2026/2027 Genap
   dimulai" (ditambah "; n sesi presensi yang masih terbuka di … ditutup" bila
   ada) `{ id, name, closed_meetings }`, lalu event `period`
-  (`action: "started"`) dikirim ke semua.
+  (`action: "started"`) dikirim ke semua. Di transaksi yang sama, semua jam
+  sesi periode lama disalin ke periode baru (nomor, jam, dan status aktif
+  yang sama, id baru).
 - **Periode lama hanya bisa dilihat.** Ubah dan hapus kelas, tambah/ubah/hapus
   pertemuan, buka dan tutup sesi presensi, QR, ubah dan hapus presensi, ubah
   pembayaran, pindah kelas, serta tambah dan hapus asisten di periode lama
@@ -686,8 +689,24 @@ berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
   periode mana pun tetap bisa dibuka dan kini berisi
   `period: { id, name, is_active }`, begitu juga daftar pertemuan dan
   presensinya.
-- **Mengubah jam sesi hanya mengubah jam kelas periode aktif.** Kelas periode
-  lama tetap memakai jam lamanya.
+- **Jam sesi per semester.** Setiap periode punya salinan jam sesinya sendiri,
+  dan kelas hanya boleh memakai jam sesi dari periodenya
+  (400 "Sesi tidak ditemukan atau sudah nonaktif!"). `GET /session` hanya
+  berisi jam sesi periode aktif, jadi jumlah kelasnya mulai dari 0 di semester
+  baru. Mengubah atau menghapus jam sesi periode lama dibalas 409 "Periode …
+  sudah selesai, data hanya bisa dilihat." Mengubah jam sesi semester baru
+  tidak mengubah jam sesi maupun kelas semester lama.
+  - Relasi jam sesi ke periode memakai `ON DELETE CASCADE`, jadi jam sesi ikut
+    terhapus bersama periodenya. Menghapus semester yang terlanjur dimulai
+    dengan `npm run hapus-periode` membuat jam sesi semester sebelumnya tampil
+    lagi apa adanya.
+  - Nomor sesi kini unik per periode dan kelompok hari
+    (`@@unique([periodId, day_group, number])`).
+  - Saat diterapkan (30 September 2026), 8 jam sesi yang ada dicatat sebagai
+    milik 2026/2027 Ganjil (dipakai 6 kelasnya), lalu disalin untuk 2026/2027
+    Genap yang sudah aktif. Sebelumnya jam sesi berlaku lintas periode,
+    sehingga halaman Jam Sesi di semester Genap masih menghitung kelas Ganjil
+    ("2 kelas") dan daftar kelasnya tidak pernah selesai dimuat.
 - `GET /period` (semua yang login) mengembalikan periode dari yang terbaru:
   `[{ id, year, term, name, is_active, classes, activations }]`.
 - Bila belum ada periode sama sekali, daftar kelas dan pendaftaran dibalas
@@ -709,9 +728,11 @@ berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
 Jam kelas tidak lagi diketik bebas. Kelas memilih satu **jam sesi** yang diatur
 laboran (tabel `mst_session`, menu web Master Data → Jam Sesi).
 
+- Jam sesi milik satu periode (lihat "Periode akademik"): tambah, ubah, dan
+  hapus hanya berlaku di periode aktif, dan semester baru mendapat salinannya.
 - Jam sesi dibagi dua kelompok hari (`day_group`): `WEEKDAY` untuk Senin–Kamis
   dan `FRIDAY` untuk Jumat, karena jam hari Jumat berbeda. Setiap sesi punya
-  nomor 1–20 yang unik per kelompok, jam mulai dan selesai berformat `JJ.MM`,
+  nomor 1–20 yang unik per kelompok di periode itu, jam mulai dan selesai berformat `JJ.MM`,
   dan status aktif. Sesi dalam satu kelompok tidak boleh tumpang tindih (yang
   bersambung, misalnya 08.40 dan 08.40, boleh).
 - Isi awal: Senin–Kamis Sesi 1–6 (07.00–08.40, 08.45–10.25, 10.30–12.10,
@@ -1014,7 +1035,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS event-asisten                6/6
 ...
-Total: 266/266 cek lulus dari 12 tes, 392 detik
+Total: 277/277 cek lulus dari 12 tes, 351 detik
 Data uji sudah bersih.
 ```
 
@@ -1030,8 +1051,8 @@ Data uji sudah bersih.
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
-| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif | 32 |
-| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali | 20 |
+| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus | 39 |
+| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh | 22 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -1234,8 +1255,9 @@ Data yang ikut terhapus:
   Peserta kelas           : 580
   Asisten kelas           : 30
   Pendaftaran mata kuliah : 600 (570 lunas)
+  Jam sesi                : 8
 
-Tetap tersimpan: akun, mata kuliah, jam sesi, dan pengumuman.
+Tetap tersimpan: akun, mata kuliah, dan pengumuman.
 
 Penghapusan tidak bisa dibatalkan. Ketik HAPUS untuk melanjutkan: HAPUS
 
@@ -1259,6 +1281,7 @@ Script `src/scripts/delete-period.ts`:
   ```
   Periode yang akan dihapus: 2026/2027 Genap (aktif, masih kosong)
   Setelah dihapus, periode 2026/2027 Ganjil aktif kembali dan bisa diubah lagi.
+  Jam sesi semester ini (8) ikut terhapus, dan jam sesi 2026/2027 Ganjil dipakai lagi.
   Sesi presensi yang ditutup saat semester ini dimulai tetap tertutup.
   ```
 
@@ -1376,11 +1399,12 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
     dashboard dosen dan menurunkan rata-rata kehadiran. Solusinya menambah
     kolom waktu pertama kali sesi dibuka.
 
-11. **Jam kelas tidak punya riwayat di dalam satu periode.** Mengubah jam sesi
-    langsung mengubah jam semua kelasnya di periode aktif (kelas periode lama
-    tidak ikut berubah), dan mengubah jadwal satu kelas juga menimpa jadwal
-    lamanya, termasuk untuk pertemuan yang sudah lewat. Tidak ada catatan jam
-    lama.
+11. **Jam kelas tidak punya riwayat di dalam satu periode.** Jam sesi kini
+    tersimpan per semester, jadi jam semester lalu tetap utuh. Namun di dalam
+    satu semester, mengubah jam sesi langsung mengubah jam semua kelasnya, dan
+    mengubah jadwal satu kelas juga menimpa jadwal lamanya, termasuk untuk
+    pertemuan yang sudah lewat. Tidak ada catatan jam lama di semester yang
+    sama.
 
 12. **Hapus kelas bersifat permanen.** Kelas tanpa presensi dihapus dari
     database (bukan soft delete) dan tidak bisa dipulihkan. Kelas yang sudah

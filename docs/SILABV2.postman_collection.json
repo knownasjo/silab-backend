@@ -1057,7 +1057,7 @@
 								}
 							]
 						},
-						"description": "Semua peran yang login. Urut per kelompok hari lalu jam mulai: `[{ id, day_group, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Form Tambah Praktikum memakai `?day=<hari>&active=true`. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin–Kamis aktif pertama."
+						"description": "Semua peran yang login. Hanya jam sesi semester aktif (setiap semester punya salinan jam sesinya sendiri). Urut per kelompok hari lalu jam mulai: `[{ id, day_group, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Form Tambah Praktikum memakai `?day=<hari>&active=true`. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin–Kamis aktif pertama."
 					},
 					"response": []
 				},
@@ -1110,7 +1110,7 @@
 								"session"
 							]
 						},
-						"description": "Hanya LABORAN. `day_group`: WEEKDAY atau FRIDAY, `number` 1–20 (unik per kelompok), jam `JJ.MM` dan jam mulai sebelum jam selesai. Id sesi baru disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat berhasil ditambahkan\"\n- 400 format salah\n- 409 \"Sesi n ... sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n ... (JJ.MM–JJ.MM)!\""
+						"description": "Hanya LABORAN. `day_group`: WEEKDAY atau FRIDAY, `number` 1–20 (unik per kelompok di semester aktif). Sesi baru menjadi milik semester aktif, jam `JJ.MM` dan jam mulai sebelum jam selesai. Id sesi baru disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat berhasil ditambahkan\"\n- 400 format salah\n- 409 \"Sesi n ... sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n ... (JJ.MM–JJ.MM)!\""
 					},
 					"response": []
 				},
@@ -1153,7 +1153,7 @@
 								"{{newSessionId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `is_active` (false = nonaktif, tidak muncul di pilihan kelas baru). Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim.\n\n- 200 \"Sesi n ... berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\")\n- 409 tumpang tindih dengan sesi lain"
+						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `is_active` (false = nonaktif, tidak muncul di pilihan kelas baru). Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim. Jam sesi semester lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\"\n\n- 200 \"Sesi n ... berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\")\n- 409 tumpang tindih dengan sesi lain"
 					},
 					"response": []
 				},
@@ -1182,7 +1182,7 @@
 								"{{newSessionId}}"
 							]
 						},
-						"description": "Hanya LABORAN, dan hanya sesi yang belum dipakai kelas. Sesi yang dipakai dibalas 409 \"... dipakai n kelas. Nonaktifkan saja ...\"."
+						"description": "Hanya LABORAN, dan hanya sesi yang belum dipakai kelas. Sesi yang dipakai dibalas 409 \"... dipakai n kelas. Nonaktifkan saja ...\". Jam sesi semester lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\""
 					},
 					"response": []
 				}
@@ -1267,7 +1267,7 @@
 								"period"
 							]
 						},
-						"description": "**Hati-hati: mengganti semester untuk semua pengguna.** Hanya LABORAN (selain itu 403 \"Hanya laboran yang dapat memulai semester baru!\").\n\nMembuat periode berikutnya secara otomatis (2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil); isi body diabaikan. Hanya bila belum ada periode sama sekali, body wajib berisi periode pertama: `{ \"year\": \"2026/2027\", \"term\": \"GANJIL\" }` (400 \"Tahun ajaran harus seperti 2026/2027!\" atau \"Semester harus GANJIL atau GENAP!\").\n\nSesi presensi yang masih terbuka di periode lama ditutup otomatis. Berhasil: 201 \"Semester 2026/2027 Genap dimulai\" (ditambah \"; n sesi presensi yang masih terbuka di … ditutup\" bila ada) `{ id, name, closed_meetings }` dan event `period` (`action: \"started\"`) ke semua. Setelah itu semua perubahan pada kelas, pertemuan, presensi, pembayaran, dan asisten di periode lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\" Tidak ada tombol batal; periode yang salah dibuat hanya bisa dihapus lewat skrip terminal."
+						"description": "**Hati-hati: mengganti semester untuk semua pengguna.** Hanya LABORAN (selain itu 403 \"Hanya laboran yang dapat memulai semester baru!\").\n\nMembuat periode berikutnya secara otomatis dan menyalin semua jam sesi semester lama ke semester baru (2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil); isi body diabaikan. Hanya bila belum ada periode sama sekali, body wajib berisi periode pertama: `{ \"year\": \"2026/2027\", \"term\": \"GANJIL\" }` (400 \"Tahun ajaran harus seperti 2026/2027!\" atau \"Semester harus GANJIL atau GENAP!\").\n\nSesi presensi yang masih terbuka di periode lama ditutup otomatis. Berhasil: 201 \"Semester 2026/2027 Genap dimulai\" (ditambah \"; n sesi presensi yang masih terbuka di … ditutup\" bila ada) `{ id, name, closed_meetings }` dan event `period` (`action: \"started\"`) ke semua. Setelah itu semua perubahan pada kelas, pertemuan, presensi, pembayaran, dan asisten di periode lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\" Tidak ada tombol batal; periode yang salah dibuat hanya bisa dihapus lewat skrip terminal."
 					},
 					"response": []
 				}

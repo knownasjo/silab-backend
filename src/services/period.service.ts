@@ -87,6 +87,21 @@ export const SStartPeriod = async (
       const period = await tx.mst_academic_period.create({
         data: { ...next, created_by: req.user!.id },
       });
+      const sessions = previous
+        ? await tx.mst_session.findMany({ where: { periodId: previous.id } })
+        : [];
+
+      await tx.mst_session.createMany({
+        data: sessions.map((session) => ({
+          periodId: period.id,
+          day_group: session.day_group,
+          number: session.number,
+          startAt: session.startAt,
+          endAt: session.endAt,
+          is_active: session.is_active,
+          created_by: req.user!.id,
+        })),
+      });
       const closed = previous
         ? await tx.trn_meetings.updateMany({
             where: {

@@ -19,7 +19,11 @@ import {
   isValidTime,
   toMinutes,
 } from "../utils/Schedule/schedule";
-import { findActivePeriod } from "../utils/PeriodRules/period.rules";
+import {
+  assertPeriodActive,
+  findActivePeriod,
+  getActivePeriod,
+} from "../utils/PeriodRules/period.rules";
 
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -50,6 +54,7 @@ const readTimes = (startAt: string, endAt: string) => {
 };
 
 const assertNoConflict = async (
+  periodId: string,
   dayGroup: SessionDayGroup,
   number: number,
   startAt: string,
@@ -57,7 +62,11 @@ const assertNoConflict = async (
   exceptId?: string
 ) => {
   const others = await db.mst_session.findMany({
-    where: { day_group: dayGroup, ...(exceptId && { id: { not: exceptId } }) },
+    where: {
+      periodId,
+      day_group: dayGroup,
+      ...(exceptId && { id: { not: exceptId } }),
+    },
   });
 
   const sameNumber = others.find((session) => session.number === number);
@@ -94,9 +103,13 @@ export const SGetSessions = async (
 ): Promise<IBaseResponse<ISessionResponseBody[]>> => {
   const day = readText(req.query.day);
   const onlyActive = req.query.active === "true";
+  const period = await findActivePeriod();
+
+  if (!period) return { status: true, message: "Berhasil", data: [] };
 
   const sessions = await db.mst_session.findMany({
     where: {
+      periodId: period.id,
       ...(day && { day_group: dayGroupOf(day) }),
       ...(onlyActive && { is_active: true }),
     },
@@ -138,10 +151,19 @@ export const SAddSession = async (
     readText(body.endAt)
   );
 
-  await assertNoConflict(dayGroup as SessionDayGroup, number, startAt, endAt);
+  const period = await getActivePeriod();
+
+  await assertNoConflict(
+    period.id,
+    dayGroup as SessionDayGroup,
+    number,
+    startAt,
+    endAt
+  );
 
   const session = await db.mst_session.create({
     data: {
+      periodId: period.id,
       day_group: dayGroup as SessionDayGroup,
       number,
       startAt,
@@ -171,6 +193,8 @@ export const SUpdateSession = async (
 
   if (!session) throw new NotFoundError("Sesi tidak ditemukan!");
 
+  await assertPeriodActive(session.periodId);
+
   const body: ISessionRequestBody = req.body ?? {};
   const number =
     body.number === undefined ? session.number : readNumber(body.number);
@@ -185,16 +209,21 @@ export const SUpdateSession = async (
   const isActive = body.is_active ?? session.is_active;
   const timesChanged = startAt !== session.startAt || endAt !== session.endAt;
 
-  await assertNoConflict(session.day_group, number, startAt, endAt, session.id);
+  await assertNoConflict(
+    session.periodId,
+    session.day_group,
+    number,
+    startAt,
+    endAt,
+    session.id
+  );
 
-  const period = await findActivePeriod();
-  const classes =
-    timesChanged && period
-      ? await db.mst_class.findMany({
-          where: { sessionId: session.id, periodId: period.id },
-          select: { id: true },
-        })
-      : [];
+  const classes = timesChanged
+    ? await db.mst_class.findMany({
+        where: { sessionId: session.id },
+        select: { id: true },
+      })
+    : [];
 
   const [updated] = await db.$transaction([
     db.mst_session.update({
@@ -240,6 +269,8 @@ export const SDeleteSession = async (req: Request): Promise<IBaseResponse> => {
   });
 
   if (!session) throw new NotFoundError("Sesi tidak ditemukan!");
+
+  await assertPeriodActive(session.periodId);
 
   if (session._count.classes)
     throw new ConflictError(
