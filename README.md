@@ -237,10 +237,10 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/user/:niyAtauId/password` | LABORAN (ganti password akun LABORAN/DOSEN) |
 | GET | `/user/dosen` | LABORAN (pilihan dosen pengampu) |
 | GET | `/user/mahasiswa?name=` | LABORAN (calon asisten, cari nama/NIM, maks. 20) |
-| POST | `/announcement` | LABORAN |
-| GET | `/announcement` | login |
-| GET | `/announcement/:id` | login |
-| PUT | `/announcement/:id` | LABORAN |
+| POST | `/announcement` | LABORAN; `subjectIds` opsional (lihat "Pengumuman untuk mata kuliah tertentu") |
+| GET | `/announcement` | login; MAHASISWA hanya menerima pengumuman untuk semua dan untuk mata kuliahnya |
+| GET | `/announcement/:id` | login; aturan yang sama, selain itu 404 |
+| PUT | `/announcement/:id` | LABORAN; `subjectIds` opsional |
 | DELETE | `/announcement/:id` | LABORAN |
 | POST | `/collaborator` | LABORAN |
 | GET | `/collaborator/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
@@ -687,7 +687,8 @@ Kelas (`mst_class.periodId`) dan pendaftaran mata kuliah beserta pembayarannya
 (`trn_activations.periodId`) melekat ke satu periode di `mst_academic_period`,
 misalnya "2026/2027 Ganjil". Sejak 30 September 2026 jam sesi
 (`mst_session.periodId`) juga per periode. Mata kuliah, akun, dan pengumuman
-berlaku lintas periode. Semua data yang ada sebelum fitur ini dibuat
+untuk semua mahasiswa berlaku lintas periode; pengumuman untuk mata kuliah
+tertentu (`mst_announcement.periodId`) hanya berlaku di periode saat dibuat. Semua data yang ada sebelum fitur ini dibuat
 (28 September 2026) dimasukkan ke 2026/2027 Ganjil.
 
 - **Periode aktif selalu periode terbaru**, diurutkan menurut tahun ajaran
@@ -922,6 +923,51 @@ juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 - dosen lama langsung kehilangan akses (403), termasuk ke riwayat saat ia
   masih mengampu. Riwayat dosen pengampu tidak disimpan (lihat batasan 13).
 
+### Pengumuman untuk mata kuliah tertentu
+
+Sejak 1 Oktober 2026 laboran bisa menujukan pengumuman jenis **Pengumuman**
+(`BASIC`) ke mahasiswa mata kuliah tertentu. Ketiga jenis pendaftaran
+(Praktikum, Inhal, Asisten Praktikum) selalu untuk semua mahasiswa, karena
+mahasiswa yang belum mendaftar justru yang perlu membacanya.
+
+Data:
+
+- `mst_announcement.for_all` (bawaan `true`, jadi semua pengumuman lama tetap
+  untuk semua) dan `mst_announcement.periodId` (hanya diisi untuk pengumuman
+  mata kuliah).
+- Tabel `trn_announcement_subjects (announcementId, subjectId)` menyimpan mata
+  kuliah tujuannya.
+
+`POST /announcement` dan `PUT /announcement/:id` menerima `subjectIds`:
+
+- Tidak dikirim atau `[]`: untuk semua mahasiswa. Pada `PUT`, `subjectIds`
+  yang tidak dikirim membiarkan tujuan lama, kecuali jenisnya diubah menjadi
+  pendaftaran; tujuan itu lalu otomatis menjadi untuk semua.
+- Berisi ID: untuk mahasiswa mata kuliah itu, di periode aktif. Pada `PUT`,
+  tujuan yang sama mempertahankan periodenya, dan tujuan yang berubah memakai
+  periode aktif.
+- 400 "Pengumuman pendaftaran selalu untuk semua mahasiswa!" bila jenisnya
+  pendaftaran; 400 "Mata kuliah tujuan tidak valid!" bila bukan daftar ID;
+  404 "Mata kuliah tidak ditemukan!" bila ada ID yang tidak ada.
+
+`GET /announcement` dan `GET /announcement/:id` untuk MAHASISWA hanya berisi
+pengumuman untuk semua, ditambah pengumuman mata kuliah dari **periode aktif**
+yang mata kuliahnya ia daftarkan di periode aktif (Lunas maupun Belum Lunas)
+atau yang salah satu kelasnya ia pegang sebagai asisten. Pengumuman lain
+dibalas 404, termasuk lewat alamat langsung. Laboran dan dosen menerima semua.
+Setiap pengumuman kini membawa `for_all`, `subjects` (`id`, `subject_name`,
+`subject_code`), dan `period` (nama periode, atau `null`).
+
+- Aplikasi HP memuat ulang pengumuman saat event `activation` datang
+  (mendaftar, batal, konfirmasi bayar) dan saat event `class` dengan
+  `action: "assistants"`, jadi pengumuman mata kuliah langsung muncul atau
+  hilang.
+- Mata kuliah yang dituju pengumuman aktif dihitung "sudah dipakai" dan tidak
+  bisa dihapus (lihat "Hapus mata kuliah"). Pengumuman yang sudah dihapus
+  laboran tidak dihitung; tautannya ikut terhapus bersama mata kuliahnya.
+- `npm run hapus-periode` ikut menghapus pengumuman mata kuliah periode itu
+  (baris "Pengumuman mata kuliah"). Pengumuman untuk semua tetap tersimpan.
+
 ### Hapus mata kuliah
 
 Laboran menghapus mata kuliah dari tombol "Hapus Mata Kuliah" di dialog Ubah
@@ -938,7 +984,8 @@ kuliahnya.
   mahasiswa (Pendaftaran Praktikum) langsung berubah.
 - Sudah dipakai: 409 "<nama> sudah punya 2 kelas dan 3 pendaftaran, jadi
   tidak bisa dihapus." (hanya bagian yang ada yang disebut, misalnya "sudah
-  punya 1 kelas").
+  punya 1 kelas"). Pengumuman aktif yang ditujukan ke mata kuliah itu juga
+  dihitung: "... sudah punya 1 kelas, 2 pendaftaran, dan 1 pengumuman, ...".
 - Selain laboran: 403 "Hanya laboran yang dapat menghapus mata kuliah!".
   Mata kuliah yang tidak ada: 404 "Mata kuliah tidak ditemukan!".
 - **Bersamaan.** Bila mahasiswa mendaftar (`POST /activation`) atau laboran
@@ -1120,6 +1167,7 @@ Data uji sudah bersih.
 | `input-salah` | 444 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
+| `pengumuman-matkul` | pengumuman untuk semua dan untuk mata kuliah tertentu; jenis pendaftaran dengan mata kuliah ditolak, `subjectIds` rusak atau tidak ada ditolak; yang melihat: mahasiswa tanpa mata kuliah, mahasiswa X belum bayar dan lunas, mahasiswa Y, asisten kelas X, laboran, dosen; pengumuman semester lalu tidak tampil; 404 lewat alamat langsung; mendaftar lalu batal memunculkan lalu menghilangkan pengumuman; mengubah tujuan dan jenis; mata kuliah yang dipakai pengumuman tidak bisa dihapus | 49 |
 | `hapus-matkul` | hapus mata kuliah: hanya laboran, mata kuliah kosong terhapus dan hilang dari daftar mahasiswa, event `subject` (`deleted`), kode dan nama bisa dipakai lagi; ditolak bila sudah punya kelas atau pendaftaran (jumlahnya disebut); hapus bersamaan dengan mahasiswa mendaftar dan dengan tambah kelas pada jeda 0–400 ms tanpa error server | 18 |
 | `batal-daftar` | mahasiswa membatalkan pendaftaran sendiri dan bisa mendaftar lagi, laboran menghapus pendaftaran siapa pun; ditolak bila sudah lunas, masih punya kelas, milik orang lain, atau diminta dosen; batal bersamaan dengan konfirmasi bayar pada jeda 0–400 ms tanpa error server | 22 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
@@ -1127,7 +1175,7 @@ Data uji sudah bersih.
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 40 |
-| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh | 22 |
+| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -1139,7 +1187,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–24, web 51–61, uji
+- Setiap file tes punya blok 2 angka sendiri (API 11–25, web 51–62, uji
   beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
@@ -1331,8 +1379,9 @@ Data yang ikut terhapus:
   Asisten kelas           : 30
   Pendaftaran mata kuliah : 600 (570 lunas)
   Jam sesi                : 8
+  Pengumuman mata kuliah  : 5
 
-Tetap tersimpan: akun, mata kuliah, dan pengumuman.
+Tetap tersimpan: akun, mata kuliah, dan pengumuman untuk semua mahasiswa.
 
 Penghapusan tidak bisa dibatalkan. Ketik HAPUS untuk melanjutkan: HAPUS
 

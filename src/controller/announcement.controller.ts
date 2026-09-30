@@ -27,7 +27,7 @@ export const CGetAllAnnouncements = async (
   next: NextFunction
 ) => {
   try {
-    const resData = await SGetAllAnnouncements();
+    const resData = await SGetAllAnnouncements(req);
 
     res.status(200).json(resData);
   } catch (error) {
@@ -43,7 +43,7 @@ export const CGetAnnouncementById = async (
   try {
     const id = req.params.id.toString();
 
-    const resData = await SGetAnnouncementById(id);
+    const resData = await SGetAnnouncementById(id, req);
 
     res.status(200).json(resData);
   } catch (error) {

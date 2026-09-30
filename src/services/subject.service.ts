@@ -305,16 +305,22 @@ export const SDeleteSubject = async (
   if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
   const usedMessage = async () => {
-    const [classes, activations] = await Promise.all([
+    const [classes, activations, announcements] = await Promise.all([
       db.mst_class.count({ where: { subjectId: id } }),
       db.trn_activations.count({ where: { subjectId: id } }),
+      db.trn_announcement_subjects.count({
+        where: { subjectId: id, announcement: { deleted_at: null } },
+      }),
     ]);
-    const used = [
+    const parts = [
       classes > 0 && `${classes} kelas`,
       activations > 0 && `${activations} pendaftaran`,
-    ]
-      .filter(Boolean)
-      .join(" dan ");
+      announcements > 0 && `${announcements} pengumuman`,
+    ].filter((part): part is string => Boolean(part));
+    const used =
+      parts.length > 2
+        ? `${parts.slice(0, -1).join(", ")}, dan ${parts[parts.length - 1]}`
+        : parts.join(" dan ");
 
     return used
       ? `${subject.subject_name} sudah punya ${used}, jadi tidak bisa dihapus.`

@@ -52,6 +52,25 @@ await runTest("Skrip hapus-periode", data, async () => {
   ];
   await data.attend(oldMeetings[0], paid, true);
   await data.attend(oldMeetings[1], paid, false);
+  const forSubject = await db.mst_announcement.create({
+    data: {
+      type: "BASIC",
+      title: "Uji Hapus Periode Untuk Mata Kuliah",
+      body: "Hanya untuk mahasiswa mata kuliah ini.",
+      author: data.laboran.id,
+      for_all: false,
+      periodId: oldPeriod.id,
+      subjects: { create: [{ subjectId: subject.id }] },
+    },
+  });
+  const forAll = await db.mst_announcement.create({
+    data: {
+      type: "BASIC",
+      title: "Uji Hapus Periode Untuk Semua",
+      body: "Untuk semua mahasiswa.",
+      author: data.laboran.id,
+    },
+  });
 
   const currentClass = await data.classOf(subject, "A", "MONDAY", 1);
   await data.activate(paid, subject, true);
@@ -114,7 +133,8 @@ await runTest("Skrip hapus-periode", data, async () => {
     "Asisten kelas           : 1",
     "Pendaftaran mata kuliah : 2 (1 lunas)",
     "Jam sesi                : 6",
-    "Tetap tersimpan: akun, mata kuliah, dan pengumuman.",
+    "Pengumuman mata kuliah  : 1",
+    "Tetap tersimpan: akun, mata kuliah, dan pengumuman untuk semua mahasiswa.",
   ];
   const missing = summary.filter((line) => !run.output.includes(line));
   check(
@@ -148,6 +168,16 @@ await runTest("Skrip hapus-periode", data, async () => {
     "  periode, kelas, pertemuan, presensi, peserta, asisten, pendaftaran hilang",
     (await oldData()) === "0,0,0,0,0,0,0",
     await oldData()
+  );
+  const announcementExists = async (announcement) =>
+    (await db.mst_announcement.count({ where: { id: announcement.id } })) === 1;
+  check(
+    "  pengumuman mata kuliah periode lama ikut terhapus, pengumuman untuk semua tetap",
+    !(await announcementExists(forSubject)) &&
+      (await announcementExists(forAll)) &&
+      (await db.trn_announcement_subjects.count({
+        where: { announcementId: forSubject.id },
+      })) === 0
   );
   const sessionsOf = (period) =>
     db.mst_session.count({ where: { periodId: period.id } });

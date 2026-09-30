@@ -78,6 +78,7 @@ const countPeriodData = async (period: mst_academic_period) => {
     activations,
     paid,
     sessions,
+    announcements,
   ] = await Promise.all([
     db.mst_class.count({ where: inPeriod }),
     db.trn_meetings.count({ where: inClasses }),
@@ -87,6 +88,7 @@ const countPeriodData = async (period: mst_academic_period) => {
     db.trn_activations.count({ where: inPeriod }),
     db.trn_activations.count({ where: { ...inPeriod, status: true } }),
     db.mst_session.count({ where: inPeriod }),
+    db.mst_announcement.count({ where: inPeriod }),
   ]);
 
   return {
@@ -98,6 +100,7 @@ const countPeriodData = async (period: mst_academic_period) => {
     activations,
     paid,
     sessions,
+    announcements,
   };
 };
 
@@ -124,6 +127,7 @@ const deletePeriodData = (period: mst_academic_period) =>
       await tx.trn_class_collaborator.deleteMany({ where: inClasses });
       await tx.mst_class.deleteMany({ where: inPeriod });
       await tx.trn_activations.deleteMany({ where: inPeriod });
+      await tx.mst_announcement.deleteMany({ where: inPeriod });
       await tx.mst_academic_period.delete({ where: { id: period.id } });
     },
     { maxWait: 10_000, timeout: 120_000 }
@@ -165,6 +169,12 @@ const deleteActivePeriod = async (
         )} dipakai lagi.\nSesi presensi yang ditutup saat semester ini dimulai tetap tertutup.`
       : "Setelah dihapus, belum ada periode akademik; laboran perlu memulai periode pertama lagi."
   );
+  if (counts.announcements)
+    console.log(
+      `Pengumuman untuk mata kuliah tertentu di semester ini (${formatCount(
+        counts.announcements
+      )}) ikut terhapus.`
+    );
 
   if (!(await confirmDeletion())) return 1;
 
@@ -234,7 +244,12 @@ const deletePeriod = async (name: string) => {
     )} (${formatCount(counts.paid)} lunas)`
   );
   console.log(`  Jam sesi                : ${formatCount(counts.sessions)}`);
-  console.log("\nTetap tersimpan: akun, mata kuliah, dan pengumuman.");
+  console.log(
+    `  Pengumuman mata kuliah  : ${formatCount(counts.announcements)}`
+  );
+  console.log(
+    "\nTetap tersimpan: akun, mata kuliah, dan pengumuman untuk semua mahasiswa."
+  );
 
   if (!(await confirmDeletion())) return 1;
 

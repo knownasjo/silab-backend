@@ -91,6 +91,7 @@ model mst_subject {
     createdBy         mst_user          @relation(name: "SubjectCreatedBy", fields: [created_by], references: [id])
     subjectActivation trn_activations[] @relation(name: "SubjectActivation")
     mst_class         mst_class[]
+    announcements     trn_announcement_subjects[] @relation(name: "SubjectAnnouncements")
 
     @@index([id, subject_code])
 }
@@ -105,6 +106,7 @@ model mst_academic_period {
     classes     mst_class[]       @relation(name: "ClassPeriod")
     activations trn_activations[] @relation(name: "ActivationPeriod")
     sessions    mst_session[]     @relation(name: "PeriodSessions")
+    announcements mst_announcement[] @relation(name: "AnnouncementPeriod")
 
     @@unique([year, term])
 }
@@ -245,8 +247,25 @@ model mst_announcement {
     createdAt  DateTime          @default(now())
     updated_at DateTime?
     deleted_at DateTime?
+    for_all    Boolean           @default(true)
+    periodId   String?
 
     announcementAuthor mst_user @relation(name: "AnnouncementAuthor", fields: [author], references: [id])
+    period             mst_academic_period? @relation(name: "AnnouncementPeriod", fields: [periodId], references: [id], onDelete: Cascade)
+    subjects           trn_announcement_subjects[] @relation(name: "AnnouncementSubjects")
+
+    @@index([periodId])
+}
+
+model trn_announcement_subjects {
+    announcementId String
+    subjectId      String
+
+    announcement mst_announcement @relation(name: "AnnouncementSubjects", fields: [announcementId], references: [id], onDelete: Cascade)
+    subject      mst_subject      @relation(name: "SubjectAnnouncements", fields: [subjectId], references: [id], onDelete: Cascade)
+
+    @@id([announcementId, subjectId])
+    @@index([subjectId])
 }
 
 model trn_class_collaborator {

@@ -89,6 +89,11 @@ const realDataQueries = {
       where: { announcementAuthor: notTestUser },
       orderBy: { id: "asc" },
     }),
+  trn_announcement_subjects: () =>
+    db.trn_announcement_subjects.findMany({
+      where: { announcement: { announcementAuthor: notTestUser } },
+      orderBy: [{ announcementId: "asc" }, { subjectId: "asc" }],
+    }),
   mst_academic_period: () =>
     db.mst_academic_period.findMany({ orderBy: { id: "asc" } }),
 };

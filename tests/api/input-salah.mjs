@@ -37,10 +37,15 @@ const ROUTES = [
   ["PUT", "/activation/:activation/class", "laboran", ["classId"]],
   ["DELETE", "/activation/:activation", "student"],
   ["DELETE", "/subject/:subject", "laboran"],
-  ["POST", "/announcement", "laboran", ["type", "title", "body"]],
+  ["POST", "/announcement", "laboran", ["type", "title", "body", "subjectIds"]],
   ["GET", "/announcement", "student"],
   ["GET", "/announcement/:announcement", "student"],
-  ["PUT", "/announcement/:announcement", "laboran", ["type", "title", "body"]],
+  [
+    "PUT",
+    "/announcement/:announcement",
+    "laboran",
+    ["type", "title", "body", "subjectIds"],
+  ],
   ["DELETE", "/announcement/:none", "laboran"],
   [
     "POST",

@@ -2501,9 +2501,50 @@
 								"announcement"
 							]
 						},
-						"description": "Hanya LABORAN. `type`: BASIC, PRACTICUM, ASSISTANT, atau INHALL. `title` paling panjang 150 karakter dan `body` 1000 karakter (400 \"Deskripsi pengumuman maksimal 1000 karakter!\")."
+						"description": "Hanya LABORAN. `type`: BASIC, PRACTICUM, ASSISTANT, atau INHALL. `title` paling panjang 150 karakter dan `body` 1000 karakter (400 \"Deskripsi pengumuman maksimal 1000 karakter!\").\n\n`subjectIds` (opsional, hanya untuk `BASIC`): daftar id mata kuliah tujuan. Tanpa `subjectIds` atau `[]` berarti untuk semua mahasiswa. Contohnya di \"Tambah Pengumuman untuk Mata Kuliah\"."
 					},
 					"response": []
+				},
+				{
+					"name": "Tambah Pengumuman untuk Mata Kuliah",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"BASIC\",\n  \"title\": \"Pengumuman mata kuliah dari Postman\",\n  \"body\": \"Hanya untuk mahasiswa mata kuliah ini.\",\n  \"subjectIds\": [\n    \"{{subjectId}}\"\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/announcement",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"announcement"
+							]
+						},
+						"description": "Hanya LABORAN. Pengumuman `BASIC` yang hanya tampil untuk mahasiswa yang mendaftar mata kuliah `subjectId` di semester aktif (Lunas maupun Belum Lunas) dan asisten kelasnya, dan hanya selama semester ini.\n\n- 201 \"Pengumuman berhasil diterbitkan\"\n- 400 \"Pengumuman pendaftaran selalu untuk semua mahasiswa!\" bila `type` bukan BASIC\n- 400 \"Mata kuliah tujuan tidak valid!\" bila `subjectIds` bukan daftar id\n- 404 \"Mata kuliah tidak ditemukan!\"\n\nCoba \"Semua Pengumuman\" dengan token mahasiswa yang tidak mendaftar mata kuliah itu: pengumuman ini tidak ikut."
+					}
 				},
 				{
 					"name": "Semua Pengumuman",
@@ -2542,7 +2583,7 @@
 								"announcement"
 							]
 						},
-						"description": "Semua peran. Terbaru di atas; id pengumuman teratas disimpan ke `announcementId`."
+						"description": "Terbaru di atas; id pengumuman teratas disimpan ke `announcementId`. Setiap pengumuman berisi `for_all`, `subjects` (`id`, `subject_name`, `subject_code`), dan `period`.\n\nLABORAN dan DOSEN menerima semua. MAHASISWA hanya menerima pengumuman untuk semua, ditambah pengumuman mata kuliah semester aktif yang mata kuliahnya ia daftarkan atau kelasnya ia pegang sebagai asisten."
 					},
 					"response": []
 				},
@@ -2571,7 +2612,7 @@
 								"{{announcementId}}"
 							]
 						},
-						"description": "Detail satu pengumuman."
+						"description": "Detail satu pengumuman. MAHASISWA yang tidak termasuk tujuan pengumuman mata kuliah dibalas 404 \"Pengumuman tidak ditemukan!\"."
 					},
 					"response": []
 				},
@@ -2614,7 +2655,7 @@
 								"{{announcementId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Batas panjang sama dengan Tambah Pengumuman."
+						"description": "Hanya LABORAN. Batas panjang sama dengan Tambah Pengumuman. `subjectIds` opsional: tidak dikirim berarti tujuan lama tetap (kecuali jenisnya diubah menjadi pendaftaran, lalu otomatis untuk semua), `[]` berarti untuk semua, dan daftar id berarti untuk mata kuliah itu di semester aktif."
 					},
 					"response": []
 				},
