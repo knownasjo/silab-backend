@@ -6,8 +6,11 @@ import bcrypt from "bcryptjs";
 import { UserRole } from "@prisma/client";
 import db from "../prisma/client.prisma";
 import { passwordChangeTime } from "../helper/jwt.helper";
+import {
+  hasWhitespace,
+  MIN_PASSWORD_LENGTH,
+} from "../utils/PasswordRules/password.rules";
 
-const MIN_PASSWORD_LENGTH = 8;
 const CANCELLED = "Dibatalkan, password tidak diganti.";
 
 const pipedLines = process.stdin.isTTY
@@ -101,6 +104,11 @@ const askNewPassword = async () => {
     console.log(
       `Password minimal ${MIN_PASSWORD_LENGTH} karakter. ${CANCELLED}`
     );
+    return null;
+  }
+
+  if (hasWhitespace(password)) {
+    console.log(`Password tidak boleh mengandung spasi. ${CANCELLED}`);
     return null;
   }
 

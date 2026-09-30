@@ -44,11 +44,11 @@ import {
 } from "../utils/VerificationCode/verification.code";
 import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
 import { readDeviceId, rememberDevice } from "../utils/DeviceRules/device.rules";
+import { assertNewPassword } from "../utils/PasswordRules/password.rules";
 import bcrypt from "bcryptjs";
 
 const CAMPUS_EMAIL = /^[a-z]+(\d{10})@webmail\.uad\.ac\.id$/;
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD_LENGTH = 8;
 
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -196,10 +196,7 @@ export const SRegisterUser = async (
 
   const fullname = readFullname(body?.fullname);
 
-  if (password.length < MIN_PASSWORD_LENGTH)
-    throw new BadRequestError(
-      `Password minimal ${MIN_PASSWORD_LENGTH} karakter!`
-    );
+  assertNewPassword(password);
 
   if (password !== confirmPassword)
     throw new BadRequestError("Konfirmasi password tidak sama!");
@@ -439,10 +436,7 @@ export const SResetPassword = async (
   if (!email || !/^\d{6}$/.test(code))
     throw new BadRequestError("Masukkan 6 angka kode verifikasi!");
 
-  if (password.length < MIN_PASSWORD_LENGTH)
-    throw new BadRequestError(
-      `Password minimal ${MIN_PASSWORD_LENGTH} karakter!`
-    );
+  assertNewPassword(password);
 
   if (password !== confirmPassword)
     throw new BadRequestError("Konfirmasi password tidak sama!");
@@ -534,10 +528,7 @@ export const SChangePassword = async (
 
   if (!oldPassword) throw new BadRequestError("Password lama wajib diisi!");
 
-  if (password.length < MIN_PASSWORD_LENGTH)
-    throw new BadRequestError(
-      `Password minimal ${MIN_PASSWORD_LENGTH} karakter!`
-    );
+  assertNewPassword(password);
 
   if (password !== confirmPassword)
     throw new BadRequestError("Konfirmasi password tidak sama!");

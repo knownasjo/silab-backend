@@ -514,7 +514,7 @@ POST /auth/password/reset   { email, code, password, confirmPassword }
   berlaku 10 menit, minta ulang (panggil `/forgot` lagi) setelah 60 detik,
   maksimal 5 kali salah. Kode di-HMAC bersama id akun dengan awalan
   `password-reset:`, jadi tidak bisa tertukar dengan kode pendaftaran.
-- Isian (6 angka, password min. 8, konfirmasi sama) diperiksa sebelum kode,
+- Isian (6 angka, password min. 8 tanpa spasi, konfirmasi sama) diperiksa sebelum kode,
   jadi salah ketik password tidak mengurangi jatah percobaan.
 - Setelah berhasil, permintaan reset dihapus dan semua sesi lama akun itu
   dicabut (lihat "Sesi login dan refresh token"). Email yang dikirim berjudul
@@ -554,7 +554,8 @@ PUT /auth/me/password   { oldPassword, password, confirmPassword }
   tidak mengirim event real-time; layar lain melihat nama baru setelah memuat
   ulang.
 - Ganti password: 400 "Password lama wajib diisi!", "Password minimal 8
-  karakter!", "Konfirmasi password tidak sama!", "Password lama salah!", atau
+  karakter!", "Password tidak boleh mengandung spasi!", "Konfirmasi password
+  tidak sama!", "Password lama salah!", atau
   "Password baru harus berbeda dari password lama." Penolakan tidak mengubah
   apa pun.
 - Setelah berhasil, sesi lama dicabut seperti pada Lupa password (termasuk
@@ -1068,6 +1069,20 @@ menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
 
 ### Aturan lain yang sudah diberlakukan
 
+- **Password baru tidak boleh mengandung spasi** (sejak 1 Oktober 2026), baik
+  di awal, tengah, maupun akhir; tab dan baris baru juga ditolak. Aturannya
+  ada di satu tempat, `src/utils/PasswordRules/password.rules.ts`
+  (`assertNewPassword`: minimal 8 karakter, lalu tanpa spasi), dan dipakai
+  oleh `POST /auth/register`, `POST /auth/password/reset`,
+  `PUT /auth/me/password`, `POST /user`, `PUT /user/:niyAtauId/password`,
+  serta `npm run ganti-password`. Balasannya 400 "Password tidak boleh
+  mengandung spasi!" dan tidak ada yang tersimpan. Login tidak diubah:
+  password dikirim dan dicocokkan apa adanya. Sebelumnya aplikasi HP membuang
+  spasi di awal dan akhir password saat login, sedangkan pendaftaran dan web
+  tidak, sehingga password berspasi bisa dipakai di web tetapi selalu ditolak
+  di HP. Sebelum aturan ini berlaku, sudah dicek bahwa tidak ada akun lama
+  yang password-nya berspasi.
+
 - **Pindah kelas ditolak** bila mahasiswa sudah punya catatan presensi di kelas
   lama. Laboran harus menghapus presensinya dulu lewat
   `DELETE /meeting/:id/attendances/:userId`.
@@ -1141,7 +1156,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 9 menit
+npm test                    # terminal 2: semua tes API, sekitar 10 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1155,7 +1170,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 366/366 cek lulus dari 15 tes, 524 detik
+Total: 399/399 cek lulus dari 16 tes, 583 detik
 Data uji sudah bersih.
 ```
 
@@ -1175,6 +1190,7 @@ Data uji sudah bersih.
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 40 |
+| `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1446,8 +1462,8 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
   password lewat email. Pakai skrip ini kalau mahasiswa tidak bisa mengakses
   email kampusnya." dan meminta NIM diketik ulang sebagai konfirmasi.
 - Password diketik saat diminta dan tampil sebagai bintang, bukan ditulis di
-  perintah, jadi tidak tersimpan di riwayat terminal. Minimal 8 karakter dan
-  harus diulang sama persis. Ctrl+C membatalkan tanpa mengubah apa pun.
+  perintah, jadi tidak tersimpan di riwayat terminal. Minimal 8 karakter,
+  tanpa spasi, dan harus diulang sama persis. Ctrl+C membatalkan tanpa mengubah apa pun.
 - Password disimpan sebagai hash bcrypt dan `password_changed_at` diisi,
   sama seperti `PUT /user/:niyAtauId/password`, jadi access token lama dibalas
   `jwt expired` dan refresh token lama 401. Karena script berjalan di luar

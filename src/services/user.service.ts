@@ -19,6 +19,7 @@ import db from "../prisma/client.prisma";
 import { UserRole } from "@prisma/client";
 import { passwordChangeTime } from "../helper/jwt.helper";
 import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
+import { assertNewPassword } from "../utils/PasswordRules/password.rules";
 
 export const SGetUser = async (
   req: Request,
@@ -95,8 +96,7 @@ export const SCreateUser = async (
   if (fullname.length < 3 || fullname.length > 100)
     throw new BadRequestError("Nama lengkap harus 3 sampai 100 karakter!");
 
-  if (password.length < 8)
-    throw new BadRequestError("Password minimal 8 karakter!");
+  assertNewPassword(password);
 
   const registeredUser = await db.mst_user.findFirst({
     where: {
@@ -152,8 +152,7 @@ export const SResetUserPassword = async (
   const account = readText(req.params.account);
   const password = typeof body.password === "string" ? body.password : "";
 
-  if (password.length < 8)
-    throw new BadRequestError("Password minimal 8 karakter!");
+  assertNewPassword(password);
 
   const target = account
     ? await db.mst_user.findFirst({
