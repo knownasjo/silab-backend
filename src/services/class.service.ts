@@ -581,6 +581,7 @@ export const SGetAllClassByPaidActivations = async (
           where: { deleted_at: null },
         },
       },
+      orderBy: [{ subject: { subject_name: "asc" } }, { name: "asc" }],
     });
 
     const data: IGetAllClassByPaidActivationsResponseBody[] =

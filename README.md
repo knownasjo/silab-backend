@@ -147,6 +147,10 @@ Empat jalan masuk ke kelas memakai aturan yang sama
   dan tidak bisa dipindah. Perubahan ini memakai kunci per mahasiswa yang sama,
   jadi mahasiswa yang memilih kelas tepat saat pembayarannya dibatalkan selalu
   berakhir tanpa kelas.
+- **Urutan pilihan kelas.** `GET /class/registration` diurutkan berdasarkan
+  nama mata kuliah lalu nama kelas (A→Z). Sebelumnya urutan mengikuti database,
+  sehingga kelas yang baru diubah laboran pindah ke belakang (misalnya B, C, D,
+  A).
 
 ### Batal pendaftaran mata kuliah
 
@@ -1170,7 +1174,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 399/399 cek lulus dari 16 tes, 583 detik
+Total: 400/400 cek lulus dari 16 tes, 583 detik
 Data uji sudah bersih.
 ```
 
@@ -1180,7 +1184,7 @@ Data uji sudah bersih.
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
 | `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak | 35 |
 | `input-salah` | 444 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
-| `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 33 |
+| `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; urutan pilihan kelas A→Z; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 34 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
 | `pengumuman-matkul` | pengumuman untuk semua dan untuk mata kuliah tertentu; jenis pendaftaran dengan mata kuliah ditolak, `subjectIds` rusak atau tidak ada ditolak; yang melihat: mahasiswa tanpa mata kuliah, mahasiswa X belum bayar dan lunas, mahasiswa Y, asisten kelas X, laboran, dosen; pengumuman semester lalu tidak tampil; 404 lewat alamat langsung; mendaftar lalu batal memunculkan lalu menghilangkan pengumuman; mengubah tujuan dan jenis; mata kuliah yang dipakai pengumuman tidak bisa dihapus | 47 |
 | `hapus-matkul` | hapus mata kuliah: hanya laboran, mata kuliah kosong terhapus dan hilang dari daftar mahasiswa, event `subject` (`deleted`), kode dan nama bisa dipakai lagi; ditolak bila sudah punya kelas atau pendaftaran (jumlahnya disebut); hapus bersamaan dengan mahasiswa mendaftar dan dengan tambah kelas pada jeda 0–400 ms tanpa error server | 18 |

@@ -203,6 +203,35 @@ await runTest(
       200
     );
 
+    section("Urutan pilihan kelas");
+    const W = await data.subject("Uji Kelas W");
+    await data.classOf(W, "C", "THURSDAY", 1);
+    await data.classOf(W, "A", "THURSDAY", 2);
+    await data.classOf(W, "B", "THURSDAY", 3);
+    const s16 = await newStudent(16);
+    await data.activate(s16, X, true);
+    await data.activate(s16, W, true);
+    const sorted = await call("GET", "/class/registration", {
+      token: s16.token,
+    });
+    const labels = (sorted.json.data ?? []).map(
+      (o) => `${o.subject_name} ${o.subject_class}`
+    );
+    check(
+      "mata kuliah dan kelas urut A→Z walau dibuat acak",
+      JSON.stringify(labels) ===
+        JSON.stringify([
+          "Uji Kelas W A",
+          "Uji Kelas W B",
+          "Uji Kelas W C",
+          "Uji Kelas X A",
+          "Uji Kelas X B",
+          "Uji Kelas X C",
+          "Uji Kelas X D",
+        ]),
+      JSON.stringify(labels)
+    );
+
     section("Rebutan kursi");
     const ZA = await data.classOf(Z, "A", "WEDNESDAY", 5, { quota: 3 });
     const ZB = await data.classOf(Z, "B", "WEDNESDAY", 6);
