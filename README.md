@@ -811,6 +811,15 @@ selain itu 403) memeriksa, dengan pesan berbahasa Indonesia:
 - **ruang tidak bentrok**: satu ruang hanya untuk satu kelas pada hari dan jam
   yang tumpang tindih (409 "Ruang PSI sudah dipakai Algoritma dan Pemrograman
   kelas C (Selasa, 16.10 - 17.10)."). PSI dan SBTI dua ruang terpisah.
+- **Simpan bersamaan** (21 Oktober 2026): pemeriksaan nama dan ruang lalu
+  penyimpanan kelas berjalan di satu transaksi yang dikunci per periode
+  (`pg_advisory_xact_lock` dengan kunci `class:period:<periodId>`,
+  `lockPeriodClasses` di `src/services/class.service.ts`). `PUT /class/:id`
+  memakai kunci yang sama. Permintaan yang datang bersamaan diproses
+  bergiliran, jadi yang kedua melihat kelas yang pertama dan ditolak 409.
+  Dulu dua laboran atau dua tab yang menyimpan pada detik yang sama bisa
+  sama-sama berhasil: uji 4 permintaan bersamaan pada kode lama menghasilkan 4
+  kelas bernama F, dan 4 kelas di ruang dan jam yang sama.
 
 Jam kelas diambil dari sesi, dan hanya field di atas yang disimpan (sebelumnya
 seluruh body disalin ke database). Balasan 201: "Kelas <mata kuliah> <nama>
@@ -828,6 +837,10 @@ selain itu 403 "Hanya laboran yang dapat mengubah kelas!"):
 - Field yang tidak dikirim memakai nilai sekarang, lalu hasilnya diperiksa
   dengan aturan yang sama seperti tambah kelas (format, sesi sesuai hari,
   nama belum dipakai kelas lain, ruang tidak bentrok dengan kelas lain).
+  Pemeriksaan nama, ruang, jadwal anggota, dan kuota berjalan di dalam
+  transaksi yang dikunci per kelas dan per periode, sama seperti tambah kelas,
+  jadi dua kelas yang diganti ke nama atau ruang yang sama secara bersamaan
+  tidak bisa sama-sama berhasil.
 - Mata kuliah tidak bisa diganti (400 "Mata kuliah kelas tidak bisa
   diubah!"). Kuota tidak boleh di bawah jumlah peserta (409 "Kuota tidak boleh
   kurang dari jumlah peserta (n)!").
@@ -1174,7 +1187,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 400/400 cek lulus dari 16 tes, 583 detik
+Total: 424/424 cek lulus dari 17 tes, 536 detik
 Data uji sudah bersih.
 ```
 
@@ -1191,6 +1204,7 @@ Data uji sudah bersih.
 | `batal-daftar` | mahasiswa membatalkan pendaftaran sendiri dan bisa mendaftar lagi, laboran menghapus pendaftaran siapa pun; ditolak bila sudah lunas, masih punya kelas, milik orang lain, atau diminta dosen; batal bersamaan dengan konfirmasi bayar pada jeda 0–400 ms tanpa error server | 22 |
 | `kode-matkul` | kode 9 angka saat tambah dan ubah, kode kembar, kode lama, kode ikut di detail kelas | 20 |
 | `scan-ganda` | 5 scan QR bersamaan dari satu mahasiswa hanya tercatat satu kali | 8 |
+| `kelas-bersamaan` | tambah dan ubah kelas bersamaan: 4 kelas bernama sama (3 kali), 4 kelas dari 2 mata kuliah di ruang dan jam yang sama (2 kali), dua kelas diganti ke nama yang sama, dua kelas dipindah ke ruang dan jam yang sama, kelas baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan nama atau ruang, tersimpan tepat satu, tanpa error server | 24 |
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 40 |
@@ -1207,7 +1221,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–25, web 51–62, uji
+- Setiap file tes punya blok 2 angka sendiri (API 11–27, web 51–67, uji
   beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan

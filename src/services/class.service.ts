@@ -123,14 +123,18 @@ const findClassSession = async (
   return session;
 };
 
+const lockPeriodClasses = (tx: Prisma.TransactionClient, periodId: string) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`class:period:${periodId}`}))`;
+
 const assertClassNameFree = async (
+  tx: Prisma.TransactionClient,
   subjectId: string,
   subjectName: string,
   name: string,
   periodId: string,
   exceptId?: string
 ) => {
-  const duplicate = await db.mst_class.findFirst({
+  const duplicate = await tx.mst_class.findFirst({
     where: {
       subjectId,
       name,
@@ -145,11 +149,12 @@ const assertClassNameFree = async (
 };
 
 const assertRoomFree = async (
+  tx: Prisma.TransactionClient,
   schedule: { day: DaysOfWeek; room: ClassRoom; startAt: string; endAt: string },
   periodId: string,
   exceptId?: string
 ) => {
-  const sameRoom = await db.mst_class.findMany({
+  const sameRoom = await tx.mst_class.findMany({
     where: {
       day: schedule.day,
       room: schedule.room,
@@ -189,33 +194,41 @@ export const SAddClass = async (
   const period = await getActivePeriod();
   const session = await findClassSession(fields, period.id);
 
-  await assertClassNameFree(
-    subjectId,
-    subject.subject_name,
-    fields.name,
-    period.id
-  );
-  await assertRoomFree(
-    {
-      day: fields.day,
-      room: fields.room,
-      startAt: session.startAt,
-      endAt: session.endAt,
-    },
-    period.id
-  );
+  const newClass = await db
+    .$transaction(
+      async (tx) => {
+        await lockPeriodClasses(tx, period.id);
+        await assertClassNameFree(
+          tx,
+          subjectId,
+          subject.subject_name,
+          fields.name,
+          period.id
+        );
+        await assertRoomFree(
+          tx,
+          {
+            day: fields.day,
+            room: fields.room,
+            startAt: session.startAt,
+            endAt: session.endAt,
+          },
+          period.id
+        );
 
-  const newClass = await db.mst_class
-    .create({
-      data: {
-        subjectId,
-        periodId: period.id,
-        ...fields,
-        startAt: session.startAt,
-        endAt: session.endAt,
-        created_by: req.user.id,
+        return tx.mst_class.create({
+          data: {
+            subjectId,
+            periodId: period.id,
+            ...fields,
+            startAt: session.startAt,
+            endAt: session.endAt,
+            created_by: req.user!.id,
+          },
+        });
       },
-    })
+      { maxWait: 10000, timeout: 20000 }
+    )
     .catch(rethrowIfSubjectDeleted);
 
   publishRealtimeEvent("class", { class_id: newClass.id, action: "created" });
@@ -283,21 +296,24 @@ export const SUpdateClass = async (
   )
     return { status: true, message: "Tidak ada perubahan pada kelas" };
 
-  if (isRenamed)
-    await assertClassNameFree(
-      current.subjectId,
-      current.subject.subject_name,
-      fields.name,
-      current.periodId,
-      id
-    );
-
-  if (isMoved) await assertRoomFree(schedule, current.periodId, id);
-
-  if (isRescheduled)
-    await assertNoMemberScheduleClash(id, schedule, current.periodId);
-
   await enrollInClasses([], [id], async (tx) => {
+    await lockPeriodClasses(tx, current.periodId);
+
+    if (isRenamed)
+      await assertClassNameFree(
+        tx,
+        current.subjectId,
+        current.subject.subject_name,
+        fields.name,
+        current.periodId,
+        id
+      );
+
+    if (isMoved) await assertRoomFree(tx, schedule, current.periodId, id);
+
+    if (isRescheduled)
+      await assertNoMemberScheduleClash(id, schedule, current.periodId, tx);
+
     const participants = await tx.trn_class_participants.count({
       where: { classId: id, deleted_at: null },
     });

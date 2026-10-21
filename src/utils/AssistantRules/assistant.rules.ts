@@ -92,7 +92,8 @@ const classSchedule = {
 export const assertNoMemberScheduleClash = async (
   classId: string,
   schedule: { day: string; startAt: string; endAt: string },
-  periodId: string
+  periodId: string,
+  client: Prisma.TransactionClient = db
 ) => {
   const elsewhere = {
     classId: { not: classId },
@@ -103,38 +104,36 @@ export const assertNoMemberScheduleClash = async (
     select: { class: classSchedule },
   };
 
-  const [assistants, participants] = await Promise.all([
-    db.trn_class_collaborator.findMany({
-      where: { classId, deletedAt: null },
-      select: {
-        user: {
-          select: {
-            fullname: true,
-            classEnrollments: {
-              where: { ...elsewhere, deleted_at: null },
-              select: { class: classSchedule },
-            },
-            trn_class_collaborator: assistingElsewhere,
+  const assistants = await client.trn_class_collaborator.findMany({
+    where: { classId, deletedAt: null },
+    select: {
+      user: {
+        select: {
+          fullname: true,
+          classEnrollments: {
+            where: { ...elsewhere, deleted_at: null },
+            select: { class: classSchedule },
           },
+          trn_class_collaborator: assistingElsewhere,
         },
       },
-    }),
-    db.trn_class_participants.findMany({
-      where: { classId, deleted_at: null },
-      select: {
-        user: {
-          select: {
-            fullname: true,
-            classEnrollments: {
-              where: { ...elsewhere, deleted_at: null },
-              select: { class: classSchedule },
-            },
-            trn_class_collaborator: assistingElsewhere,
+    },
+  });
+  const participants = await client.trn_class_participants.findMany({
+    where: { classId, deleted_at: null },
+    select: {
+      user: {
+        select: {
+          fullname: true,
+          classEnrollments: {
+            where: { ...elsewhere, deleted_at: null },
+            select: { class: classSchedule },
           },
+          trn_class_collaborator: assistingElsewhere,
         },
       },
-    }),
-  ]);
+    },
+  });
 
   const commitments = [
     ...assistants.flatMap(({ user }) => [
