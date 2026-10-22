@@ -79,11 +79,15 @@ const readSubjectFields = async (
   };
 };
 
+const lockSubjects = (tx: Prisma.TransactionClient) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"subject:unique"}))`;
+
 const assertSubjectUnique = async (
+  tx: Prisma.TransactionClient,
   fields: { subject_code?: string; subject_name?: string },
   exceptId?: string
 ) => {
-  const others = await db.mst_subject.findMany({
+  const others = await tx.mst_subject.findMany({
     where: {
       deleted_at: null,
       ...(exceptId && { id: { not: exceptId } }),
@@ -119,11 +123,17 @@ export const SAddSubject = async (
 
   const { lecturerName, ...fields } = await readSubjectFields(body);
 
-  await assertSubjectUnique(fields);
+  const subject = await db.$transaction(
+    async (tx) => {
+      await lockSubjects(tx);
+      await assertSubjectUnique(tx, fields);
 
-  const subject = await db.mst_subject.create({
-    data: { ...fields, created_by: req.user.id },
-  });
+      return tx.mst_subject.create({
+        data: { ...fields, created_by: req.user!.id },
+      });
+    },
+    { maxWait: 10000, timeout: 20000 }
+  );
 
   publishRealtimeEvent("subject", {
     subject_id: subject.id,
@@ -241,25 +251,32 @@ export const SUpdateSubject = async (
   )
     return { status: true, message: "Tidak ada perubahan pada mata kuliah" };
 
-  await assertSubjectUnique(
-    {
-      subject_code: isCodeChanged ? subject_code : undefined,
-      subject_name: isNameChanged ? subject_name : undefined,
-    },
-    id
-  );
+  await db.$transaction(
+    async (tx) => {
+      await lockSubjects(tx);
+      await assertSubjectUnique(
+        tx,
+        {
+          subject_code: isCodeChanged ? subject_code : undefined,
+          subject_name: isNameChanged ? subject_name : undefined,
+        },
+        id
+      );
 
-  await db.mst_subject.update({
-    where: { id },
-    data: {
-      subject_code,
-      subject_name,
-      semester,
-      lecturer_id,
-      updated_by: req.user.id,
-      updated_at: new Date(),
+      await tx.mst_subject.update({
+        where: { id },
+        data: {
+          subject_code,
+          subject_name,
+          semester,
+          lecturer_id,
+          updated_by: req.user!.id,
+          updated_at: new Date(),
+        },
+      });
     },
-  });
+    { maxWait: 10000, timeout: 20000 }
+  );
 
   const [classes, activations] = await Promise.all([
     db.mst_class.findMany({
