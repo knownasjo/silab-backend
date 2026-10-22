@@ -794,6 +794,26 @@ laboran (tabel `mst_session`, menu web Master Data → Jam Sesi).
   di sesi itu dalam satu transaksi dan mengirim event `session` serta `class`.
 - Sesi yang dipakai kelas tidak bisa dihapus (409 "... dipakai n kelas.
   Nonaktifkan saja ..."); sesi nonaktif tidak muncul di pilihan kelas baru.
+- Kelas yang sudah dihapus tidak dihitung (23 Oktober 2026), sama seperti
+  jumlah kelas di `GET /session`.
+  - Sesi yang semua kelasnya sudah dihapus bisa dihapus. Relasi
+    `mst_class.sessionId` memakai `ON DELETE SET NULL`, jadi kelas terhapus itu
+    kehilangan sesinya, tetapi `startAt`/`endAt`-nya tetap tersimpan.
+  - Mengubah jam sesi hanya mengubah jam kelas yang masih ada, dan pesannya
+    hanya menghitung kelas itu.
+  - Dulu kelas terhapus ikut dihitung. Akibatnya web menulis "0 kelas" dengan
+    tombol Hapus, tetapi server menolak "dipakai 1 kelas", dan pesan ubah jam
+    menulis "jam 2 kelas ikut berubah" untuk sesi berisi 1 kelas.
+- **Simpan bersamaan** (23 Oktober 2026): `POST /session` dan
+  `PUT /session/:id` memeriksa nomor dan jam lalu menyimpan di satu transaksi
+  yang dikunci per periode dan kelompok hari
+  (`pg_advisory_xact_lock` dengan kunci `session:<periodId>:<day_group>`,
+  `lockSessions` di `src/services/session.service.ts`).
+  - `PUT` membaca ulang sesi setelah mendapat kunci, jadi nilai yang tidak
+    dikirim diambil dari data terbaru.
+  - Dulu permintaan bersamaan sama-sama lolos pemeriksaan. Nomor yang sama
+    berakhir 500 "Terjadi kesalahan pada server." dari unique index, dan jam
+    yang bertabrakan sama-sama tersimpan, sehingga dua sesi tumpang tindih.
 - `GET /session` hanya memberi jumlah kelas per sesi. Daftar kelasnya diambil
   dari `GET /class`, yang kini berisi `sessionId`, supaya aturan akses kelas
   tetap di satu tempat (`GET /session` bisa dibaca semua peran).
@@ -1201,7 +1221,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 452/452 cek lulus dari 19 tes, 576 detik
+Total: 477/477 cek lulus dari 20 tes, 553 detik
 Data uji sudah bersih.
 ```
 
@@ -1225,6 +1245,7 @@ Data uji sudah bersih.
 | `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
+| `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan: 4 sesi Jumat bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 25 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1237,8 +1258,8 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–29, web 51–69, 71, dan
-  72, uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
+- Setiap file tes punya blok 2 angka sendiri (API 11–30, web 51–69 dan 71–73,
+  uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
   dengan jadwal kelas asli.

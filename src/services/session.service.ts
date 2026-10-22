@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { mst_session, SessionDayGroup } from "@prisma/client";
+import { mst_session, Prisma, SessionDayGroup } from "@prisma/client";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
   ISessionRequestBody,
@@ -53,7 +53,15 @@ const readTimes = (startAt: string, endAt: string) => {
   return { startAt, endAt };
 };
 
+const lockSessions = (
+  tx: Prisma.TransactionClient,
+  periodId: string,
+  dayGroup: SessionDayGroup
+) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`session:${periodId}:${dayGroup}`}))`;
+
 const assertNoConflict = async (
+  tx: Prisma.TransactionClient,
   periodId: string,
   dayGroup: SessionDayGroup,
   number: number,
@@ -61,7 +69,7 @@ const assertNoConflict = async (
   endAt: string,
   exceptId?: string
 ) => {
-  const others = await db.mst_session.findMany({
+  const others = await tx.mst_session.findMany({
     where: {
       periodId,
       day_group: dayGroup,
@@ -153,25 +161,33 @@ export const SAddSession = async (
 
   const period = await getActivePeriod();
 
-  await assertNoConflict(
-    period.id,
-    dayGroup as SessionDayGroup,
-    number,
-    startAt,
-    endAt
-  );
+  const session = await db.$transaction(
+    async (tx) => {
+      await lockSessions(tx, period.id, dayGroup as SessionDayGroup);
 
-  const session = await db.mst_session.create({
-    data: {
-      periodId: period.id,
-      day_group: dayGroup as SessionDayGroup,
-      number,
-      startAt,
-      endAt,
-      created_by: req.user!.id,
+      await assertNoConflict(
+        tx,
+        period.id,
+        dayGroup as SessionDayGroup,
+        number,
+        startAt,
+        endAt
+      );
+
+      return tx.mst_session.create({
+        data: {
+          periodId: period.id,
+          day_group: dayGroup as SessionDayGroup,
+          number,
+          startAt,
+          endAt,
+          created_by: req.user!.id,
+        },
+        include: { _count: { select: { classes: true } } },
+      });
     },
-    include: { _count: { select: { classes: true } } },
-  });
+    { maxWait: 10000, timeout: 20000 }
+  );
 
   publishRealtimeEvent("session", { session_id: session.id });
 
@@ -187,66 +203,79 @@ export const SUpdateSession = async (
 ): Promise<IBaseResponse<ISessionResponseBody>> => {
   assertLaboran(req);
 
-  const session = await db.mst_session.findUnique({
-    where: { id: req.params.id.toString() },
-  });
+  const id = req.params.id.toString();
+  const found = await db.mst_session.findUnique({ where: { id } });
 
-  if (!session) throw new NotFoundError("Sesi tidak ditemukan!");
+  if (!found) throw new NotFoundError("Sesi tidak ditemukan!");
 
-  await assertPeriodActive(session.periodId);
+  await assertPeriodActive(found.periodId);
 
   const body: ISessionRequestBody = req.body ?? {};
-  const number =
-    body.number === undefined ? session.number : readNumber(body.number);
-  const { startAt, endAt } = readTimes(
-    body.startAt === undefined ? session.startAt : readText(body.startAt),
-    body.endAt === undefined ? session.endAt : readText(body.endAt)
-  );
 
-  if (body.is_active !== undefined && typeof body.is_active !== "boolean")
-    throw new BadRequestError("Status aktif harus berupa true atau false!");
+  const { updated, classes, timesChanged } = await db.$transaction(
+    async (tx) => {
+      await lockSessions(tx, found.periodId, found.day_group);
 
-  const isActive = body.is_active ?? session.is_active;
-  const timesChanged = startAt !== session.startAt || endAt !== session.endAt;
+      const session = await tx.mst_session.findUnique({ where: { id } });
 
-  await assertNoConflict(
-    session.periodId,
-    session.day_group,
-    number,
-    startAt,
-    endAt,
-    session.id
-  );
+      if (!session) throw new NotFoundError("Sesi tidak ditemukan!");
 
-  const classes = timesChanged
-    ? await db.mst_class.findMany({
-        where: { sessionId: session.id },
-        select: { id: true },
-      })
-    : [];
+      const number =
+        body.number === undefined ? session.number : readNumber(body.number);
+      const { startAt, endAt } = readTimes(
+        body.startAt === undefined ? session.startAt : readText(body.startAt),
+        body.endAt === undefined ? session.endAt : readText(body.endAt)
+      );
 
-  const [updated] = await db.$transaction([
-    db.mst_session.update({
-      where: { id: session.id },
-      data: {
+      if (body.is_active !== undefined && typeof body.is_active !== "boolean")
+        throw new BadRequestError("Status aktif harus berupa true atau false!");
+
+      const timesChanged =
+        startAt !== session.startAt || endAt !== session.endAt;
+
+      await assertNoConflict(
+        tx,
+        session.periodId,
+        session.day_group,
         number,
         startAt,
         endAt,
-        is_active: isActive,
-        updated_by: req.user!.id,
-        updated_at: new Date(),
-      },
-      include: {
-        _count: { select: { classes: { where: { deleted_at: null } } } },
-      },
-    }),
-    db.mst_class.updateMany({
-      where: { id: { in: classes.map((item) => item.id) } },
-      data: { startAt, endAt },
-    }),
-  ]);
+        session.id
+      );
 
-  publishRealtimeEvent("session", { session_id: session.id });
+      const classes = timesChanged
+        ? await tx.mst_class.findMany({
+            where: { sessionId: session.id, deleted_at: null },
+            select: { id: true },
+          })
+        : [];
+
+      const updated = await tx.mst_session.update({
+        where: { id: session.id },
+        data: {
+          number,
+          startAt,
+          endAt,
+          is_active: body.is_active ?? session.is_active,
+          updated_by: req.user!.id,
+          updated_at: new Date(),
+        },
+        include: {
+          _count: { select: { classes: { where: { deleted_at: null } } } },
+        },
+      });
+
+      await tx.mst_class.updateMany({
+        where: { id: { in: classes.map((item) => item.id) } },
+        data: { startAt, endAt },
+      });
+
+      return { updated, classes, timesChanged };
+    },
+    { maxWait: 10000, timeout: 20000 }
+  );
+
+  publishRealtimeEvent("session", { session_id: updated.id });
   classes.forEach((item) =>
     publishRealtimeEvent("class", { class_id: item.id })
   );
@@ -265,7 +294,9 @@ export const SDeleteSession = async (req: Request): Promise<IBaseResponse> => {
 
   const session = await db.mst_session.findUnique({
     where: { id: req.params.id.toString() },
-    include: { _count: { select: { classes: true } } },
+    include: {
+      _count: { select: { classes: { where: { deleted_at: null } } } },
+    },
   });
 
   if (!session) throw new NotFoundError("Sesi tidak ditemukan!");
