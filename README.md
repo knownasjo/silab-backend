@@ -1084,6 +1084,12 @@ diabaikan, lalu menurut waktu dibuat bila judulnya sama. Sebelumnya diurutkan
 menurut waktu dibuat saja. Urutan ini dipakai dropdown dan kolom rekap di web
 (naik); aplikasi mobile membaliknya, jadi di sana nomor terbesar di atas.
 
+Mahasiswa di setiap pertemuan (tampilan laboran, asisten, dan dosen)
+diurutkan menurut NIM sejak 22 Oktober 2026
+(`orderBy: { user: { nim: "asc" } }` pada peserta kelas). Sebelumnya
+urutannya mengikuti urutan masuk kelas, sehingga daftar presensi di detail
+kelas web berbeda urutan dengan Rekap Presensi yang urut NIM.
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Password baru tidak boleh mengandung spasi** (sejak 1 Oktober 2026), baik
@@ -1187,7 +1193,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 424/424 cek lulus dari 17 tes, 536 detik
+Total: 428/428 cek lulus dari 18 tes, 512 detik
 Data uji sudah bersih.
 ```
 
@@ -1210,6 +1216,7 @@ Data uji sudah bersih.
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 40 |
 | `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
+| `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -1221,7 +1228,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–27, web 51–67, uji
+- Setiap file tes punya blok 2 angka sendiri (API 11–28, web 51–69, uji
   beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan

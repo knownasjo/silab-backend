@@ -282,6 +282,7 @@ export const SGetAllClassMeeting = async (
             classId: isClassExist.id,
             deleted_at: null,
           },
+          orderBy: { user: { nim: "asc" } },
           include: {
             user: {
               select: {
