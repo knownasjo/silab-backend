@@ -78,14 +78,66 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
     403,
     "Hanya laboran yang dapat memulai semester baru!"
   );
+  expect(
+    "tanpa semester tujuan: ditolak",
+    await call("POST", "/period", { token: laboran }),
+    400,
+    "Tahun ajaran harus seperti 2026/2027!"
+  );
+  expect(
+    "semester tujuan bukan Ganjil atau Genap: ditolak",
+    await call(
+      "POST",
+      "/period",
+      as(laboran, { year: nextOf(old).year, term: "PENDEK" })
+    ),
+    400,
+    "Semester harus GANJIL atau GENAP!"
+  );
+  const skipped = nextOf(nextOf(old));
+  expect(
+    "melompati satu semester: ditolak",
+    await call("POST", "/period", as(laboran, skipped)),
+    400,
+    `Semester berikutnya adalah ${nextName}, bukan ${label(skipped)}!`
+  );
+  expect(
+    "semester yang sedang aktif: ditolak",
+    await call(
+      "POST",
+      "/period",
+      as(laboran, { year: old.year, term: old.term })
+    ),
+    409,
+    `Semester ${oldName} sudah dimulai.`
+  );
+  const testPeriods = () =>
+    db.mst_academic_period.count({ where: { createdBy: data.laboran.id } });
+  check("  belum ada periode baru", (await testPeriods()) === 0);
 
   section("Mulai semester baru");
-  const started = await call("POST", "/period", { token: laboran });
+  const [first, second] = await Promise.all([
+    call("POST", "/period", as(laboran, nextOf(old))),
+    call("POST", "/period", as(laboran, nextOf(old))),
+  ]);
+  const [started, repeated] =
+    second.code === 201 ? [second, first] : [first, second];
   expect(
     `laboran memulai ${nextName}`,
     started,
     201,
     `Semester ${nextName} dimulai; 1 sesi presensi yang masih terbuka di ${oldName} ditutup`
+  );
+  expect(
+    "  permintaan yang sama pada saat bersamaan ditolak",
+    repeated,
+    409,
+    `Semester ${nextName} sudah dimulai.`
+  );
+  check(
+    "  hanya satu periode baru, tidak ada semester terlewat",
+    (await testPeriods()) === 1,
+    `${await testPeriods()} periode baru`
   );
   const periods = (await call("GET", "/period", { token: laboran })).json.data;
   check(

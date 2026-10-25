@@ -1,4 +1,4 @@
-import { AcademicTerm } from "@prisma/client";
+import { AcademicTerm, mst_academic_period, Prisma } from "@prisma/client";
 import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
@@ -9,6 +9,7 @@ import {
 import db from "../prisma/client.prisma";
 import {
   BadRequestError,
+  ConflictError,
   ForbiddenError,
 } from "../utils/HttpErrors/HttptErrors";
 import {
@@ -18,7 +19,9 @@ import {
 } from "../utils/PeriodRules/period.rules";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
 
-const readFirstPeriod = (body: IStartPeriodRequestBody) => {
+type PeriodName = Pick<mst_academic_period, "year" | "term">;
+
+const readTargetPeriod = (body: IStartPeriodRequestBody) => {
   const year = typeof body?.year === "string" ? body.year.trim() : "";
   const years = /^(\d{4})\/(\d{4})$/.exec(year);
 
@@ -31,13 +34,34 @@ const readFirstPeriod = (body: IStartPeriodRequestBody) => {
   return { year, term: body.term as AcademicTerm };
 };
 
-const nextPeriodOf = (period: { year: string; term: AcademicTerm }) => {
+const nextPeriodOf = (period: PeriodName) => {
   if (period.term === AcademicTerm.GANJIL)
     return { year: period.year, term: AcademicTerm.GENAP };
 
   const start = Number(period.year.split("/")[1]);
 
   return { year: `${start}/${start + 1}`, term: AcademicTerm.GANJIL };
+};
+
+const assertNextPeriod = async (
+  tx: Prisma.TransactionClient,
+  previous: PeriodName,
+  target: PeriodName
+) => {
+  const next = nextPeriodOf(previous);
+
+  if (next.year === target.year && next.term === target.term) return;
+
+  const started = await tx.mst_academic_period.findUnique({
+    where: { year_term: target },
+  });
+
+  if (started)
+    throw new ConflictError(`Semester ${periodLabel(target)} sudah dimulai.`);
+
+  throw new BadRequestError(
+    `Semester berikutnya adalah ${periodLabel(next)}, bukan ${periodLabel(target)}!`
+  );
 };
 
 export const SGetPeriods = async (): Promise<
@@ -76,16 +100,18 @@ export const SStartPeriod = async (
   if (req.user?.role !== "LABORAN")
     throw new ForbiddenError("Hanya laboran yang dapat memulai semester baru!");
 
+  const target = readTargetPeriod(req.body);
+
   const { previous, period, closedMeetings } = await db.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('academic-period'))`;
 
       const previous = await findActivePeriod(tx);
-      const next = previous
-        ? nextPeriodOf(previous)
-        : readFirstPeriod(req.body);
+
+      if (previous) await assertNextPeriod(tx, previous, target);
+
       const period = await tx.mst_academic_period.create({
-        data: { ...next, createdBy: req.user!.id },
+        data: { ...target, createdBy: req.user!.id },
       });
       const sessions = previous
         ? await tx.mst_session.findMany({ where: { periodId: previous.id } })

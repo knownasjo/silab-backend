@@ -1,14 +1,11 @@
 import { Request } from "express";
 import {
-  BadRequestError,
-  ConflictError,
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from "../utils/HttpErrors/HttptErrors";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
-  ICreateUserRequestBody,
   ICreateUserResponseBody,
   IGetUserResponseBody,
   IResetUserPasswordRequestBody,
@@ -20,6 +17,7 @@ import { UserRole } from "@prisma/client";
 import { passwordChangeTime } from "../helper/jwt.helper";
 import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
 import { assertNewPassword } from "../utils/PasswordRules/password.rules";
+import { createAccount } from "../utils/AccountRules/account.rules";
 
 export const SGetUser = async (
   req: Request,
@@ -72,60 +70,7 @@ export const SCreateUser = async (
   if (req.user?.role !== "LABORAN")
     throw new ForbiddenError("Hanya laboran yang dapat membuat akun!");
 
-  const body: Partial<ICreateUserRequestBody> = req.body ?? {};
-  const email = readText(body.email).toLowerCase();
-  const nim = readText(body.nim);
-  const fullname = readText(body.fullname).replace(/\s+/g, " ");
-  const password = typeof body.password === "string" ? body.password : "";
-  const role = readText(body.role).toUpperCase();
-  const roles: string[] = [UserRole.MAHASISWA, UserRole.LABORAN, UserRole.DOSEN];
-  const isStaff = role === UserRole.LABORAN || role === UserRole.DOSEN;
-
-  if (!roles.includes(role))
-    throw new BadRequestError(`Role harus salah satu dari ${roles.join(", ")}!`);
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    throw new BadRequestError("Format email tidak valid!");
-
-  if (isStaff && !/^\d{8}$/.test(nim))
-    throw new BadRequestError("NIY harus 8 angka!");
-
-  if (!isStaff && !/^\d{1,30}$/.test(nim))
-    throw new BadRequestError("NIM hanya boleh berisi angka!");
-
-  if (fullname.length < 3 || fullname.length > 100)
-    throw new BadRequestError("Nama lengkap harus 3 sampai 100 karakter!");
-
-  assertNewPassword(password);
-
-  const registeredUser = await db.mst_user.findFirst({
-    where: {
-      OR: [{ email: { equals: email, mode: "insensitive" } }, { nim }],
-    },
-    select: { email: true },
-  });
-
-  if (registeredUser)
-    throw new ConflictError(
-      registeredUser.email.toLowerCase() === email
-        ? "Email sudah terdaftar!"
-        : `${isStaff ? "NIY" : "NIM"} sudah terdaftar!`
-    );
-
-  const [, user] = await db.$transaction([
-    db.trn_registrations.deleteMany({
-      where: { OR: [{ email }, { nim }] },
-    }),
-    db.mst_user.create({
-      data: {
-        email,
-        nim,
-        fullname,
-        password: await bcrypt.hash(password, 10),
-        role: role as UserRole,
-      },
-    }),
-  ]);
+  const user = await createAccount(req.body ?? {});
 
   return {
     status: true,

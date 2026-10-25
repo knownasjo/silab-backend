@@ -1297,7 +1297,12 @@
 								"exec": [
 									"if (pm.response.code === 200) {",
 									"    const active = pm.response.json().data.find((period) => period.isActive);",
-									"    if (active) pm.collectionVariables.set(\"periodId\", active.id);",
+									"    if (active) {",
+									"        const end = Number(active.year.split(\"/\")[1]);",
+									"        pm.collectionVariables.set(\"periodId\", active.id);",
+									"        pm.collectionVariables.set(\"nextPeriodYear\", active.term === \"GANJIL\" ? active.year : `${end}/${end + 1}`);",
+									"        pm.collectionVariables.set(\"nextPeriodTerm\", active.term === \"GANJIL\" ? \"GENAP\" : \"GANJIL\");",
+									"    }",
 									"}"
 								]
 							}
@@ -1325,7 +1330,7 @@
 								"period"
 							]
 						},
-						"description": "Semua peran yang login. Urut dari yang terbaru: `[{ id, year, term, name, isActive, classes, activations }]`; `name` contohnya \"2026/2027 Ganjil\", `isActive` hanya benar untuk periode terbaru, `classes` dan `activations` adalah jumlah kelas dan pendaftaran mata kuliah di periode itu. ID periode aktif disimpan ke variabel `periodId`."
+						"description": "Semua peran yang login. Urut dari yang terbaru: `[{ id, year, term, name, isActive, classes, activations }]`; `name` contohnya \"2026/2027 Ganjil\", `isActive` hanya benar untuk periode terbaru, `classes` dan `activations` adalah jumlah kelas dan pendaftaran mata kuliah di periode itu. ID periode aktif disimpan ke variabel `periodId`. Semester sesudahnya disimpan ke `nextPeriodYear` dan `nextPeriodTerm` untuk \"Mulai Semester Baru\"."
 					},
 					"response": []
 				},
@@ -1346,7 +1351,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{}",
+							"raw": "{\n  \"year\": \"{{nextPeriodYear}}\",\n  \"term\": \"{{nextPeriodTerm}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1362,7 +1367,7 @@
 								"period"
 							]
 						},
-						"description": "**Hati-hati: mengganti semester untuk semua pengguna.** Hanya LABORAN (selain itu 403 \"Hanya laboran yang dapat memulai semester baru!\").\n\nMembuat periode berikutnya secara otomatis dan menyalin semua jam sesi semester lama ke semester baru (2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil); isi body diabaikan. Hanya bila belum ada periode sama sekali, body wajib berisi periode pertama: `{ \"year\": \"2026/2027\", \"term\": \"GANJIL\" }` (400 \"Tahun ajaran harus seperti 2026/2027!\" atau \"Semester harus GANJIL atau GENAP!\").\n\nSesi presensi yang masih terbuka di periode lama ditutup otomatis. Berhasil: 201 \"Semester 2026/2027 Genap dimulai\" (ditambah \"; n sesi presensi yang masih terbuka di … ditutup\" bila ada) `{ id, name, closedMeetings }` dan event `period` (`action: \"started\"`) ke semua. Setelah itu semua perubahan pada kelas, pertemuan, presensi, pembayaran, dan asisten di periode lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\" Tidak ada tombol batal; periode yang salah dibuat hanya bisa dihapus lewat skrip terminal."
+						"description": "**Hati-hati: mengganti semester untuk semua pengguna.** Hanya LABORAN (selain itu 403 \"Hanya laboran yang dapat memulai semester baru!\").\n\nMemulai semester yang disebut di body `{ year, term }` dan menyalin semua jam sesi semester lama ke semester baru. Jalankan \"Semua Periode\" dulu: request itu mengisi `nextPeriodYear` dan `nextPeriodTerm` dengan semester berikutnya (2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil). Hanya semester berikutnya yang diterima: 400 \"Semester berikutnya adalah …, bukan …!\" bila melompat, dan 409 \"Semester … sudah dimulai.\" bila semester itu sudah dimulai, misalnya karena request ini terkirim dua kali. Body kosong atau salah: 400 \"Tahun ajaran harus seperti 2026/2027!\" atau \"Semester harus GANJIL atau GENAP!\". Di database yang belum punya periode, isi body sendiri dengan periode pertama, misalnya `{ \"year\": \"2026/2027\", \"term\": \"GANJIL\" }`.\n\nSesi presensi yang masih terbuka di periode lama ditutup otomatis. Berhasil: 201 \"Semester 2026/2027 Genap dimulai\" (ditambah \"; n sesi presensi yang masih terbuka di … ditutup\" bila ada) `{ id, name, closedMeetings }` dan event `period` (`action: \"started\"`) ke semua. Setelah itu semua perubahan pada kelas, pertemuan, presensi, pembayaran, dan asisten di periode lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\" Tidak ada tombol batal; periode yang salah dibuat hanya bisa dihapus lewat skrip terminal."
 					},
 					"response": []
 				}
@@ -3237,6 +3242,18 @@
 			"value": "",
 			"type": "string",
 			"description": "Terisi otomatis oleh Semua Periode (periode aktif)"
+		},
+		{
+			"key": "nextPeriodYear",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Periode (tahun ajaran semester berikutnya)"
+		},
+		{
+			"key": "nextPeriodTerm",
+			"value": "",
+			"type": "string",
+			"description": "Terisi otomatis oleh Semua Periode (GANJIL atau GENAP semester berikutnya)"
 		},
 		{
 			"key": "deviceId",

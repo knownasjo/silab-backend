@@ -57,6 +57,29 @@ password hanya dicetak di terminal backend (`[SILAB] Kode verifikasi untuk ...`
 dan `[SILAB] Kode reset password untuk ...`); di `production` tanpa SMTP,
 permintaan kode ditolak dengan pesan "Layanan email belum dikonfigurasi!".
 
+## Pemakaian pertama (database baru)
+
+Hampir semua data praktikum melekat ke periode akademik. Urutannya:
+
+1. **Akun laboran pertama:** `npm run buat-laboran` (lihat "Membuat akun
+   laboran lewat terminal"). Di aplikasi, akun hanya bisa dibuat oleh laboran.
+2. **Periode Akademik:** laboran login di web, buka Master Data → Periode
+   Akademik, lalu tekan "Mulai Periode Pertama". Isi tahun ajaran, pilih
+   Ganjil/Genap, lalu ketik MULAI.
+3. **Jam Sesi:** isi jam sesi per ruangan dan hari. Periode pertama mulai
+   kosong; semester berikutnya menyalinnya otomatis.
+4. **Akun dosen dan mata kuliah:** akun dosen dibuat lewat `POST /user` (lihat
+   Postman). Langkah ini boleh sebelum langkah 2, karena akun dan mata kuliah
+   tidak melekat ke periode.
+5. **Kelas:** lewat Tambah Praktikum.
+6. **Mahasiswa:** daftar akun dan mata kuliah di aplikasi HP. Laboran
+   mengonfirmasi pembayaran, lalu mahasiswa memilih kelas.
+
+Tanpa periode, daftar kelas, jam sesi, dan pendaftaran kosong. Semua aksi yang
+butuh periode dibalas 409 "Belum ada periode akademik. Laboran perlu memulai
+semester terlebih dahulu!". Web menampilkan petunjuk "Belum ada periode
+akademik" di Dashboard, Praktikum, Tambah Praktikum, Jam Sesi, dan Pembayaran.
+
 ## Sejarah proyek
 
 Tiga generasi kode:
@@ -283,7 +306,7 @@ kolomnya); di `mst_user` menjadi `meetingParticipants`, `announcements`,
 | GET | `/events` | login; stream SSE real-time |
 | GET | `/dashboard/dosen?periodId=` | DOSEN (angka dashboard, lihat "Akses dosen"; periode aktif kecuali `periodId` diisi) |
 | GET | `/period` | login (daftar periode akademik, lihat "Periode akademik") |
-| POST | `/period` | LABORAN (mulai semester baru) |
+| POST | `/period` | LABORAN (mulai semester baru; body `{ year, term }` wajib berisi semester berikutnya) |
 
 ### Koleksi Postman
 
@@ -309,6 +332,11 @@ balasan yang diharapkan. Import ke Postman, lalu:
    Jam Sesi" mengganti `sessionId` dengan sesi Senin SBTI aktif pertama.
 6. Folder **Kelas** menambah kelas A untuk mata kuliah baru, mengubahnya
    ("Ubah Kelas"), lalu menghapusnya ("Hapus Kelas").
+7. Folder **Periode Akademik**: "Semua Periode" mengisi `nextPeriodYear` dan
+   `nextPeriodTerm` dengan semester berikutnya, lalu "Mulai Semester Baru"
+   memakai keduanya. Request itu mengganti semester untuk semua pengguna. Bila
+   terkirim lagi tanpa menjalankan "Semua Periode", request itu dibalas 409
+   "Semester … sudah dimulai.".
 
 POST/PUT/DELETE mengubah data sungguhan. Akun mahasiswa hasil uji bisa dihapus
 dengan `npm run hapus-akun <NIM>`.
@@ -732,17 +760,38 @@ tertentu (`mst_announcement.periodId`) hanya berlaku di periode saat dibuat. Sem
   dua periode aktif. Periode hanya Ganjil dan Genap; tidak ada semester
   antara karena lab tidak membuka praktikum di semester pendek.
 - **`POST /period`** (hanya LABORAN, selain itu 403 "Hanya laboran yang dapat
-  memulai semester baru!") membuat periode berikutnya secara otomatis:
-  2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil. Laboran tidak mengetik
-  nama, jadi tidak bisa salah ketik atau melompati semester. Hanya bila belum
-  ada periode sama sekali (database baru), body wajib berisi periode pertama
-  `{ "year": "2026/2027", "term": "GANJIL" }`. Sesi presensi yang masih terbuka
-  di periode lama ditutup otomatis. Balasan 201 "Semester 2026/2027 Genap
-  dimulai" (ditambah "; n sesi presensi yang masih terbuka di … ditutup" bila
-  ada) `{ id, name, closedMeetings }`, lalu event `period`
-  (`action: "started"`) dikirim ke semua. Di transaksi yang sama, semua jam
-  sesi periode lama disalin ke periode baru (nomor, jam, dan status aktif
-  yang sama, id baru).
+  memulai semester baru!") memulai semester yang disebut di body, misalnya
+  `{ "year": "2026/2027", "term": "GENAP" }`, dan hanya menerima semester
+  berikutnya: 2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil.
+  - Melompat dibalas 400 "Semester berikutnya adalah 2026/2027 Genap, bukan
+    2027/2028 Ganjil!".
+  - Semester yang sudah dimulai dibalas 409 "Semester 2026/2027 Genap sudah
+    dimulai.".
+  - Body kosong atau salah dibalas 400 "Tahun ajaran harus seperti
+    2026/2027!" atau "Semester harus GANJIL atau GENAP!".
+  - Bila belum ada periode sama sekali (database baru), body berisi periode
+    pertama dan tidak dibandingkan dengan apa pun.
+
+  Sesi presensi yang masih terbuka di periode lama ditutup otomatis. Balasan
+  201 "Semester 2026/2027 Genap dimulai" (ditambah "; n sesi presensi yang
+  masih terbuka di … ditutup" bila ada) `{ id, name, closedMeetings }`, lalu
+  event `period` (`action: "started"`) dikirim ke semua. Di transaksi yang
+  sama, semua jam sesi periode lama disalin ke periode baru (nomor, jam, dan
+  status aktif yang sama, id baru).
+- **Semester tujuan wajib disebut sejak 25 Oktober 2026.** Dulu body diabaikan
+  dan server selalu memulai "semester sesudah yang aktif saat permintaan
+  tiba".
+  - Dua permintaan bersamaan (dua laboran, dua tab, atau Postman terkirim dua
+    kali) sama-sama berhasil. Saat diuji, periode aktif 2026/2027 Ganjil, lalu
+    terbentuk 2026/2027 Genap dan 2027/2028 Ganjil sekaligus.
+  - Dialog web yang sudah terbuka ikut berganti judul lewat event `period`,
+    sementara tulisan MULAI masih terisi. Satu klik melompati semester.
+
+  Sekarang semester tujuan diperiksa di dalam kunci `academic-period`
+  (`pg_advisory_xact_lock`), jadi permintaan kedua selalu dibalas 409. Web
+  mengirim semester yang tertulis di dialog saat dialog dibuka. Di Postman,
+  request "Semua Periode" mengisi `nextPeriodYear` dan `nextPeriodTerm` untuk
+  "Mulai Semester Baru".
 - **Periode lama hanya bisa dilihat.** Ubah dan hapus kelas, tambah/ubah/hapus
   pertemuan, buka dan tutup sesi presensi, QR, ubah dan hapus presensi, ubah
   pembayaran, pindah kelas, serta tambah dan hapus asisten di periode lama
@@ -1317,7 +1366,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 517/517 cek lulus dari 21 tes, 618 detik
+Total: 540/540 cek lulus dari 22 tes, 635 detik
 Data uji sudah bersih.
 ```
 
@@ -1337,7 +1386,8 @@ Data uji sudah bersih.
 | `kelas-bersamaan` | tambah dan ubah kelas bersamaan: 4 kelas bernama sama (3 kali), 4 kelas dari 2 mata kuliah di ruang dan jam yang sama (2 kali), dua kelas diganti ke nama yang sama, dua kelas dipindah ke ruang dan jam yang sama, kelas baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan nama atau ruang, tersimpan tepat satu, tanpa error server | 24 |
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
-| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup), semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 40 |
+| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup); semester tujuan wajib disebut: tanpa semester, Ganjil/Genap salah, melompat satu semester, dan semester yang sedang aktif ditolak; dua permintaan bersamaan untuk semester yang sama: satu 201, satu 409 "sudah dimulai", hanya satu periode baru; semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 47 |
+| `buat-laboran` | skrip `npm run buat-laboran`: akun LABORAN tersimpan dengan nama dan email dirapikan, password tidak tampil di layar, langsung bisa login; NIY bukan 8 angka, nama terlalu pendek, email salah, NIY atau email sudah terdaftar, password pendek atau berspasi, ulangan password berbeda, dan jawaban selain `ya` membatalkan tanpa membuat akun | 16 |
 | `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
@@ -1355,7 +1405,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–31, web 51–69 dan 71–73,
+- Setiap file tes punya blok 2 angka sendiri (API 11–32, web 51–69 dan 71–74,
   uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
@@ -1626,6 +1676,42 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
   langsung di sana. Script ini tidak menambah hak baru, hanya memastikan
   caranya aman: di-hash, sesi lama diakhiri, dan ada konfirmasi.
 - Kode: `src/scripts/change-password.ts`.
+
+### Membuat akun laboran lewat terminal
+
+Akun laboran dan dosen biasanya dibuat laboran lewat `POST /user`. Di database
+baru belum ada laboran, jadi akun laboran pertama dibuat dari terminal oleh
+pengelola server yang memegang folder backend dan `.env`.
+
+```bash
+npm run buat-laboran
+```
+
+```
+Membuat akun LABORAN baru.
+NIY (8 angka): 60010003
+Nama lengkap: Budi Santoso
+Email: budi@uad.ac.id
+Password baru: ********
+Ulangi password baru: ********
+Buat akun laboran Budi Santoso (NIY 60010003, budi@uad.ac.id)? (ya/tidak): ya
+Akun laboran Budi Santoso berhasil dibuat. Login di web dengan NIY 60010003.
+```
+
+- **Aturannya sama persis dengan `POST /user`**, karena keduanya memakai
+  `src/utils/AccountRules/account.rules.ts`:
+  - NIY 8 angka;
+  - nama 3–100 karakter, spasi berlebih dirapikan;
+  - format email benar;
+  - email dan NIY belum terdaftar;
+  - password minimal 8 karakter tanpa spasi.
+- NIY, nama, dan email diperiksa sebelum password diminta. Pesan error sama
+  dengan API, ditambah "Dibatalkan, akun tidak dibuat.".
+- Password diketik saat diminta dan tampil sebagai bintang, sama seperti
+  `npm run ganti-password`. Jawaban selain `ya` membatalkan.
+- Skrip ini bisa dipakai kapan saja, tidak hanya untuk laboran pertama.
+- Kode: `src/scripts/create-laboran.ts`. Tanya jawab terminalnya dipakai
+  bersama dengan `ganti-password` di `src/scripts/terminal-input.ts`.
 
 ## Batasan yang disadari (untuk bab batasan skripsi)
 

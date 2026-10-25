@@ -10,6 +10,7 @@
     "hapus-akun": "ts-node src/scripts/delete-student.ts",
     "hapus-periode": "ts-node src/scripts/delete-period.ts",
     "ganti-password": "ts-node src/scripts/change-password.ts",
+    "buat-laboran": "ts-node src/scripts/create-laboran.ts",
     "test": "node tests/jalankan.mjs",
     "uji-beban": "node tests/beban/uji-beban.mjs"
   },
