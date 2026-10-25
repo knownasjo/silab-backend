@@ -31,7 +31,7 @@ const ANNOUNCEMENT_INCLUDE = {
   period: true,
   subjects: {
     include: {
-      subject: { select: { id: true, subject_name: true, subject_code: true } },
+      subject: { select: { id: true, subjectName: true, subjectCode: true } },
     },
   },
 } satisfies Prisma.mst_announcementInclude;
@@ -47,12 +47,12 @@ const toResponse = (
   title: data.title,
   body: data.body,
   author: data.announcementAuthor.fullname,
-  created_at: data.createdAt.toISOString(),
+  createdAt: data.createdAt.toISOString(),
   type: data.type as AnnouncementTypeEnum,
-  for_all: data.for_all,
+  forAll: data.forAll,
   subjects: data.subjects
     .map(({ subject }) => subject)
-    .sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
+    .sort((a, b) => a.subjectName.localeCompare(b.subjectName)),
   period: data.period ? periodLabel(data.period) : null,
 });
 
@@ -63,11 +63,11 @@ const visibleTo = async (
 
   const period = await findActivePeriod();
 
-  if (!period) return { for_all: true };
+  if (!period) return { forAll: true };
 
   return {
     OR: [
-      { for_all: true },
+      { forAll: true },
       {
         periodId: period.id,
         subjects: {
@@ -79,16 +79,16 @@ const visibleTo = async (
                     some: {
                       userId: user.id,
                       periodId: period.id,
-                      deleted_at: null,
+                      deletedAt: null,
                     },
                   },
                 },
                 {
-                  mst_class: {
+                  classes: {
                     some: {
                       periodId: period.id,
-                      deleted_at: null,
-                      trn_class_collaborator: {
+                      deletedAt: null,
+                      collaborators: {
                         some: { userId: user.id, deletedAt: null },
                       },
                     },
@@ -125,7 +125,7 @@ const readTargetSubjects = async (
     );
 
   const found = await db.mst_subject.count({
-    where: { id: { in: ids }, deleted_at: null },
+    where: { id: { in: ids }, deletedAt: null },
   });
 
   if (found !== ids.length)
@@ -178,7 +178,7 @@ export const SAddAnnouncement = async (
           title: cleanTitle,
           body: cleanBody,
           author: user.id,
-          for_all: subjectIds.length === 0,
+          forAll: subjectIds.length === 0,
           periodId: period?.id ?? null,
           subjects: {
             create: subjectIds.map((subjectId) => ({ subjectId })),
@@ -188,7 +188,7 @@ export const SAddAnnouncement = async (
       .catch(rethrowIfSubjectDeleted);
 
     publishRealtimeEvent("announcement", {
-      announcement_id: announcement.id,
+      announcementId: announcement.id,
       action: "created",
     });
 
@@ -207,7 +207,7 @@ export const SGetAllAnnouncements = async (
   try {
     const announcementData = await db.mst_announcement.findMany({
       where: {
-        deleted_at: null,
+        deletedAt: null,
         ...(await visibleTo(req.user)),
       },
       include: ANNOUNCEMENT_INCLUDE,
@@ -232,7 +232,7 @@ export const SGetAnnouncementById = async (
     const data = await db.mst_announcement.findFirst({
       where: {
         id,
-        deleted_at: null,
+        deletedAt: null,
         ...(await visibleTo(req.user)),
       },
       include: ANNOUNCEMENT_INCLUDE,
@@ -288,14 +288,14 @@ export const SUpdateAnnouncement = async (
     const announcement = await db.mst_announcement.findFirst({
       where: {
         id,
-        deleted_at: null,
+        deletedAt: null,
       },
       include: { subjects: { select: { subjectId: true } } },
     });
 
     if (!announcement) throw new NotFoundError("Pengumuman tidak ditemukan!");
 
-    const currentIds = announcement.for_all
+    const currentIds = announcement.forAll
       ? []
       : announcement.subjects.map(({ subjectId }) => subjectId);
     const targetIds =
@@ -322,8 +322,8 @@ export const SUpdateAnnouncement = async (
           type: type,
           title: cleanTitle,
           body: cleanBody,
-          updated_at: new Date(),
-          for_all: targetIds.length === 0,
+          updatedAt: new Date(),
+          forAll: targetIds.length === 0,
           periodId,
           subjects: {
             deleteMany: {},
@@ -334,7 +334,7 @@ export const SUpdateAnnouncement = async (
       .catch(rethrowIfSubjectDeleted);
 
     publishRealtimeEvent("announcement", {
-      announcement_id: id,
+      announcementId: id,
       action: "updated",
     });
 
@@ -360,7 +360,7 @@ export const SDeleteAnnouncement = async (
     const announcement = await db.mst_announcement.findFirst({
       where: {
         id,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -369,12 +369,12 @@ export const SDeleteAnnouncement = async (
     await db.mst_announcement.update({
       where: { id },
       data: {
-        deleted_at: new Date(),
+        deletedAt: new Date(),
       },
     });
 
     publishRealtimeEvent("announcement", {
-      announcement_id: id,
+      announcementId: id,
       action: "deleted",
     });
 

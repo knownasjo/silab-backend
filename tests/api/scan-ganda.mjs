@@ -28,7 +28,7 @@ await runTest("Scan QR presensi bersamaan", data, async () => {
       `/subject/classes/${cls.id}/meetings/${meeting.id}/attendances`,
       {
         token: mahasiswa,
-        body: { token: qrToken, device_id: device },
+        body: { token: qrToken, deviceId: device },
       }
     );
 

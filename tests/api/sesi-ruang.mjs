@@ -51,7 +51,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
     db.mst_session.deleteMany({
       where: {
         periodId: data.period.id,
-        created_by: data.laboran.id,
+        createdBy: data.laboran.id,
         number: { lte: 20 },
       },
     });
@@ -148,12 +148,12 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
     ],
     [
       "hari lain berupa teks",
-      { room: "PSI", day: "THURSDAY", also_days: "MONDAY" },
+      { room: "PSI", day: "THURSDAY", alsoDays: "MONDAY" },
       "Hari lain harus berisi hari Senin sampai Jumat!",
     ],
     [
       "hari lain berisi Sabtu",
-      { room: "PSI", day: "THURSDAY", also_days: ["MONDAY", "SATURDAY"] },
+      { room: "PSI", day: "THURSDAY", alsoDays: ["MONDAY", "SATURDAY"] },
       "Hari lain harus berisi hari Senin sampai Jumat!",
     ],
   ])
@@ -172,7 +172,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
     number: n3,
     startAt: "22.30",
     endAt: "22.40",
-    also_days: ["MONDAY", "TUESDAY", "FRIDAY", "MONDAY"],
+    alsoDays: ["MONDAY", "TUESDAY", "FRIDAY", "MONDAY"],
   });
   const createdMany = await db.mst_session.findMany({
     where: { periodId: data.period.id, room: "PSI", number: n3 },
@@ -202,7 +202,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
       number: n5,
       startAt: "22.35",
       endAt: "22.45",
-      also_days: ["WEDNESDAY"],
+      alsoDays: ["WEDNESDAY"],
     }),
     409,
     `Jam sesi bertabrakan dengan Sesi ${n4} Rabu PSI (22.30–22.40)!`
@@ -218,7 +218,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
     number: n3,
     startAt: "22.45",
     endAt: "22.55",
-    also_days: ["MONDAY"],
+    alsoDays: ["MONDAY"],
   });
   const [mondayAfter, tuesdayAfter, fridayAfter] = await Promise.all(
     ["MONDAY", "TUESDAY", "FRIDAY"].map((day) => find("PSI", day, n3))
@@ -239,7 +239,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
     await update(tuesday, {
       startAt: "23.00",
       endAt: "23.10",
-      also_days: ["WEDNESDAY"],
+      alsoDays: ["WEDNESDAY"],
     }),
     404,
     `Sesi ${n3} Rabu PSI tidak ditemukan!`
@@ -260,7 +260,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
     await update(tuesday, {
       startAt: "22.50",
       endAt: "23.05",
-      also_days: ["FRIDAY", "MONDAY"],
+      alsoDays: ["FRIDAY", "MONDAY"],
     }),
     409,
     `Jam sesi bertabrakan dengan Sesi ${n6} Jumat PSI (23.00–23.10)!`
@@ -274,7 +274,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
   );
   const renumbered = await update(tuesday, {
     number: n5,
-    also_days: ["MONDAY", "FRIDAY"],
+    alsoDays: ["MONDAY", "FRIDAY"],
   });
   const afterRenumber = await db.mst_session.findMany({
     where: { periodId: data.period.id, room: "PSI", number: { in: [n3, n5] } },
@@ -394,7 +394,7 @@ await runTest("Jam sesi per ruangan dan per hari", data, async () => {
       middleAfter.endAt === "23.40",
     `${sessionAfter.startAt} ${middleAfter.startAt}-${middleAfter.endAt}`
   );
-  const toggled = await update(sbtiMiddle, { is_active: false });
+  const toggled = await update(sbtiMiddle, { isActive: false });
   check(
     "  menonaktifkan sesi yang jamnya tidak berubah: tanpa peringatan",
     toggled.code === 200 && JSON.stringify(toggled.json.warnings) === "[]",

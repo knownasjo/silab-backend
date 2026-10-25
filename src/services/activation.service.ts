@@ -40,7 +40,7 @@ const setPaymentStatus = async (
 ) => {
   const { count } = await tx.trn_activations.updateMany({
     where: { id },
-    data: { status, updated_at: new Date() },
+    data: { status, updatedAt: new Date() },
   });
 
   if (count === 0) throw new NotFoundError("Data aktivasi tidak ditemukan!");
@@ -67,8 +67,8 @@ export const SAddStudentActivation = async (
       throw new BadRequestError("Pilih minimal satu mata kuliah!");
 
     const subjects = await db.mst_subject.findMany({
-      where: { id: { in: subjectIds }, deleted_at: null },
-      select: { id: true, subject_name: true },
+      where: { id: { in: subjectIds }, deletedAt: null },
+      select: { id: true, subjectName: true },
     });
 
     if (subjects.length !== new Set(subjectIds).size)
@@ -89,7 +89,7 @@ export const SAddStudentActivation = async (
     if (existingActivations.length > 0) {
       const alreadyActivatedNames = subjects
         .filter((s) => existingActivations.some((a) => a.subjectId === s.id))
-        .map((s) => s.subject_name);
+        .map((s) => s.subjectName);
       throw new ConflictError(
         `Mata kuliah berikut sudah pernah didaftarkan: ${alreadyActivatedNames.join(", ")}`
       );
@@ -137,7 +137,7 @@ export const SGetAllActivations = async (
     if (!period) return { status: true, message: "Berhasil", data: [] };
 
     const whereCondition = {
-      deleted_at: null,
+      deletedAt: null,
       periodId: period.id,
       ...(user?.role === "MAHASISWA" && {
         userId: user.id,
@@ -165,7 +165,7 @@ export const SGetAllActivations = async (
         },
         subject: {
           select: {
-            subject_name: true,
+            subjectName: true,
             semester: true,
           },
         },
@@ -179,11 +179,11 @@ export const SGetAllActivations = async (
       where: {
         subjectId: { in: subjectIds },
         periodId: period.id,
-        deleted_at: null,
+        deletedAt: null,
       },
       include: {
         participants: {
-          where: { deleted_at: null },
+          where: { deletedAt: null },
           select: { userId: true },
         },
       },
@@ -204,27 +204,27 @@ export const SGetAllActivations = async (
             id: c.id,
             name: c.name,
             day: c.day,
-            session_time: `${c.startAt} - ${c.endAt}`,
+            sessionTime: `${c.startAt} - ${c.endAt}`,
             room: c.room,
             quota: c.quota,
-            registered_students: c.participants.length,
-            is_full: c.participants.length >= c.quota,
+            registeredStudents: c.participants.length,
+            isFull: c.participants.length >= c.quota,
           })
         );
 
         return {
           id: activation.id,
-          user_id: activation.userId,
+          userId: activation.userId,
           nim: activation.user.nim,
           student: activation.user.fullname,
           status: activation.status,
-          created_at: activation.createdAt.toISOString(),
-          subject_id: activation.subjectId,
+          createdAt: activation.createdAt.toISOString(),
+          subjectId: activation.subjectId,
           subjects: [activation.subject],
-          registered_class: enrolledClass
+          registeredClass: enrolledClass
             ? { id: enrolledClass.id, name: enrolledClass.name }
             : null,
-          available_classes: availableClasses,
+          availableClasses: availableClasses,
         };
       }
     );
@@ -315,7 +315,7 @@ export const SUpdateActivationPaymentStatus = async (
       );
 
       if (removedFrom)
-        publishRealtimeEvent("class", { class_id: removedFrom.classId });
+        publishRealtimeEvent("class", { classId: removedFrom.classId });
       publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
       return {
@@ -354,10 +354,10 @@ export const SUpdateActivationPaymentStatus = async (
           where: {
             id: classId,
             periodId: isActivationExist.periodId,
-            deleted_at: null,
+            deletedAt: null,
           },
           include: {
-            subject: { select: { subject_name: true } },
+            subject: { select: { subjectName: true } },
           },
         });
 
@@ -379,7 +379,7 @@ export const SUpdateActivationPaymentStatus = async (
           throw new ConflictError(
             enrollment.classId === classId
               ? "Mahasiswa sudah terdaftar di kelas ini!"
-              : `Mahasiswa sudah terdaftar di kelas ${enrollment.class.name} untuk ${enrollment.class.subject.subject_name}!`
+              : `Mahasiswa sudah terdaftar di kelas ${enrollment.class.name} untuk ${enrollment.class.subject.subjectName}!`
           );
 
         if (await findFullClass(tx, [classData]))
@@ -412,7 +412,7 @@ export const SUpdateActivationPaymentStatus = async (
       }
     );
 
-    publishRealtimeEvent("class", { class_id: classId });
+    publishRealtimeEvent("class", { classId: classId });
     publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
     return {
@@ -459,10 +459,10 @@ export const SUpdateStudentClass = async (
           where: {
             id: classId,
             periodId: activation.periodId,
-            deleted_at: null,
+            deletedAt: null,
           },
           include: {
-            subject: { select: { subject_name: true } },
+            subject: { select: { subjectName: true } },
           },
         });
 
@@ -477,7 +477,7 @@ export const SUpdateStudentClass = async (
         const currentEnrollment = await tx.trn_class_participants.findFirst({
           where: {
             userId: activation.userId,
-            deleted_at: null,
+            deletedAt: null,
             class: {
               subjectId: activation.subjectId,
               periodId: activation.periodId,
@@ -550,8 +550,8 @@ export const SUpdateStudentClass = async (
       }
     );
 
-    publishRealtimeEvent("class", { class_id: currentEnrollment.classId });
-    publishRealtimeEvent("class", { class_id: classId });
+    publishRealtimeEvent("class", { classId: currentEnrollment.classId });
+    publishRealtimeEvent("class", { classId: classId });
     publishRealtimeEvent("activation", {}, [activation.userId]);
 
     return {
@@ -581,7 +581,7 @@ export const SDeleteActivation = async (
       where: { id },
       include: {
         user: { select: { fullname: true } },
-        subject: { select: { subject_name: true } },
+        subject: { select: { subjectName: true } },
       },
     });
 
@@ -631,8 +631,8 @@ export const SDeleteActivation = async (
     return {
       status: true,
       message: isStudent
-        ? `Pendaftaran ${activation.subject.subject_name} dibatalkan.`
-        : `Pendaftaran ${activation.subject.subject_name} milik ${activation.user.fullname} dihapus.`,
+        ? `Pendaftaran ${activation.subject.subjectName} dibatalkan.`
+        : `Pendaftaran ${activation.subject.subjectName} milik ${activation.user.fullname} dihapus.`,
     };
   } catch (error) {
     throw error;

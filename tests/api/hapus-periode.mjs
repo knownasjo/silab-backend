@@ -32,7 +32,7 @@ const runScript = (args, input = "") =>
 await runTest("Skrip hapus-periode", data, async () => {
   const active = data.period;
   const oldPeriod = await db.mst_academic_period.create({
-    data: { ...OLD, created_by: data.laboran.id },
+    data: { ...OLD, createdBy: data.laboran.id },
   });
   const subject = await data.subject("Uji Hapus Periode");
   const [paid, unpaid, assistant] = await data.students(3);
@@ -58,7 +58,7 @@ await runTest("Skrip hapus-periode", data, async () => {
       title: "Uji Hapus Periode Untuk Mata Kuliah",
       body: "Hanya untuk mahasiswa mata kuliah ini.",
       author: data.laboran.id,
-      for_all: false,
+      forAll: false,
       periodId: oldPeriod.id,
       subjects: { create: [{ subjectId: subject.id }] },
     },
@@ -219,7 +219,7 @@ await runTest("Skrip hapus-periode", data, async () => {
 
   section("Semester yang terlanjur dimulai");
   const accidental = await db.mst_academic_period.create({
-    data: { ...nextOf(active), created_by: data.laboran.id },
+    data: { ...nextOf(active), createdBy: data.laboran.id },
   });
   const accidentalName = label(accidental);
   const extraClass = await data.classOf(subject, "B", "TUESDAY", 2, {

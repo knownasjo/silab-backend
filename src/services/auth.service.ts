@@ -133,7 +133,7 @@ export const SUserLogin = async (
 
     if (!isPassSame) throw new UnauthorizedError("NIM/NIY atau password salah!");
 
-    const deviceId = readDeviceId(body?.device_id);
+    const deviceId = readDeviceId(body?.deviceId);
 
     if (deviceId && userData.role === UserRole.MAHASISWA)
       await rememberDevice(userData.id, deviceId);
@@ -161,13 +161,13 @@ export const SRefreshAccessToken = async (
   const user = token
     ? await db.mst_user.findUnique({
         where: { id: token.id },
-        select: { id: true, password_changed_at: true },
+        select: { id: true, passwordChangedAt: true },
       })
     : null;
 
   if (
     !user ||
-    isIssuedBeforePasswordChange(token?.issuedAt, user.password_changed_at)
+    isIssuedBeforePasswordChange(token?.issuedAt, user.passwordChangedAt)
   )
     throw new UnauthorizedError("Sesi berakhir, silakan login kembali!");
 
@@ -209,7 +209,7 @@ export const SRegisterUser = async (
   const previous = await db.trn_registrations.findUnique({
     where: { email },
   });
-  const wait = previous && waitMessage(previous.sent_at);
+  const wait = previous && waitMessage(previous.sentAt);
 
   if (wait) throw new TooManyRequestsError(wait);
 
@@ -230,8 +230,8 @@ export const SRegisterUser = async (
         fullname,
         password: await bcrypt.hash(password, 10),
         code: hashVerificationCode(email, code),
-        sent_at: new Date(now),
-        expires_at: new Date(now + CODE_TTL_MS),
+        sentAt: new Date(now),
+        expiresAt: new Date(now + CODE_TTL_MS),
       },
     }),
   ]);
@@ -242,8 +242,8 @@ export const SRegisterUser = async (
     data: {
       email,
       nim,
-      expires_in: CODE_TTL_MS / 1000,
-      resend_in: RESEND_COOLDOWN_MS / 1000,
+      expiresIn: CODE_TTL_MS / 1000,
+      resendIn: RESEND_COOLDOWN_MS / 1000,
     },
   };
 };
@@ -264,7 +264,7 @@ export const SVerifyRegistration = async (
   if (!registration)
     throw new NotFoundError("Pendaftaran tidak ditemukan, silakan daftar ulang.");
 
-  if (registration.expires_at.getTime() < Date.now())
+  if (registration.expiresAt.getTime() < Date.now())
     throw new BadRequestError("Kode sudah kedaluwarsa, minta kode baru.");
 
   const { count } = await db.trn_registrations.updateMany({
@@ -324,7 +324,7 @@ export const SResendRegistrationCode = async (
   if (!registration)
     throw new NotFoundError("Pendaftaran tidak ditemukan, silakan daftar ulang.");
 
-  const wait = waitMessage(registration.sent_at);
+  const wait = waitMessage(registration.sentAt);
 
   if (wait) throw new TooManyRequestsError(wait);
 
@@ -339,8 +339,8 @@ export const SResendRegistrationCode = async (
     data: {
       code: hashVerificationCode(email, code),
       attempts: 0,
-      sent_at: new Date(now),
-      expires_at: new Date(now + CODE_TTL_MS),
+      sentAt: new Date(now),
+      expiresAt: new Date(now + CODE_TTL_MS),
     },
   });
 
@@ -350,8 +350,8 @@ export const SResendRegistrationCode = async (
     data: {
       email,
       nim: registration.nim,
-      expires_in: CODE_TTL_MS / 1000,
-      resend_in: RESEND_COOLDOWN_MS / 1000,
+      expiresIn: CODE_TTL_MS / 1000,
+      resendIn: RESEND_COOLDOWN_MS / 1000,
     },
   };
 };
@@ -391,7 +391,7 @@ export const SForgotPassword = async (
   const previous = await db.trn_password_resets.findUnique({
     where: { userId: user.id },
   });
-  const wait = previous && waitMessage(previous.sent_at);
+  const wait = previous && waitMessage(previous.sentAt);
 
   if (wait) throw new TooManyRequestsError(wait);
 
@@ -404,8 +404,8 @@ export const SForgotPassword = async (
   const data = {
     code: hashVerificationCode(resetCodeKey(user.id), code),
     attempts: 0,
-    sent_at: new Date(now),
-    expires_at: new Date(now + CODE_TTL_MS),
+    sentAt: new Date(now),
+    expiresAt: new Date(now + CODE_TTL_MS),
   };
 
   await db.trn_password_resets.upsert({
@@ -419,8 +419,8 @@ export const SForgotPassword = async (
     message: `Kode reset password dikirim ke ${target}`,
     data: {
       email: target,
-      expires_in: CODE_TTL_MS / 1000,
-      resend_in: RESEND_COOLDOWN_MS / 1000,
+      expiresIn: CODE_TTL_MS / 1000,
+      resendIn: RESEND_COOLDOWN_MS / 1000,
     },
   };
 };
@@ -450,7 +450,7 @@ export const SResetPassword = async (
       "Permintaan reset password tidak ditemukan, minta kode baru."
     );
 
-  if (reset.expires_at.getTime() < Date.now())
+  if (reset.expiresAt.getTime() < Date.now())
     throw new BadRequestError("Kode sudah kedaluwarsa, minta kode baru.");
 
   const { count } = await db.trn_password_resets.updateMany({
@@ -478,7 +478,7 @@ export const SResetPassword = async (
       where: { id: reset.userId },
       data: {
         password: await bcrypt.hash(password, 10),
-        password_changed_at: passwordChangeTime(),
+        passwordChangedAt: passwordChangeTime(),
       },
     }),
     db.trn_password_resets.deleteMany({ where: { id: reset.id } }),
@@ -548,7 +548,7 @@ export const SChangePassword = async (
       where: { id: user.id },
       data: {
         password: await bcrypt.hash(password, 10),
-        password_changed_at: passwordChangeTime(),
+        passwordChangedAt: passwordChangeTime(),
       },
     }),
     db.trn_password_resets.deleteMany({ where: { userId: user.id } }),

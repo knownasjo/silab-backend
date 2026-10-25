@@ -190,6 +190,37 @@ Pendaftaran dihapus permanen, bukan *soft delete*. Event real-time
 
 Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 
+## Aturan penamaan
+
+Semua nama field memakai camelCase, di mana pun nama itu muncul:
+
+- kolom database dan field model Prisma, termasuk relasi: `subjectName`,
+  `isActive`, `createdAt`, `meetings`, `collaborators`;
+- body request, respons, dan query API: `alsoDays`, `isFull`, `submittedAt`,
+  `periodId`;
+- data event real-time: `classId`, `meetingId`.
+
+Yang tidak memakai camelCase: nama tabel dan model (awalan `mst_` untuk data
+induk dan `trn_` untuk transaksi, misalnya `mst_class` dan `trn_meetings`),
+nilai enum (`MONDAY`, `TIDAK_BIASA`), nama gabungan buatan Prisma
+(`meetingId_userId`), dan fungsi SQL bawaan (`pg_advisory_xact_lock`).
+
+Sampai 25 Oktober 2026 penamaannya campuran sejak kode awal: `subject_name` di
+samping `subjectId`, `createdAt` dan `updated_at` di tabel yang sama, `isFull`
+di satu respons dan `is_full` di respons lain. Hari itu 42 kolom, 4 index, dan
+3 foreign key diganti namanya di Supabase (`RENAME COLUMN`, `ALTER INDEX ...
+RENAME TO`, `RENAME CONSTRAINT`) dalam satu transaksi. Isi data tidak
+dipindah: checksum isi tiap tabel diperiksa sama sebelum transaksi disimpan,
+dan `prisma migrate diff` setelahnya kosong. Kode backend, web, dan HP diganti
+bersamaan, jadi APK yang dibuat sebelum tanggal itu tidak cocok lagi dengan
+server ini.
+
+Relasi Prisma yang tadinya memakai nama tabel ikut diganti: di `mst_class`
+menjadi `meetings` dan `collaborators`; di `mst_subject` menjadi `classes`,
+`creator`, dan `updater` (nama `createdBy`/`updatedBy` kini dipakai
+kolomnya); di `mst_user` menjadi `meetingParticipants`, `announcements`,
+`classCollaborators`, dan `passwordReset`.
+
 ## Daftar endpoint
 
 | Method | Path | Role |
@@ -205,7 +236,7 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/auth/me` | login (ganti nama sendiri, lihat "Profil dan ganti password") |
 | PUT | `/auth/me/password` | login (ganti password sendiri) |
 | POST | `/subject` | LABORAN (aturannya sama dengan ubah mata kuliah) |
-| GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu). Berisi `lecturer_id`, urut menurut waktu dibuat |
+| GET | `/subject` | login (DOSEN: hanya mata kuliah yang ia ampu). Berisi `lecturerId`, urut menurut waktu dibuat |
 | GET | `/subject/:id` | login (DOSEN: hanya mata kuliah yang ia ampu) |
 | PUT | `/subject/:id` | LABORAN (lihat "Tambah dan ubah mata kuliah") |
 | DELETE | `/subject/:id` | LABORAN; hanya mata kuliah tanpa kelas dan pendaftaran (lihat "Hapus mata kuliah") |
@@ -219,8 +250,8 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | DELETE | `/class/:id` | LABORAN (hanya kelas yang belum punya presensi) |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri, DOSEN hanya kelas mata kuliah yang ia ampu) |
 | GET | `/session?room=&day=&active=` | login (jam sesi; `room` = PSI/SBTI, `day` = hari, `active=true` = hanya yang aktif; nilai yang tidak dikenal 400) |
-| POST | `/session` | LABORAN (`also_days` membuat sesi yang sama di hari lain sekaligus) |
-| PUT | `/session/:id` | LABORAN (ubah jam, nomor, atau status aktif; `also_days` ikut mengubah hari lain; balasan berisi `warnings` bila jadwal jadi bentrok) |
+| POST | `/session` | LABORAN (`alsoDays` membuat sesi yang sama di hari lain sekaligus) |
+| PUT | `/session/:id` | LABORAN (ubah jam, nomor, atau status aktif; `alsoDays` ikut mengubah hari lain; balasan berisi `warnings` bila jadwal jadi bentrok) |
 | DELETE | `/session/:id` | LABORAN (hanya sesi yang belum dipakai kelas) |
 | POST | `/activation` | MAHASISWA |
 | GET | `/activation?status=&name=&periodId=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak. Hanya periode aktif; LABORAN boleh meminta periode lain |
@@ -287,7 +318,7 @@ dengan `npm run hapus-akun <NIM>`.
 ```
 POST /subject/classes/:classId/meetings/:meetingId/attendances
 Authorization: Bearer <token mahasiswa>
-Body: { "token": "S8Bxpm", "device_id": "<kode HP, 64 heksadesimal>" }
+Body: { "token": "S8Bxpm", "deviceId": "<kode HP, 64 heksadesimal>" }
 → 201
 ```
 
@@ -329,7 +360,7 @@ tidak hadir. Kodenya ada di `src/utils/QrToken/qr.token.ts`.
   unique `meetingId_userId` tidak ditangkap (uji 5 scan bersamaan: kode lama
   1 berhasil dan 4 error 500, kode baru 1 berhasil dan 4 dijawab 409).
 - `GET /meeting/:id/qr` hanya melayani sesi yang sedang dibuka dan
-  mengembalikan `{ token, period_seconds, expires_in_ms }`. Sisa waktu dihitung
+  mengembalikan `{ token, periodSeconds, expiresInMs }`. Sisa waktu dihitung
   server, jadi frontend tidak bergantung pada jam laptop.
 - Kolom `trn_meetings.token` masih diisi saat pertemuan dibuat (kolomnya
   wajib), tetapi **tidak lagi dipakai untuk validasi** dan tidak lagi dikirim
@@ -342,7 +373,7 @@ Tujuannya mencegah titip akun: mahasiswa yang hadir login dengan akun teman
 yang tidak hadir, lalu memindai QR untuknya dari HP yang sama. Aturannya ada di
 `src/utils/DeviceRules/device.rules.ts`.
 
-- **Kode HP.** Aplikasi mengirim `device_id` saat login dan saat scan: SHA-256
+- **Kode HP.** Aplikasi mengirim `deviceId` saat login dan saat scan: SHA-256
   dari Android ID (nanti dari kode yang disimpan di Keychain iPhone), 64
   karakter heksadesimal, lewat paket `flutter_udid`. Kode ini tetap sama
   walaupun aplikasi dihapus lalu dipasang ulang, dan baru berubah setelah reset
@@ -351,9 +382,9 @@ yang tidak hadir, lalu memindai QR untuknya dari HP yang sama. Aturannya ada di
 - **Satu kode HP hanya untuk satu akun per pertemuan.** Scan kedua dengan kode
   yang sama untuk akun lain dibalas 409 "HP ini sudah dipakai presensi akun lain
   di pertemuan ini." Aturan ini juga dijaga unique
-  `trn_meeting_participants(meetingId, device_id)`, jadi scan bersamaan dari
+  `trn_meeting_participants(meetingId, deviceId)`, jadi scan bersamaan dari
   satu HP pun hanya satu yang tercatat. Pertemuan lain tidak terpengaruh.
-- **Kode HP wajib saat scan.** Tanpa `device_id`, atau bila bukan 64 karakter
+- **Kode HP wajib saat scan.** Tanpa `deviceId`, atau bila bukan 64 karakter
   heksadesimal, balasannya 400 "Perbarui aplikasi SILAB ke versi terbaru untuk
   melakukan presensi." Pemeriksaan ini dilakukan setelah sesi, token QR, dan
   keanggotaan kelas, jadi pesan-pesan lama tetap sama. Saat login, kode HP
@@ -363,12 +394,12 @@ yang tidak hadir, lalu memindai QR untuknya dari HP yang sama. Aturannya ada di
   perintah `INSERT ... ON CONFLICT` sehingga login atau scan bersamaan tidak
   bentrok. HP baru dari scan baru dicatat setelah presensinya berhasil. HP pertama sebuah akun,
   baik saat login maupun saat scan pertama, menjadi perangkat biasanya
-  (`is_usual`). Presensi dicatat bersama kode HP dan `device_check`: `BIASA`
+  (`isUsual`). Presensi dicatat bersama kode HP dan `deviceCheck`: `BIASA`
   bila HP itu perangkat biasa akun tersebut, `TIDAK_BIASA` bila bukan. Akun
   yang sudah ada sebelum aturan ini menjadikan HP yang pertama dipakai login
   atau scan sesudahnya sebagai perangkat biasa.
 - **Dicek asisten.** `GET /meeting/:classId` untuk laboran, asisten, dan dosen
-  menyertakan `device_check` tiap mahasiswa (`null` bila belum presensi atau
+  menyertakan `deviceCheck` tiap mahasiswa (`null` bila belum presensi atau
   presensi manual); mahasiswa tidak menerimanya. Web menandai presensi
   `TIDAK_BIASA` dengan ⚠, lalu asisten memanggil nama mahasiswa itu dan
   menjawab lewat `PUT /meeting/:id/attendances/:userId/device` dengan
@@ -377,14 +408,14 @@ yang tidak hadir, lalu memindai QR untuknya dari HP yang sama. Aturannya ada di
     biasa akun tersebut, menggantikan yang lama (biasanya karena ganti HP).
   - **Tidak ada**: presensi diubah menjadi tidak hadir. Perangkat biasa tidak
     berubah.
-  - Keduanya mengubah `device_check` menjadi `SUDAH_DICEK`, jadi tanda ⚠
+  - Keduanya mengubah `deviceCheck` menjadi `SUDAH_DICEK`, jadi tanda ⚠
     hilang, dan mengirim event real-time `attendance`.
   - Hanya laboran atau asisten kelas itu di periode aktif; dosen hanya melihat.
     Presensi yang tidak bertanda `TIDAK_BIASA` dibalas 409 "Presensi ini tidak
     perlu dicek.", dan bila dua staf menekan bersamaan hanya yang pertama
     tersimpan, yang lain dibalas 409 "Presensi ini sudah dicek."
 - **Presensi manual** oleh laboran atau asisten tidak punya kode HP
-  (`device_id` kosong), jadi tidak terkena aturan ini. Ini jalan keluar bagi
+  (`deviceId` kosong), jadi tidak terkena aturan ini. Ini jalan keluar bagi
   mahasiswa yang jujur, misalnya HP-nya mati lalu meminjam HP teman yang sudah
   dipakai presensi.
 - Kode HP akun ikut terhapus bila akunnya dihapus (`ON DELETE CASCADE`).
@@ -401,10 +432,10 @@ dengan web; yang ditambahkan hanya data "milik saya":
 | Login, tolak akun non-mahasiswa | `POST /auth/login` lalu `GET /auth/me` (sekarang ikut mengirim `nim`) |
 | Tetap masuk setelah 15 menit | `POST /auth/refresh` |
 | Kelas terdaftar & jadwal | `GET /class/me` (baru) — jadwal dikelompokkan per hari di aplikasi |
-| Tab Classmates | `GET /class/:id/classmates` (baru) — hanya `name` dan `is_me`, urut nama; mahasiswa yang bukan peserta kelas ditolak 403 |
-| Status presensi per pertemuan | `GET /meeting/:classId` — untuk mahasiswa berisi `is_open`, `submitted_at`, `is_attended` miliknya sendiri, dan ditolak bila bukan peserta kelas |
+| Tab Classmates | `GET /class/:id/classmates` (baru) — hanya `name` dan `isMe`, urut nama; mahasiswa yang bukan peserta kelas ditolak 403 |
+| Status presensi per pertemuan | `GET /meeting/:classId` — untuk mahasiswa berisi `isOpen`, `submittedAt`, `isAttended` miliknya sendiri, dan ditolak bila bukan peserta kelas |
 | Daftar mata kuliah | `GET /subject` |
-| Daftar & status pembayaran | `POST /activation`, `GET /activation` (sekarang ikut mengirim `created_at`) |
+| Daftar & status pembayaran | `POST /activation`, `GET /activation` (sekarang ikut mengirim `createdAt`) |
 | Batalkan pendaftaran yang belum lunas | `DELETE /activation/:id` |
 | Pilih kelas | `GET /class/registration`, `POST /class/registration` |
 | Pengumuman | `GET /announcement`, `GET /announcement/:id` |
@@ -431,7 +462,7 @@ POST /auth/refresh   { "refreshToken": "..." }   ->   { "accessToken": "..." }
   (`JWT_SECRET` vs `JWT_REFRESH_SECRET`).
 - Refresh token **tidak diperpanjang**, jadi sesi berakhir paling lambat 1 hari
   setelah login.
-- **Sesi dicabut saat password diganti.** `mst_user.password_changed_at` diisi
+- **Sesi dicabut saat password diganti.** `mst_user.passwordChangedAt` diisi
   setiap kali password diganti (lewat Lupa password maupun oleh laboran).
   Token yang dibuat sebelum waktu itu ditolak: access token dibalas
   `jwt expired`, refresh token dibalas 401, dan aliran SSE milik akun itu
@@ -457,9 +488,9 @@ selalu `MAHASISWA`, dan akun baru dibuat setelah kode dari email dimasukkan.
 
 ```
 POST /auth/register         { email, fullname, password, confirmPassword }
-  -> 201 { email, nim, expires_in: 600, resend_in: 60 }
+  -> 201 { email, nim, expiresIn: 600, resendIn: 60 }
 POST /auth/register/verify  { email, code }   -> 201 { accessToken, refreshToken }
-POST /auth/register/resend  { email }         -> 200 { email, nim, expires_in, resend_in }
+POST /auth/register/resend  { email }         -> 200 { email, nim, expiresIn, resendIn }
 ```
 
 - Pendaftaran yang belum diverifikasi disimpan di `trn_registrations`, bukan
@@ -501,7 +532,7 @@ email akun.
 
 ```
 POST /auth/password/forgot  { email }
-  -> 200 { email, expires_in: 600, resend_in: 60 }
+  -> 200 { email, expiresIn: 600, resendIn: 60 }
 POST /auth/password/reset   { email, code, password, confirmPassword }
   -> 200 "Password berhasil diubah, silakan masuk."
 ```
@@ -580,14 +611,14 @@ yang sedang tampil setiap kali ada event, sehingga tidak perlu refresh.
 | Event | Isi | Dikirim saat | Penerima |
 |---|---|---|---|
 | `ready` | `{}` | stream baru tersambung | pembuka stream |
-| `announcement` | `announcement_id`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
-| `subject` | `subject_id` + `action` (`created`, `updated`, `deleted`) | mata kuliah ditambah, diubah, atau dihapus | semua |
-| `class` | `class_id` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus; `assistants` saat asisten ditambah atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
-| `activation` | `{}` (atau `class_id` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
-| `meeting` | `class_id`, `meeting_id` (+ `action`: `created`, `updated`, atau `deleted` saat pertemuan ditambah, diubah judulnya, atau dihapus) | pertemuan ditambah, diubah judulnya, atau dihapus, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
-| `attendance` | `class_id`, `meeting_id` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |
-| `session` | `session_id` | jam sesi ditambah, diubah, dinonaktifkan, atau dihapus | semua |
-| `period` | `period_id`, `action: "started"` | laboran memulai semester baru | semua; web dan HP sebaiknya memuat ulang semua data |
+| `announcement` | `announcementId`, `action` (`created`/`updated`/`deleted`) | pengumuman dibuat, diubah, dihapus | semua |
+| `subject` | `subjectId` + `action` (`created`, `updated`, `deleted`) | mata kuliah ditambah, diubah, atau dihapus | semua |
+| `class` | `classId` (+ `action`: `created`, `updated`, atau `deleted` saat kelas ditambah, diubah, atau dihapus; `assistants` saat asisten ditambah atau dihapus) | kelas ditambah, diubah, atau dihapus, peserta kelas berubah (pilih kelas, ditetapkan atau dipindah laboran), asisten ditambah atau dihapus, jam sesinya berubah | semua |
+| `activation` | `{}` (atau `classId` saat kelas diubah/dihapus) | mahasiswa mendaftar mata kuliah, status bayar diubah, kelas ditetapkan atau dipindah, mahasiswa memilih kelas, kelas yang diikuti atau dipegang diubah/dihapus | laboran/dosen, dan mahasiswa yang bersangkutan (peserta dan asisten kelas itu) |
+| `meeting` | `classId`, `meetingId` (+ `action`: `created`, `updated`, atau `deleted` saat pertemuan ditambah, diubah judulnya, atau dihapus) | pertemuan ditambah, diubah judulnya, atau dihapus, sesi presensi dibuka/ditutup | laboran/dosen, asisten dan peserta kelas itu |
+| `attendance` | `classId`, `meetingId` | presensi masuk lewat scan, diubah manual, atau dihapus | laboran/dosen, asisten kelas itu, dan mahasiswa yang presensinya berubah |
+| `session` | `sessionId` | jam sesi ditambah, diubah, dinonaktifkan, atau dihapus | semua |
+| `period` | `periodId`, `action: "started"` | laboran memulai semester baru | semua; web dan HP sebaiknya memuat ulang semua data |
 | `ping` | `{}` | setiap 25 detik | semua, untuk menjaga koneksi |
 
 - Event hanya memberi tahu **apa** yang berubah, bukan datanya. Klien memanggil
@@ -649,7 +680,7 @@ lagi dan `POST /user` tidak menerimanya. Seleksi asisten tetap di luar sistem.
 
 ### Akses dosen
 
-Dosen hanya **memantau** mata kuliah yang ia ampu (`mst_subject.lecturer_id`)
+Dosen hanya **memantau** mata kuliah yang ia ampu (`mst_subject.lecturerId`)
 dan tidak bisa mengubah data apa pun. Semua endpoint yang mengubah data tetap
 menolak dosen seperti sebelumnya.
 
@@ -668,21 +699,21 @@ menolak dosen seperti sebelumnya.
   untuk dosen!") menghitung angka dashboard dari kelas mata kuliah yang ia ampu:
 
   ```
-  { total_class, total_student, total_meeting,
-    total_attended, total_expected_attendance, attendance_rate }
+  { totalClass, totalStudent, totalMeeting,
+    totalAttended, totalExpectedAttendance, attendanceRate }
   ```
 
-  - `total_student`: peserta kelas, dihitung sekali walau ikut dua mata kuliah
+  - `totalStudent`: peserta kelas, dihitung sekali walau ikut dua mata kuliah
     dosen yang sama.
-  - `total_meeting`: semua pertemuan yang sudah dibuat (sama dengan kolom di
+  - `totalMeeting`: semua pertemuan yang sudah dibuat (sama dengan kolom di
     rekap presensi).
-  - `total_expected_attendance`: jumlah peserta × jumlah pertemuan per kelas,
-    dijumlahkan. `total_attended`: presensi berstatus hadir dari peserta kelas
+  - `totalExpectedAttendance`: jumlah peserta × jumlah pertemuan per kelas,
+    dijumlahkan. `totalAttended`: presensi berstatus hadir dari peserta kelas
     itu.
-  - `attendance_rate`: `total_attended / total_expected_attendance × 100`
+  - `attendanceRate`: `totalAttended / totalExpectedAttendance × 100`
     dibulatkan; `null` bila belum ada pertemuan atau peserta. "Belum presensi"
     dihitung tidak hadir, sama seperti kolom Hadir di rekap.
-  - Kelas dan pertemuan yang `deleted_at`-nya terisi tidak dihitung.
+  - Kelas dan pertemuan yang `deletedAt`-nya terisi tidak dihitung.
 - Dosen tetap menerima semua event real-time seperti laboran, sehingga
   dashboard dan halaman kelasnya ikut berubah tanpa refresh.
 
@@ -708,7 +739,7 @@ tertentu (`mst_announcement.periodId`) hanya berlaku di periode saat dibuat. Sem
   `{ "year": "2026/2027", "term": "GANJIL" }`. Sesi presensi yang masih terbuka
   di periode lama ditutup otomatis. Balasan 201 "Semester 2026/2027 Genap
   dimulai" (ditambah "; n sesi presensi yang masih terbuka di … ditutup" bila
-  ada) `{ id, name, closed_meetings }`, lalu event `period`
+  ada) `{ id, name, closedMeetings }`, lalu event `period`
   (`action: "started"`) dikirim ke semua. Di transaksi yang sama, semua jam
   sesi periode lama disalin ke periode baru (nomor, jam, dan status aktif
   yang sama, id baru).
@@ -736,7 +767,7 @@ tertentu (`mst_announcement.periodId`) hanya berlaku di periode saat dibuat. Sem
   periode lain lewat `?periodId=` di `GET /class`, `GET /activation`
   (laboran), dan `GET /dashboard/dosen`. Detail kelas (`GET /class/:id`) dari
   periode mana pun tetap bisa dibuka dan kini berisi
-  `period: { id, name, is_active }`, begitu juga daftar pertemuan dan
+  `period: { id, name, isActive }`, begitu juga daftar pertemuan dan
   presensinya.
 - **Jam sesi per semester.** Setiap periode punya salinan jam sesinya sendiri,
   dan kelas hanya boleh memakai jam sesi dari periodenya
@@ -758,7 +789,7 @@ tertentu (`mst_announcement.periodId`) hanya berlaku di periode saat dibuat. Sem
     sehingga halaman Jam Sesi di semester Genap masih menghitung kelas Ganjil
     ("2 kelas") dan daftar kelasnya tidak pernah selesai dimuat.
 - `GET /period` (semua yang login) mengembalikan periode dari yang terbaru:
-  `[{ id, year, term, name, is_active, classes, activations }]`.
+  `[{ id, year, term, name, isActive, classes, activations }]`.
 - Bila belum ada periode sama sekali, daftar kelas dan pendaftaran dibalas
   kosong, sedangkan tambah kelas dan daftar mata kuliah dibalas 409 "Belum ada
   periode akademik. Laboran perlu memulai semester terlebih dahulu!"
@@ -865,16 +896,16 @@ dengan Sesi 1 Selasa.
 - `GET /session` urut per ruangan, lalu hari Senin–Jumat, lalu jam mulai, dan
   bisa disaring `?room=PSI&day=MONDAY`. Nilai kosong (seperti di Postman)
   berarti tanpa saringan, sedangkan nilai yang tidak dikenal dibalas 400.
-- `POST /session { room, day, number, startAt, endAt, also_days? }`:
-  `also_days` berisi hari lain yang ikut dibuatkan sesi bernomor dan berjam
+- `POST /session { room, day, number, startAt, endAt, alsoDays? }`:
+  `alsoDays` berisi hari lain yang ikut dibuatkan sesi bernomor dan berjam
   sama, misalnya `["TUESDAY", "WEDNESDAY"]`. Semuanya tersimpan bersama atau
   tidak sama sekali. Bila satu hari bentrok, pesannya menyebut hari itu
   (409 "Jam sesi bertabrakan dengan Sesi 17 Rabu PSI (22.30–22.40)!").
   Balasan 201: "Sesi 7 PSI hari Senin, Selasa dan Rabu berhasil ditambahkan".
-- `PUT /session/:id { number?, startAt?, endAt?, is_active?, also_days? }`:
-  `also_days` berisi hari lain di ruangan yang sama yang punya nomor sesi ini.
+- `PUT /session/:id { number?, startAt?, endAt?, isActive?, alsoDays? }`:
+  `alsoDays` berisi hari lain di ruangan yang sama yang punya nomor sesi ini.
   Hari-hari itu ikut mendapat nomor dan jam yang sama dengan sesi ini (serta
-  `is_active` bila dikirim), juga semua atau tidak sama sekali. Hari yang
+  `isActive` bila dikirim), juga semua atau tidak sama sekali. Hari yang
   tidak punya nomor itu dibalas 404 "Sesi 18 Rabu PSI tidak ditemukan!".
 - Kunci simpan bersamaan per periode, ruangan, dan hari
   (`session:<periodId>:<room>:<day>`). Permintaan untuk beberapa hari
@@ -966,7 +997,7 @@ menghapus kelas!"):
   `{ participants, assistants, meetings }`, event `class`
   (`action: "deleted"`) ke semua dan `activation` ke peserta serta asisten.
 - `GET /class/:id` kini juga berisi `sessionId`, `meetings` (jumlah
-  pertemuan), dan `recorded_meetings` (pertemuan yang sudah berisi presensi),
+  pertemuan), dan `recordedMeetings` (pertemuan yang sudah berisi presensi),
   sehingga web bisa menampilkan dampak penghapusan sebelum laboran
   mengonfirmasi. Kelas yang tidak ada dibalas 404 "Kelas tidak ditemukan!"
   (sebelumnya "Class not found!").
@@ -981,22 +1012,22 @@ mengubahnya dari tombol "Ubah" di halaman Praktikum. Keduanya memakai aturan
 yang sama (`readSubjectFields` dan `assertSubjectUnique` di
 `src/services/subject.service.ts`).
 
-`POST /subject { subject_code, subject_name, semester, lecturer_id }` (hanya
+`POST /subject { subjectCode, subjectName, semester, lecturerId }` (hanya
 LABORAN, selain itu 403 "Hanya laboran yang dapat menambah mata kuliah!"):
 semua field wajib dan diperiksa dengan aturan di bawah. Hanya keempat field
 itu yang disimpan. Berhasil: 201 "Mata kuliah <nama> berhasil ditambahkan"
 `{ id }` dan event `subject` (`action: "created"`). Sebelumnya endpoint ini
 membalas dalam bahasa Inggris, menolak non-laboran dengan 401, membiarkan
-nama kembar, dan berakhir 500 bila `lecturer_id` salah.
+nama kembar, dan berakhir 500 bila `lecturerId` salah.
 
-`PUT /subject/:id { subject_code?, subject_name?, semester?, lecturer_id? }`
+`PUT /subject/:id { subjectCode?, subjectName?, semester?, lecturerId? }`
 (hanya LABORAN, selain itu 403 "Hanya laboran yang dapat mengubah mata
 kuliah!"):
 
 - Field yang tidak dikirim memakai nilai sekarang. Spasi berlebih dirapikan.
   Kode wajib diisi dan harus tepat 9 angka (400 "Kode mata kuliah harus 9
   angka!"), nama wajib diisi dan paling banyak 100 karakter, semester 1–8 (boleh dikirim sebagai angka), dan
-  `lecturer_id` harus akun berperan DOSEN (400 "Dosen pengampu harus akun
+  `lecturerId` harus akun berperan DOSEN (400 "Dosen pengampu harus akun
   dosen yang terdaftar!").
 - Kode dan nama tidak boleh sama dengan mata kuliah lain, tanpa membedakan
   huruf besar-kecil (409 "Kode X sudah dipakai mata kuliah Y!" atau "Nama X
@@ -1011,7 +1042,7 @@ kuliah!"):
   Oktober 2026). Yang kalah antre mendapat 409 kode atau nama kembar.
   Sebelumnya empat permintaan bersamaan dengan kode atau nama yang sama
   tersimpan semua, karena tidak ada constraint unik di database (kode dan
-  nama boleh dipakai lagi setelah mata kuliahnya dihapus, `deleted_at`).
+  nama boleh dipakai lagi setelah mata kuliahnya dihapus, `deletedAt`).
 - Berhasil: 200 "Mata kuliah <nama> berhasil diperbarui", ditambah "; dosen
   pengampu sekarang <nama>" bila dosen diganti. Event `subject`
   (`action: "updated"`) dan `class` untuk tiap kelasnya dikirim ke semua, dan
@@ -1022,9 +1053,9 @@ kuliah!"):
 untuk semua mata kuliah, jadi mengubah mata kuliah yang kodenya belum 9 angka
 ditolak sampai kodenya diganti. Kode contoh di data uji ("001", "002", "003",
 "005") sudah diganti menjadi 553310001, 553310002, 553310003, dan 553310005.
-`GET /class/:id` ikut mengirim `subject_code` untuk judul rekap PDF di web.
+`GET /class/:id` ikut mengirim `subjectCode` untuk judul rekap PDF di web.
 
-**Bila dosen pengampu diganti**, akses dosen mengikuti `lecturer_id` saat itu
+**Bila dosen pengampu diganti**, akses dosen mengikuti `lecturerId` saat itu
 juga, karena semua pemeriksaan akses dosen membaca kolom itu setiap kali
 (`src/utils/ClassAccess/class.access.ts`):
 
@@ -1043,7 +1074,7 @@ mahasiswa yang belum mendaftar justru yang perlu membacanya.
 
 Data:
 
-- `mst_announcement.for_all` (bawaan `true`, jadi semua pengumuman lama tetap
+- `mst_announcement.forAll` (bawaan `true`, jadi semua pengumuman lama tetap
   untuk semua) dan `mst_announcement.periodId` (hanya diisi untuk pengumuman
   mata kuliah).
 - Tabel `trn_announcement_subjects (announcementId, subjectId)` menyimpan mata
@@ -1066,8 +1097,8 @@ pengumuman untuk semua, ditambah pengumuman mata kuliah dari **periode aktif**
 yang mata kuliahnya ia daftarkan di periode aktif (Lunas maupun Belum Lunas)
 atau yang salah satu kelasnya ia pegang sebagai asisten. Pengumuman lain
 dibalas 404, termasuk lewat alamat langsung. Laboran dan dosen menerima semua.
-Setiap pengumuman kini membawa `for_all`, `subjects` (`id`, `subject_name`,
-`subject_code`), dan `period` (nama periode, atau `null`).
+Setiap pengumuman kini membawa `forAll`, `subjects` (`id`, `subjectName`,
+`subjectCode`), dan `period` (nama periode, atau `null`).
 
 - Aplikasi HP memuat ulang pengumuman saat event `activation` datang
   (mendaftar, batal, konfirmasi bayar) dan saat event `class` dengan
@@ -1153,7 +1184,7 @@ pertemuan" tanpa event. Pertemuan yang sudah punya presensi atau sesinya
 sedang dibuka tetap boleh diubah judulnya, karena presensinya tidak
 tersentuh. Berhasil: 200 "Pertemuan 2 berhasil diubah menjadi Responsi".
 
-`DELETE /meeting/:id` menghapus permanen (bukan `deleted_at`), dengan
+`DELETE /meeting/:id` menghapus permanen (bukan `deletedAt`), dengan
 penolakan:
 
 - 409 "Sesi presensi pertemuan ini sedang dibuka. Tutup sesinya dulu sebelum
@@ -1202,7 +1233,7 @@ kelas web berbeda urutan dengan Rekap Presensi yang urut NIM.
 - **Pindah kelas ditolak** bila mahasiswa sudah punya catatan presensi di kelas
   lama. Laboran harus menghapus presensinya dulu lewat
   `DELETE /meeting/:id/attendances/:userId`.
-- **Hapus pengumuman bersifat soft delete** — `deleted_at` diisi, baris tetap ada.
+- **Hapus pengumuman bersifat soft delete** — `deletedAt` diisi, baris tetap ada.
 - **Error tak terduga tidak lagi dibocorkan.** Error di luar kelas error
   aplikasi (misalnya error Prisma) dibalas 500 "Terjadi kesalahan pada
   server." dan detailnya dicetak di terminal backend. Sebelumnya pesan mentah
@@ -1286,7 +1317,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 517/517 cek lulus dari 21 tes, 600 detik
+Total: 517/517 cek lulus dari 21 tes, 618 detik
 Data uji sudah bersih.
 ```
 
@@ -1311,7 +1342,7 @@ Data uji sudah bersih.
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
 | `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan (Jumat SBTI): 4 sesi bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; 3 permintaan untuk Senin–Rabu sekaligus dengan urutan hari berbeda (3 kali), tepat satu berhasil tanpa deadlock; Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan, keduanya berhasil bergantian dan hasilnya sama di kedua hari; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 33 |
-| `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `also_days` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
+| `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `alsoDays` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1585,7 +1616,7 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 - Password diketik saat diminta dan tampil sebagai bintang, bukan ditulis di
   perintah, jadi tidak tersimpan di riwayat terminal. Minimal 8 karakter,
   tanpa spasi, dan harus diulang sama persis. Ctrl+C membatalkan tanpa mengubah apa pun.
-- Password disimpan sebagai hash bcrypt dan `password_changed_at` diisi,
+- Password disimpan sebagai hash bcrypt dan `passwordChangedAt` diisi,
   sama seperti `PUT /user/:niyAtauId/password`, jadi access token lama dibalas
   `jwt expired` dan refresh token lama 401. Karena script berjalan di luar
   proses server, koneksi SSE yang sedang terbuka tidak diputus saat itu juga;
@@ -1611,7 +1642,7 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
    aktivasi `@@unique([userId, subjectId, periodId])` berarti satu pendaftaran
    per mata kuliah per periode. Mendaftar ulang mata kuliah yang sama di
    periode yang sama tidak bisa.
-3. **Kolom `deleted_at` hampir tidak dipakai.** Hanya pengumuman yang
+3. **Kolom `deletedAt` hampir tidak dipakai.** Hanya pengumuman yang
    memakainya. Tabel lain punya kolomnya tapi tidak pernah diisi.
 4. **Pendaftaran yang dibatalkan tidak meninggalkan jejak.** Pendaftaran
    yang belum lunas dihapus permanen (lihat "Batal pendaftaran mata kuliah"),
@@ -1668,9 +1699,9 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
     database (bukan soft delete) dan tidak bisa dipulihkan. Kelas yang sudah
     punya presensi tidak bisa dihapus sama sekali, jadi kelas yang dibubarkan
     di tengah semester tetap tampil. Mengarsipkan kelas butuh pemeriksaan
-    `deleted_at` di semua query yang membaca kelas, pertemuan, dan presensi.
+    `deletedAt` di semua query yang membaca kelas, pertemuan, dan presensi.
 
-13. **Riwayat dosen pengampu tidak disimpan.** `mst_subject.lecturer_id` hanya
+13. **Riwayat dosen pengampu tidak disimpan.** `mst_subject.lecturerId` hanya
     menyimpan dosen saat ini. Bila dosen diganti di tengah semester, dosen
     baru melihat seluruh data sejak awal dan dosen lama kehilangan akses ke
     data saat ia mengampu, termasuk kelas di periode lama. Menyimpan riwayat

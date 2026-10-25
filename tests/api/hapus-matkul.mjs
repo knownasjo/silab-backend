@@ -62,7 +62,7 @@ await runTest("Hapus mata kuliah", data, async () => {
     events.some(
       (e) =>
         e.type === "subject" &&
-        e.subject_id === unused.id &&
+        e.subjectId === unused.id &&
         e.action === "deleted"
     ),
     JSON.stringify(events)
@@ -79,10 +79,10 @@ await runTest("Hapus mata kuliah", data, async () => {
     await call("POST", "/subject", {
       token: laboran,
       body: {
-        subject_code: unused.subject_code,
-        subject_name: unused.subject_name,
+        subjectCode: unused.subjectCode,
+        subjectName: unused.subjectName,
         semester: "3",
-        lecturer_id: data.lecturer.id,
+        lecturerId: data.lecturer.id,
       },
     }),
     201

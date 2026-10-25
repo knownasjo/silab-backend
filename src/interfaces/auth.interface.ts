@@ -8,7 +8,7 @@ export interface IJWTUserPayload {
 export interface IUserLoginRequestBody {
   nim: string;
   password: string;
-  device_id?: string;
+  deviceId?: string;
 }
 
 export interface IUserLoginResponseBody {
@@ -34,8 +34,8 @@ export interface IUserRegisterRequestBody {
 export interface IRegistrationResponseBody {
   email: string;
   nim: string;
-  expires_in: number;
-  resend_in: number;
+  expiresIn: number;
+  resendIn: number;
 }
 
 export interface IVerifyRegistrationRequestBody {
@@ -71,8 +71,8 @@ export interface IForgotPasswordRequestBody {
 
 export interface IPasswordResetCodeResponseBody {
   email: string;
-  expires_in: number;
-  resend_in: number;
+  expiresIn: number;
+  resendIn: number;
 }
 
 export interface IResetPasswordRequestBody {

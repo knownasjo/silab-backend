@@ -9,19 +9,19 @@ export interface IUpdateActivationRequestBody {
 
 export interface IGetActivationResponseBody {
   id: string;
-  user_id: string;
+  userId: string;
   nim: string;
   student: string;
   status: boolean;
-  created_at: string;
-  subject_id: string;
+  createdAt: string;
+  subjectId: string;
   subjects: IStudentActivationPaymentStatus[];
-  registered_class: IRegisteredClass | null;
-  available_classes: IAvailableClass[];
+  registeredClass: IRegisteredClass | null;
+  availableClasses: IAvailableClass[];
 }
 
 export interface IStudentActivationPaymentStatus {
-  subject_name: string;
+  subjectName: string;
   semester: string;
 }
 
@@ -34,9 +34,9 @@ export interface IAvailableClass {
   id: string;
   name: string;
   day: string;
-  session_time: string;
+  sessionTime: string;
   room: string;
   quota: number;
-  registered_students: number;
-  is_full: boolean;
+  registeredStudents: number;
+  isFull: boolean;
 }

@@ -25,42 +25,42 @@ const readText = (value: unknown) =>
 const sameText = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 interface ISubjectFields {
-  subject_code: string;
-  subject_name: string;
+  subjectCode: string;
+  subjectName: string;
   semester: string;
-  lecturer_id: string;
+  lecturerId: string;
 }
 
 const readSubjectFields = async (
   source: IUpdateSubjectRequestBody
 ): Promise<ISubjectFields & { lecturerName: string }> => {
-  const subject_code = readText(source?.subject_code);
-  const subject_name = readText(source?.subject_name);
+  const subjectCode = readText(source?.subjectCode);
+  const subjectName = readText(source?.subjectName);
   const semester = readText(
     typeof source?.semester === "number"
       ? String(source.semester)
       : source?.semester
   );
-  const lecturer_id = readText(source?.lecturer_id);
+  const lecturerId = readText(source?.lecturerId);
 
-  if (!subject_code)
+  if (!subjectCode)
     throw new BadRequestError("Kode mata kuliah wajib diisi!");
 
-  if (!/^\d{9}$/.test(subject_code))
+  if (!/^\d{9}$/.test(subjectCode))
     throw new BadRequestError("Kode mata kuliah harus 9 angka!");
 
-  if (!subject_name)
+  if (!subjectName)
     throw new BadRequestError("Nama mata kuliah wajib diisi!");
 
-  if (subject_name.length > 100)
+  if (subjectName.length > 100)
     throw new BadRequestError("Nama mata kuliah paling banyak 100 karakter!");
 
   if (!/^[1-8]$/.test(semester))
     throw new BadRequestError("Semester harus angka 1 sampai 8!");
 
-  const lecturer = lecturer_id
+  const lecturer = lecturerId
     ? await db.mst_user.findFirst({
-        where: { id: lecturer_id, role: "DOSEN" },
+        where: { id: lecturerId, role: "DOSEN" },
         select: { fullname: true },
       })
     : null;
@@ -71,10 +71,10 @@ const readSubjectFields = async (
     );
 
   return {
-    subject_code,
-    subject_name,
+    subjectCode,
+    subjectName,
     semester,
-    lecturer_id,
+    lecturerId,
     lecturerName: lecturer.fullname,
   };
 };
@@ -84,33 +84,33 @@ const lockSubjects = (tx: Prisma.TransactionClient) =>
 
 const assertSubjectUnique = async (
   tx: Prisma.TransactionClient,
-  fields: { subject_code?: string; subject_name?: string },
+  fields: { subjectCode?: string; subjectName?: string },
   exceptId?: string
 ) => {
   const others = await tx.mst_subject.findMany({
     where: {
-      deleted_at: null,
+      deletedAt: null,
       ...(exceptId && { id: { not: exceptId } }),
     },
-    select: { subject_code: true, subject_name: true },
+    select: { subjectCode: true, subjectName: true },
   });
 
-  const sameCode = fields.subject_code
-    ? others.find((other) => sameText(other.subject_code, fields.subject_code!))
+  const sameCode = fields.subjectCode
+    ? others.find((other) => sameText(other.subjectCode, fields.subjectCode!))
     : undefined;
 
   if (sameCode)
     throw new ConflictError(
-      `Kode ${fields.subject_code} sudah dipakai mata kuliah ${sameCode.subject_name}!`
+      `Kode ${fields.subjectCode} sudah dipakai mata kuliah ${sameCode.subjectName}!`
     );
 
-  const sameName = fields.subject_name
-    ? others.find((other) => sameText(other.subject_name, fields.subject_name!))
+  const sameName = fields.subjectName
+    ? others.find((other) => sameText(other.subjectName, fields.subjectName!))
     : undefined;
 
   if (sameName)
     throw new ConflictError(
-      `Nama ${fields.subject_name} sudah dipakai mata kuliah berkode ${sameName.subject_code}!`
+      `Nama ${fields.subjectName} sudah dipakai mata kuliah berkode ${sameName.subjectCode}!`
     );
 };
 
@@ -129,20 +129,20 @@ export const SAddSubject = async (
       await assertSubjectUnique(tx, fields);
 
       return tx.mst_subject.create({
-        data: { ...fields, created_by: req.user!.id },
+        data: { ...fields, createdBy: req.user!.id },
       });
     },
     { maxWait: 10000, timeout: 20000 }
   );
 
   publishRealtimeEvent("subject", {
-    subject_id: subject.id,
+    subjectId: subject.id,
     action: "created",
   });
 
   return {
     status: true,
-    message: `Mata kuliah ${fields.subject_name} berhasil ditambahkan`,
+    message: `Mata kuliah ${fields.subjectName} berhasil ditambahkan`,
     data: { id: subject.id },
   };
 };
@@ -153,21 +153,21 @@ export const SGetSubject = async (
   try {
     const subjects = await db.mst_subject.findMany({
       where: {
-        deleted_at: null,
+        deletedAt: null,
         ...lecturerSubjectScope(req.user),
       },
       include: {
         lecturer: true,
       },
-      orderBy: [{ created_at: "asc" }, { id: "asc" }],
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
 
     const data: IGetAllSubjectsResponseBody[] = subjects.map((subject) => ({
       id: subject.id,
-      subject_code: subject.subject_code,
-      subject_name: subject.subject_name,
+      subjectCode: subject.subjectCode,
+      subjectName: subject.subjectName,
       semester: subject.semester,
-      lecturer_id: subject.lecturer_id,
+      lecturerId: subject.lecturerId,
       lecturer: subject.lecturer.fullname,
     }));
 
@@ -189,7 +189,7 @@ export const SGetSubjectById = async (
     const subjectData = await db.mst_subject.findUnique({
       where: {
         id,
-        deleted_at: null,
+        deletedAt: null,
       },
       include: {
         lecturer: true,
@@ -198,17 +198,17 @@ export const SGetSubjectById = async (
 
     if (!subjectData) throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
-    assertLecturerOfSubject(req.user, subjectData.lecturer_id);
+    assertLecturerOfSubject(req.user, subjectData.lecturerId);
 
     return {
       status: true,
       message: "Berhasil",
       data: {
         id: subjectData.id,
-        subject_code: subjectData.subject_code,
-        subject_name: subjectData.subject_name,
+        subjectCode: subjectData.subjectCode,
+        subjectName: subjectData.subjectName,
         semester: subjectData.semester,
-        lecturer_id: subjectData.lecturer_id,
+        lecturerId: subjectData.lecturerId,
         lecturer: subjectData.lecturer.fullname,
       },
     };
@@ -226,22 +226,22 @@ export const SUpdateSubject = async (
     throw new ForbiddenError("Hanya laboran yang dapat mengubah mata kuliah!");
 
   const current = await db.mst_subject.findFirst({
-    where: { id, deleted_at: null },
+    where: { id, deletedAt: null },
   });
 
   if (!current) throw new NotFoundError("Mata kuliah tidak ditemukan!");
 
   const { lecturerName, ...fields } = await readSubjectFields({
-    subject_code: body?.subject_code ?? current.subject_code,
-    subject_name: body?.subject_name ?? current.subject_name,
+    subjectCode: body?.subjectCode ?? current.subjectCode,
+    subjectName: body?.subjectName ?? current.subjectName,
     semester: body?.semester ?? current.semester,
-    lecturer_id: body?.lecturer_id ?? current.lecturer_id,
+    lecturerId: body?.lecturerId ?? current.lecturerId,
   });
-  const { subject_code, subject_name, semester, lecturer_id } = fields;
+  const { subjectCode, subjectName, semester, lecturerId } = fields;
 
-  const isCodeChanged = subject_code !== current.subject_code;
-  const isNameChanged = subject_name !== current.subject_name;
-  const isLecturerChanged = lecturer_id !== current.lecturer_id;
+  const isCodeChanged = subjectCode !== current.subjectCode;
+  const isNameChanged = subjectName !== current.subjectName;
+  const isLecturerChanged = lecturerId !== current.lecturerId;
 
   if (
     !isCodeChanged &&
@@ -257,8 +257,8 @@ export const SUpdateSubject = async (
       await assertSubjectUnique(
         tx,
         {
-          subject_code: isCodeChanged ? subject_code : undefined,
-          subject_name: isNameChanged ? subject_name : undefined,
+          subjectCode: isCodeChanged ? subjectCode : undefined,
+          subjectName: isNameChanged ? subjectName : undefined,
         },
         id
       );
@@ -266,12 +266,12 @@ export const SUpdateSubject = async (
       await tx.mst_subject.update({
         where: { id },
         data: {
-          subject_code,
-          subject_name,
+          subjectCode,
+          subjectName,
           semester,
-          lecturer_id,
-          updated_by: req.user!.id,
-          updated_at: new Date(),
+          lecturerId,
+          updatedBy: req.user!.id,
+          updatedAt: new Date(),
         },
       });
     },
@@ -280,31 +280,31 @@ export const SUpdateSubject = async (
 
   const [classes, activations] = await Promise.all([
     db.mst_class.findMany({
-      where: { subjectId: id, deleted_at: null },
+      where: { subjectId: id, deletedAt: null },
       select: { id: true },
     }),
     db.trn_activations.findMany({
-      where: { subjectId: id, deleted_at: null },
+      where: { subjectId: id, deletedAt: null },
       select: { userId: true },
     }),
   ]);
 
-  publishRealtimeEvent("subject", { subject_id: id, action: "updated" });
+  publishRealtimeEvent("subject", { subjectId: id, action: "updated" });
   classes.forEach((subjectClass) =>
-    publishRealtimeEvent("class", { class_id: subjectClass.id })
+    publishRealtimeEvent("class", { classId: subjectClass.id })
   );
   if (activations.length > 0)
     publishRealtimeEvent(
       "activation",
-      { subject_id: id },
+      { subjectId: id },
       activations.map((activation) => activation.userId)
     );
 
   return {
     status: true,
     message: isLecturerChanged
-      ? `Mata kuliah ${subject_name} berhasil diperbarui; dosen pengampu sekarang ${lecturerName}`
-      : `Mata kuliah ${subject_name} berhasil diperbarui`,
+      ? `Mata kuliah ${subjectName} berhasil diperbarui; dosen pengampu sekarang ${lecturerName}`
+      : `Mata kuliah ${subjectName} berhasil diperbarui`,
   };
 };
 
@@ -316,7 +316,7 @@ export const SDeleteSubject = async (
     throw new ForbiddenError("Hanya laboran yang dapat menghapus mata kuliah!");
 
   const subject = await db.mst_subject.findFirst({
-    where: { id, deleted_at: null },
+    where: { id, deletedAt: null },
   });
 
   if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
@@ -326,7 +326,7 @@ export const SDeleteSubject = async (
       db.mst_class.count({ where: { subjectId: id } }),
       db.trn_activations.count({ where: { subjectId: id } }),
       db.trn_announcement_subjects.count({
-        where: { subjectId: id, announcement: { deleted_at: null } },
+        where: { subjectId: id, announcement: { deletedAt: null } },
       }),
     ]);
     const parts = [
@@ -340,7 +340,7 @@ export const SDeleteSubject = async (
         : parts.join(" dan ");
 
     return used
-      ? `${subject.subject_name} sudah punya ${used}, jadi tidak bisa dihapus.`
+      ? `${subject.subjectName} sudah punya ${used}, jadi tidak bisa dihapus.`
       : null;
   };
 
@@ -357,7 +357,7 @@ export const SDeleteSubject = async (
     )
       throw new ConflictError(
         (await usedMessage()) ??
-          `${subject.subject_name} baru saja dipakai, jadi tidak bisa dihapus.`
+          `${subject.subjectName} baru saja dipakai, jadi tidak bisa dihapus.`
       );
 
     if (
@@ -369,10 +369,10 @@ export const SDeleteSubject = async (
     throw error;
   }
 
-  publishRealtimeEvent("subject", { subject_id: id, action: "deleted" });
+  publishRealtimeEvent("subject", { subjectId: id, action: "deleted" });
 
   return {
     status: true,
-    message: `Mata kuliah ${subject.subject_name} berhasil dihapus`,
+    message: `Mata kuliah ${subject.subjectName} berhasil dihapus`,
   };
 };

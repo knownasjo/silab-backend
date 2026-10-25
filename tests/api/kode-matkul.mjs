@@ -18,19 +18,19 @@ await runTest("Kode mata kuliah 9 angka", data, async () => {
   const laboran = (await login(data.laboran, data.password)).token;
   const lecturer = (await login(data.lecturer, data.password)).token;
   const base = {
-    subject_name: NAME,
+    subjectName: NAME,
     semester: "2",
-    lecturer_id: data.lecturer.id,
+    lecturerId: data.lecturer.id,
   };
-  const add = (subject_code) =>
+  const add = (subjectCode) =>
     call("POST", "/subject", {
       token: laboran,
-      body: { ...base, subject_code },
+      body: { ...base, subjectCode },
     });
   const update = (id, body) =>
     call("PUT", `/subject/${id}`, { token: laboran, body });
   const countOwn = () =>
-    db.mst_subject.count({ where: { created_by: data.laboran.id } });
+    db.mst_subject.count({ where: { createdBy: data.laboran.id } });
 
   section("Tambah mata kuliah");
   const before = await countOwn();
@@ -51,9 +51,9 @@ await runTest("Kode mata kuliah 9 angka", data, async () => {
   );
   expect(
     "kode yang sudah dipakai: ditolak dengan nama pemakainya",
-    await add(existing.subject_code),
+    await add(existing.subjectCode),
     409,
-    `Kode ${existing.subject_code} sudah dipakai mata kuliah Uji Kode Lama!`
+    `Kode ${existing.subjectCode} sudah dipakai mata kuliah Uji Kode Lama!`
   );
   check(
     "  tidak ada mata kuliah yang tersimpan dari penolakan",
@@ -71,38 +71,38 @@ await runTest("Kode mata kuliah 9 angka", data, async () => {
   const stored = await db.mst_subject.findUnique({ where: { id } });
   check(
     "  kode tersimpan tanpa spasi",
-    stored?.subject_code === code,
-    stored?.subject_code
+    stored?.subjectCode === code,
+    stored?.subjectCode
   );
 
   section("Ubah mata kuliah");
   expect(
     "kode 8 angka: ditolak",
-    await update(id, { subject_code: code.slice(1) }),
+    await update(id, { subjectCode: code.slice(1) }),
     400,
     MUST_BE_9
   );
   expect(
     "kode baru 9 angka: diterima",
-    await update(id, { subject_code: data.nextCode() }),
+    await update(id, { subjectCode: data.nextCode() }),
     200,
     `Mata kuliah ${NAME} berhasil diperbarui`
   );
   await db.mst_subject.update({
     where: { id },
-    data: { subject_code: "PM01" },
+    data: { subjectCode: "PM01" },
   });
   expect(
     "kode lama belum 9 angka: ubah nama saja ditolak",
-    await update(id, { subject_name: `${NAME} Baru` }),
+    await update(id, { subjectName: `${NAME} Baru` }),
     400,
     MUST_BE_9
   );
   expect(
     "kode lama diganti 9 angka bersamaan dengan nama: diterima",
     await update(id, {
-      subject_code: data.nextCode(),
-      subject_name: `${NAME} Baru`,
+      subjectCode: data.nextCode(),
+      subjectName: `${NAME} Baru`,
     }),
     200
   );
@@ -110,11 +110,11 @@ await runTest("Kode mata kuliah 9 angka", data, async () => {
   section("Kode ikut tampil");
   const subjects =
     (await call("GET", "/subject", { token: laboran })).json.data ?? [];
-  const odd = subjects.filter((s) => !/^\d{9}$/.test(s.subject_code));
+  const odd = subjects.filter((s) => !/^\d{9}$/.test(s.subjectCode));
   check(
     "semua mata kuliah di database berkode 9 angka",
     subjects.length > 0 && odd.length === 0,
-    JSON.stringify(odd.map((s) => `${s.subject_name}: ${s.subject_code}`))
+    JSON.stringify(odd.map((s) => `${s.subjectName}: ${s.subjectCode}`))
   );
   for (const [label, token] of [
     ["laboran", laboran],
@@ -123,8 +123,8 @@ await runTest("Kode mata kuliah 9 angka", data, async () => {
     const detail = await call("GET", `/class/${cls.id}`, { token });
     check(
       `detail kelas membawa kode mata kuliah (${label})`,
-      detail.json.data?.subject_code === existing.subject_code,
-      JSON.stringify(detail.json.data?.subject_code)
+      detail.json.data?.subjectCode === existing.subjectCode,
+      JSON.stringify(detail.json.data?.subjectCode)
     );
   }
 });

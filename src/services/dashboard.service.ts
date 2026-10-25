@@ -17,14 +17,14 @@ export const SGetLecturerDashboard = async (
 
   const classes = await db.mst_class.findMany({
     where: {
-      deleted_at: null,
+      deletedAt: null,
       periodId: period?.id ?? "",
-      subject: { lecturer_id: user.id },
+      subject: { lecturerId: user.id },
     },
     select: {
-      participants: { where: { deleted_at: null }, select: { userId: true } },
-      trn_meetings: {
-        where: { deleted_at: null },
+      participants: { where: { deletedAt: null }, select: { userId: true } },
+      meetings: {
+        where: { deletedAt: null },
         select: {
           participants: { where: { status: true }, select: { userId: true } },
         },
@@ -43,9 +43,9 @@ export const SGetLecturerDashboard = async (
     );
 
     studentIds.forEach((studentId) => students.add(studentId));
-    totalMeeting += classData.trn_meetings.length;
-    totalExpected += studentIds.size * classData.trn_meetings.length;
-    classData.trn_meetings.forEach((meeting) => {
+    totalMeeting += classData.meetings.length;
+    totalExpected += studentIds.size * classData.meetings.length;
+    classData.meetings.forEach((meeting) => {
       totalAttended += meeting.participants.filter((participant) =>
         studentIds.has(participant.userId)
       ).length;
@@ -56,12 +56,12 @@ export const SGetLecturerDashboard = async (
     status: true,
     message: "Berhasil",
     data: {
-      total_class: classes.length,
-      total_student: students.size,
-      total_meeting: totalMeeting,
-      total_attended: totalAttended,
-      total_expected_attendance: totalExpected,
-      attendance_rate: totalExpected
+      totalClass: classes.length,
+      totalStudent: students.size,
+      totalMeeting: totalMeeting,
+      totalAttended: totalAttended,
+      totalExpectedAttendance: totalExpected,
+      attendanceRate: totalExpected
         ? Math.round((totalAttended / totalExpected) * 100)
         : null,
     },

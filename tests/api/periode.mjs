@@ -21,9 +21,9 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
   const realOpenMeetings = await db.trn_meetings.count({
     where: {
       status: true,
-      deleted_at: null,
+      deletedAt: null,
       class: {
-        subject: { subject_code: { not: { startsWith: TEST_CODE_PREFIX } } },
+        subject: { subjectCode: { not: { startsWith: TEST_CODE_PREFIX } } },
       },
     },
   });
@@ -69,7 +69,7 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
   const before = await call("GET", "/period", { token: laboran });
   check(
     `periode aktif ${oldName}`,
-    before.json.data?.[0]?.name === oldName && before.json.data[0].is_active,
+    before.json.data?.[0]?.name === oldName && before.json.data[0].isActive,
     JSON.stringify(before.json.data?.[0])
   );
   expect(
@@ -91,9 +91,9 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
   check(
     `  ${nextName} kini aktif, ${oldName} selesai`,
     periods?.[0]?.name === nextName &&
-      periods[0].is_active &&
+      periods[0].isActive &&
       periods[1]?.name === oldName &&
-      !periods[1].is_active,
+      !periods[1].isActive,
     JSON.stringify(periods?.slice(0, 2))
   );
   check(
@@ -175,7 +175,7 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
     "detail kelas lama tetap terbuka, bertanda periode selesai",
     detail.code === 200 &&
       detail.json.data?.period?.name === oldName &&
-      detail.json.data.period.is_active === false,
+      detail.json.data.period.isActive === false,
     JSON.stringify(detail.json.data?.period)
   );
   const meetings = await call("GET", `/meeting/${oldClass.id}`, {
@@ -185,7 +185,7 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
     "presensi kelas lama tetap bisa dilihat",
     meetings.code === 200 &&
       meetings.json.data?.[0]?.students?.some(
-        (s) => s.student_id === repeater.id && s.is_attended
+        (s) => s.studentId === repeater.id && s.isAttended
       ),
     meetings.message
   );
@@ -224,7 +224,7 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
           copy.day === sessions[i].day &&
           copy.startAt === sessions[i].startAt &&
           copy.endAt === sessions[i].endAt &&
-          copy.is_active === sessions[i].is_active
+          copy.isActive === sessions[i].isActive
       ),
     JSON.stringify(copies)
   );

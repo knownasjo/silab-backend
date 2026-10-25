@@ -49,7 +49,7 @@ export const MAuthUser = () => {
 
     if (
       !user ||
-      isIssuedBeforePasswordChange(userData.iat, user.password_changed_at)
+      isIssuedBeforePasswordChange(userData.iat, user.passwordChangedAt)
     ) {
       rejectToken(res, EXPIRED_TOKEN_MESSAGE);
       return;

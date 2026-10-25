@@ -47,56 +47,56 @@ enum AnnouncementTypes {
 }
 
 model mst_user {
-    id                  String    @id @default(uuid())
-    fullname            String
-    nim                 String    @unique
-    email               String    @unique
-    password            String
-    role                UserRole
-    password_changed_at DateTime?
+    id                String    @id @default(uuid())
+    fullname          String
+    nim               String    @unique
+    email             String    @unique
+    password          String
+    role              UserRole
+    passwordChangedAt DateTime?
 
-    subjectLecturer          mst_subject[]              @relation(name: "SubjectLecturer")
-    subjectUpdatedBy         mst_subject[]              @relation(name: "SubjectUpdatedBy")
-    subjectCreatedBy         mst_subject[]              @relation(name: "SubjectCreatedBy")
-    classEnrollments         trn_class_participants[]   @relation(name: "UserEnrollments")
-    userActivation           trn_activations[]          @relation(name: "UserActivation")
-    trn_meeting_participants trn_meeting_participants[] @relation(name: "MeetingParticipants")
-    mst_announcement         mst_announcement[]         @relation(name: "AnnouncementAuthor")
-    trn_class_collaborator   trn_class_collaborator[]   @relation(name: "ClassCollaborators")
-    trn_password_resets      trn_password_resets?       @relation(name: "UserPasswordReset")
-    devices                  trn_user_devices[]         @relation(name: "UserDevices")
+    subjectLecturer     mst_subject[]              @relation(name: "SubjectLecturer")
+    subjectUpdatedBy    mst_subject[]              @relation(name: "SubjectUpdatedBy")
+    subjectCreatedBy    mst_subject[]              @relation(name: "SubjectCreatedBy")
+    classEnrollments    trn_class_participants[]   @relation(name: "UserEnrollments")
+    userActivation      trn_activations[]          @relation(name: "UserActivation")
+    meetingParticipants trn_meeting_participants[] @relation(name: "MeetingParticipants")
+    announcements       mst_announcement[]         @relation(name: "AnnouncementAuthor")
+    classCollaborators  trn_class_collaborator[]   @relation(name: "ClassCollaborators")
+    passwordReset       trn_password_resets?       @relation(name: "UserPasswordReset")
+    devices             trn_user_devices[]         @relation(name: "UserDevices")
 
     @@index([id, nim])
 }
 
 model mst_subject {
-    id           String    @id @default(uuid())
-    subject_code String
-    subject_name String
-    semester     String
-    lecturer_id  String
-    updated_by   String?
-    created_by   String
-    updated_at   DateTime?
-    created_at   DateTime? @default(now())
-    deleted_at   DateTime?
+    id          String    @id @default(uuid())
+    subjectCode String
+    subjectName String
+    semester    String
+    lecturerId  String
+    updatedBy   String?
+    createdBy   String
+    updatedAt   DateTime?
+    createdAt   DateTime? @default(now())
+    deletedAt   DateTime?
 
-    lecturer          mst_user          @relation(name: "SubjectLecturer", fields: [lecturer_id], references: [id])
-    updatedBy         mst_user?         @relation(name: "SubjectUpdatedBy", fields: [updated_by], references: [id])
-    createdBy         mst_user          @relation(name: "SubjectCreatedBy", fields: [created_by], references: [id])
-    subjectActivation trn_activations[] @relation(name: "SubjectActivation")
-    mst_class         mst_class[]
+    lecturer          mst_user                    @relation(name: "SubjectLecturer", fields: [lecturerId], references: [id])
+    updater           mst_user?                   @relation(name: "SubjectUpdatedBy", fields: [updatedBy], references: [id])
+    creator           mst_user                    @relation(name: "SubjectCreatedBy", fields: [createdBy], references: [id])
+    subjectActivation trn_activations[]           @relation(name: "SubjectActivation")
+    classes           mst_class[]
     announcements     trn_announcement_subjects[] @relation(name: "SubjectAnnouncements")
 
-    @@index([id, subject_code])
+    @@index([id, subjectCode])
 }
 
 model mst_academic_period {
-    id         String       @id @default(uuid())
-    year       String
-    term       AcademicTerm
-    created_by String?
-    created_at DateTime     @default(now())
+    id        String       @id @default(uuid())
+    year      String
+    term      AcademicTerm
+    createdBy String?
+    createdAt DateTime     @default(now())
 
     classes     mst_class[]       @relation(name: "ClassPeriod")
     activations trn_activations[] @relation(name: "ActivationPeriod")
@@ -107,46 +107,46 @@ model mst_academic_period {
 }
 
 model mst_class {
-    id         String     @id @default(uuid())
-    subjectId  String
-    periodId   String
-    name       String
-    quota      Int
-    day        DaysOfWeek
-    startAt    String
-    endAt      String
-    room       ClassRoom
-    sessionId  String?
-    updated_by String?
-    created_by String
-    updated_at DateTime?
-    created_at DateTime?  @default(now())
-    deleted_at DateTime?
+    id        String     @id @default(uuid())
+    subjectId String
+    periodId  String
+    name      String
+    quota     Int
+    day       DaysOfWeek
+    startAt   String
+    endAt     String
+    room      ClassRoom
+    sessionId String?
+    updatedBy String?
+    createdBy String
+    updatedAt DateTime?
+    createdAt DateTime?  @default(now())
+    deletedAt DateTime?
 
-    participants           trn_class_participants[] @relation(name: "ClassParticipants")
-    trn_meetings           trn_meetings[]           @relation(name: "ClassMeeting")
-    subject                mst_subject              @relation(fields: [subjectId], references: [id])
-    period                 mst_academic_period      @relation(name: "ClassPeriod", fields: [periodId], references: [id])
-    session                mst_session?             @relation(name: "ClassSession", fields: [sessionId], references: [id])
-    trn_class_collaborator trn_class_collaborator[] @relation(name: "ClassCollaborators")
+    participants  trn_class_participants[] @relation(name: "ClassParticipants")
+    meetings      trn_meetings[]           @relation(name: "ClassMeeting")
+    subject       mst_subject              @relation(fields: [subjectId], references: [id])
+    period        mst_academic_period      @relation(name: "ClassPeriod", fields: [periodId], references: [id])
+    session       mst_session?             @relation(name: "ClassSession", fields: [sessionId], references: [id])
+    collaborators trn_class_collaborator[] @relation(name: "ClassCollaborators")
 
     @@index([id, subjectId])
     @@index([periodId])
 }
 
 model mst_session {
-    id         String     @id @default(uuid())
-    periodId   String
-    room       ClassRoom
-    day        DaysOfWeek
-    number     Int
-    startAt    String
-    endAt      String
-    is_active  Boolean    @default(true)
-    updated_by String?
-    created_by String
-    updated_at DateTime?
-    created_at DateTime?  @default(now())
+    id        String     @id @default(uuid())
+    periodId  String
+    room      ClassRoom
+    day       DaysOfWeek
+    number    Int
+    startAt   String
+    endAt     String
+    isActive  Boolean    @default(true)
+    updatedBy String?
+    createdBy String
+    updatedAt DateTime?
+    createdAt DateTime?  @default(now())
 
     period  mst_academic_period @relation(name: "PeriodSessions", fields: [periodId], references: [id], onDelete: Cascade)
     classes mst_class[]         @relation(name: "ClassSession")
@@ -155,11 +155,11 @@ model mst_session {
 }
 
 model trn_class_participants {
-    classId    String
-    userId     String
-    createdAt  DateTime  @default(now())
-    updated_at DateTime?
-    deleted_at DateTime?
+    classId   String
+    userId    String
+    createdAt DateTime  @default(now())
+    updatedAt DateTime?
+    deletedAt DateTime?
 
     class mst_class @relation(name: "ClassParticipants", fields: [classId], references: [id])
     user  mst_user  @relation(name: "UserEnrollments", fields: [userId], references: [id])
@@ -169,14 +169,14 @@ model trn_class_participants {
 }
 
 model trn_activations {
-    id         String    @id @default(uuid())
-    userId     String
-    subjectId  String
-    periodId   String
-    status     Boolean   @default(false)
-    createdAt  DateTime  @default(now())
-    updated_at DateTime?
-    deleted_at DateTime?
+    id        String    @id @default(uuid())
+    userId    String
+    subjectId String
+    periodId  String
+    status    Boolean   @default(false)
+    createdAt DateTime  @default(now())
+    updatedAt DateTime?
+    deletedAt DateTime?
 
     user    mst_user             @relation(name: "UserActivation", fields: [userId], references: [id])
     subject mst_subject          @relation(name: "SubjectActivation", fields: [subjectId], references: [id])
@@ -189,14 +189,14 @@ model trn_activations {
 }
 
 model trn_meetings {
-    id         String    @id @default(uuid())
-    classId    String
-    name       String
-    token      String
-    status     Boolean   @default(false)
-    createdAt  DateTime  @default(now())
-    updated_at DateTime?
-    deleted_at DateTime?
+    id        String    @id @default(uuid())
+    classId   String
+    name      String
+    token     String
+    status    Boolean   @default(false)
+    createdAt DateTime  @default(now())
+    updatedAt DateTime?
+    deletedAt DateTime?
 
     class        mst_class                  @relation("ClassMeeting", fields: [classId], references: [id])
     participants trn_meeting_participants[] @relation("MeetingParticipants")
@@ -205,46 +205,46 @@ model trn_meetings {
 }
 
 model trn_meeting_participants {
-    meetingId    String
-    userId       String
-    status       Boolean
-    device_id    String?
-    device_check DeviceCheck?
-    createdAt    DateTime     @default(now())
+    meetingId   String
+    userId      String
+    status      Boolean
+    deviceId    String?
+    deviceCheck DeviceCheck?
+    createdAt   DateTime     @default(now())
 
     meeting trn_meetings @relation("MeetingParticipants", fields: [meetingId], references: [id])
     user    mst_user     @relation("MeetingParticipants", fields: [userId], references: [id])
 
     @@unique([meetingId, userId])
-    @@unique([meetingId, device_id])
+    @@unique([meetingId, deviceId])
     @@index([meetingId, userId])
 }
 
 model trn_user_devices {
-    id            String   @id @default(uuid())
-    userId        String
-    device_id     String
-    is_usual      Boolean  @default(false)
-    first_seen_at DateTime @default(now())
-    last_seen_at  DateTime @default(now())
+    id          String   @id @default(uuid())
+    userId      String
+    deviceId    String
+    isUsual     Boolean  @default(false)
+    firstSeenAt DateTime @default(now())
+    lastSeenAt  DateTime @default(now())
 
     user mst_user @relation(name: "UserDevices", fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([userId, device_id])
-    @@index([device_id])
+    @@unique([userId, deviceId])
+    @@index([deviceId])
 }
 
 model mst_announcement {
-    id         String            @id @default(uuid())
-    type       AnnouncementTypes
-    title      String
-    body       String
-    author     String
-    createdAt  DateTime          @default(now())
-    updated_at DateTime?
-    deleted_at DateTime?
-    for_all    Boolean           @default(true)
-    periodId   String?
+    id        String            @id @default(uuid())
+    type      AnnouncementTypes
+    title     String
+    body      String
+    author    String
+    createdAt DateTime          @default(now())
+    updatedAt DateTime?
+    deletedAt DateTime?
+    forAll    Boolean           @default(true)
+    periodId  String?
 
     announcementAuthor mst_user @relation(name: "AnnouncementAuthor", fields: [author], references: [id])
     period             mst_academic_period? @relation(name: "AnnouncementPeriod", fields: [periodId], references: [id], onDelete: Cascade)
@@ -281,26 +281,26 @@ model trn_class_collaborator {
 }
 
 model trn_registrations {
-    id         String   @id @default(uuid())
-    email      String   @unique
-    nim        String   @unique
-    fullname   String
-    password   String
-    code       String
-    attempts   Int      @default(0)
-    expires_at DateTime
-    sent_at    DateTime
-    created_at DateTime @default(now())
+    id        String   @id @default(uuid())
+    email     String   @unique
+    nim       String   @unique
+    fullname  String
+    password  String
+    code      String
+    attempts  Int      @default(0)
+    expiresAt DateTime
+    sentAt    DateTime
+    createdAt DateTime @default(now())
 }
 
 model trn_password_resets {
-    id         String   @id @default(uuid())
-    userId     String   @unique
-    code       String
-    attempts   Int      @default(0)
-    expires_at DateTime
-    sent_at    DateTime
-    created_at DateTime @default(now())
+    id        String   @id @default(uuid())
+    userId    String   @unique
+    code      String
+    attempts  Int      @default(0)
+    expiresAt DateTime
+    sentAt    DateTime
+    createdAt DateTime @default(now())
 
     user mst_user @relation(name: "UserPasswordReset", fields: [userId], references: [id], onDelete: Cascade)
 }

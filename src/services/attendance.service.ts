@@ -54,14 +54,14 @@ export const SAddAttendance = async (
         where: {
           id: meetingId,
           classId: classId,
-          deleted_at: null,
+          deletedAt: null,
         },
       }),
       db.trn_class_participants.findFirst({
         where: {
           classId: classId,
           userId: user.id,
-          deleted_at: null,
+          deletedAt: null,
         },
       }),
       loadDevices(user.id),
@@ -85,10 +85,10 @@ export const SAddAttendance = async (
     if (!isClassParticipant)
       throw new ForbiddenError("Anda tidak terdaftar di kelas ini!");
 
-    const deviceId = requireDeviceId(body.device_id);
+    const deviceId = requireDeviceId(body.deviceId);
 
     const isKnownDevice = devices.some(
-      (device) => device.device_id === deviceId
+      (device) => device.deviceId === deviceId
     );
     const isUsual = isUsualDevice(devices, deviceId);
 
@@ -98,8 +98,8 @@ export const SAddAttendance = async (
           meetingId: meetingId,
           userId: user.id,
           status: true,
-          device_id: deviceId,
-          device_check: isUsual ? "BIASA" : "TIDAK_BIASA",
+          deviceId: deviceId,
+          deviceCheck: isUsual ? "BIASA" : "TIDAK_BIASA",
         },
       })
       .catch(async (error) => {
@@ -126,7 +126,7 @@ export const SAddAttendance = async (
     void publishClassAssistantsEvent(
       meeting.classId,
       "attendance",
-      { class_id: meeting.classId, meeting_id: meeting.id },
+      { classId: meeting.classId, meetingId: meeting.id },
       [user.id]
     );
 
@@ -134,11 +134,11 @@ export const SAddAttendance = async (
       status: true,
       message: "Presensi berhasil dicatat",
       data: {
-        meeting_id: meeting.id,
-        meeting_name: meeting.name,
-        student_name: user.fullname,
+        meetingId: meeting.id,
+        meetingName: meeting.name,
+        studentName: user.fullname,
         nim: user.nim,
-        submitted_at: attendance.createdAt,
+        submittedAt: attendance.createdAt,
       },
     };
   } catch (error) {
@@ -162,7 +162,7 @@ export const SUpdateAttendanceManually = async (
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -182,7 +182,7 @@ export const SUpdateAttendanceManually = async (
       where: {
         classId: meeting.classId,
         userId: userId,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -209,7 +209,7 @@ export const SUpdateAttendanceManually = async (
     void publishClassAssistantsEvent(
       meeting.classId,
       "attendance",
-      { class_id: meeting.classId, meeting_id: meeting.id },
+      { classId: meeting.classId, meetingId: meeting.id },
       [student.id]
     );
 
@@ -219,13 +219,13 @@ export const SUpdateAttendanceManually = async (
         ? "Mahasiswa ditandai hadir"
         : "Mahasiswa ditandai tidak hadir",
       data: {
-        meeting_id: meeting.id,
-        meeting_name: meeting.name,
-        student_id: student.id,
-        student_name: student.fullname,
+        meetingId: meeting.id,
+        meetingName: meeting.name,
+        studentId: student.id,
+        studentName: student.fullname,
         nim: student.nim,
-        is_attended: attendance.status,
-        submitted_at: attendance.createdAt,
+        isAttended: attendance.status,
+        submittedAt: attendance.createdAt,
       },
     };
   } catch (error) {
@@ -249,7 +249,7 @@ export const SCheckAttendanceDevice = async (
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -271,12 +271,12 @@ export const SCheckAttendanceDevice = async (
 
     if (!attendance) throw new NotFoundError("Catatan presensi tidak ditemukan!");
 
-    const deviceId = attendance.device_id;
+    const deviceId = attendance.deviceId;
 
-    if (attendance.device_check === "SUDAH_DICEK")
+    if (attendance.deviceCheck === "SUDAH_DICEK")
       throw new ConflictError(ALREADY_CHECKED);
 
-    if (attendance.device_check !== "TIDAK_BIASA" || !deviceId)
+    if (attendance.deviceCheck !== "TIDAK_BIASA" || !deviceId)
       throw new ConflictError("Presensi ini tidak perlu dicek.");
 
     await db.$transaction(async (tx) => {
@@ -284,11 +284,11 @@ export const SCheckAttendanceDevice = async (
         where: {
           meetingId: meetingId,
           userId: userId,
-          device_check: "TIDAK_BIASA",
+          deviceCheck: "TIDAK_BIASA",
         },
         data: {
           status: present,
-          device_check: "SUDAH_DICEK",
+          deviceCheck: "SUDAH_DICEK",
         },
       });
 
@@ -300,7 +300,7 @@ export const SCheckAttendanceDevice = async (
     void publishClassAssistantsEvent(
       meeting.classId,
       "attendance",
-      { class_id: meeting.classId, meeting_id: meeting.id },
+      { classId: meeting.classId, meetingId: meeting.id },
       [userId]
     );
 
@@ -310,13 +310,13 @@ export const SCheckAttendanceDevice = async (
         ? `${attendance.user.fullname} ditandai hadir. HP ini sekarang menjadi HP biasanya.`
         : `${attendance.user.fullname} ditandai tidak hadir.`,
       data: {
-        meeting_id: meeting.id,
-        meeting_name: meeting.name,
-        student_id: attendance.user.id,
-        student_name: attendance.user.fullname,
+        meetingId: meeting.id,
+        meetingName: meeting.name,
+        studentId: attendance.user.id,
+        studentName: attendance.user.fullname,
         nim: attendance.user.nim,
-        is_attended: present,
-        submitted_at: attendance.createdAt,
+        isAttended: present,
+        submittedAt: attendance.createdAt,
       },
     };
   } catch (error) {
@@ -360,7 +360,7 @@ export const SResetAttendance = async (
     void publishClassAssistantsEvent(
       attendance.meeting.classId,
       "attendance",
-      { class_id: attendance.meeting.classId, meeting_id: meetingId },
+      { classId: attendance.meeting.classId, meetingId: meetingId },
       [userId]
     );
 

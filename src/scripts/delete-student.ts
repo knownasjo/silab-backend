@@ -60,7 +60,7 @@ const deletePendingRegistration = async (keyword: string) => {
   console.log(`  Nama   : ${registration.fullname}`);
   console.log(`  NIM    : ${registration.nim}`);
   console.log(`  Email  : ${registration.email}`);
-  console.log(`  Dibuat : ${formatDate(registration.created_at)}`);
+  console.log(`  Dibuat : ${formatDate(registration.createdAt)}`);
 
   if (!(await confirmDeletion())) return 1;
 
@@ -91,9 +91,9 @@ const deleteStudent = async (keyword: string) => {
     db.mst_subject.count({
       where: {
         OR: [
-          { lecturer_id: user.id },
-          { created_by: user.id },
-          { updated_by: user.id },
+          { lecturerId: user.id },
+          { createdBy: user.id },
+          { updatedBy: user.id },
         ],
       },
     }),
@@ -112,13 +112,13 @@ const deleteStudent = async (keyword: string) => {
     await Promise.all([
       db.trn_activations.findMany({
         where,
-        select: { subject: { select: { subject_name: true } } },
+        select: { subject: { select: { subjectName: true } } },
       }),
       db.trn_class_participants.findMany({
-        where: { ...where, deleted_at: null },
+        where: { ...where, deletedAt: null },
         select: {
           class: {
-            select: { name: true, subject: { select: { subject_name: true } } },
+            select: { name: true, subject: { select: { subjectName: true } } },
           },
         },
       }),
@@ -127,7 +127,7 @@ const deleteStudent = async (keyword: string) => {
         where: { ...where, deletedAt: null },
         select: {
           class: {
-            select: { name: true, subject: { select: { subject_name: true } } },
+            select: { name: true, subject: { select: { subjectName: true } } },
           },
         },
       }),
@@ -135,8 +135,8 @@ const deleteStudent = async (keyword: string) => {
   const className = ({
     class: item,
   }: {
-    class: { name: string; subject: { subject_name: string } };
-  }) => `${item.subject.subject_name} kelas ${item.name}`;
+    class: { name: string; subject: { subjectName: string } };
+  }) => `${item.subject.subjectName} kelas ${item.name}`;
 
   console.log("Akun yang akan dihapus:");
   console.log(`  Nama   : ${user.fullname}`);
@@ -146,7 +146,7 @@ const deleteStudent = async (keyword: string) => {
   console.log("\nData yang ikut terhapus:");
   console.log(
     `  Aktivasi mata kuliah : ${withNames(
-      activations.map((activation) => activation.subject.subject_name)
+      activations.map((activation) => activation.subject.subjectName)
     )}`
   );
   console.log(`  Kelas praktikum      : ${withNames(classes.map(className))}`);

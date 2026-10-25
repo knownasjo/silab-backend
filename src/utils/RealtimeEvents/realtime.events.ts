@@ -98,7 +98,7 @@ export const publishClassMembersEvent = async (
   try {
     const [participants, assistantIds] = await Promise.all([
       db.trn_class_participants.findMany({
-        where: { classId, deleted_at: null },
+        where: { classId, deletedAt: null },
         select: { userId: true },
       }),
       findClassAssistantIds(classId),

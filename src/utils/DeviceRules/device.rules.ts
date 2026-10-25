@@ -31,16 +31,16 @@ export const requireDeviceId = (value: unknown) => {
 export const loadDevices = (userId: string, client: Client = db) =>
   client.trn_user_devices.findMany({
     where: { userId },
-    select: { device_id: true, is_usual: true },
+    select: { deviceId: true, isUsual: true },
   });
 
 export const isUsualDevice = (
-  devices: { device_id: string; is_usual: boolean }[],
+  devices: { deviceId: string; isUsual: boolean }[],
   deviceId: string
 ) => {
-  const known = devices.find((device) => device.device_id === deviceId);
+  const known = devices.find((device) => device.deviceId === deviceId);
 
-  return known ? known.is_usual : !devices.some((device) => device.is_usual);
+  return known ? known.isUsual : !devices.some((device) => device.isUsual);
 };
 
 export const rememberDevice = async (
@@ -48,22 +48,22 @@ export const rememberDevice = async (
   deviceId: string,
   client: Client = db
 ) => {
-  const [device] = await client.$queryRaw<{ is_usual: boolean }[]>`
-    INSERT INTO "trn_user_devices" ("id", "userId", "device_id", "is_usual")
+  const [device] = await client.$queryRaw<{ isUsual: boolean }[]>`
+    INSERT INTO "trn_user_devices" ("id", "userId", "deviceId", "isUsual")
     VALUES (
       gen_random_uuid()::text,
       ${userId},
       ${deviceId},
       NOT EXISTS (
         SELECT 1 FROM "trn_user_devices"
-        WHERE "userId" = ${userId} AND "is_usual"
+        WHERE "userId" = ${userId} AND "isUsual"
       )
     )
-    ON CONFLICT ("userId", "device_id")
-    DO UPDATE SET "last_seen_at" = CURRENT_TIMESTAMP
-    RETURNING "is_usual"`;
+    ON CONFLICT ("userId", "deviceId")
+    DO UPDATE SET "lastSeenAt" = CURRENT_TIMESTAMP
+    RETURNING "isUsual"`;
 
-  return device.is_usual;
+  return device.isUsual;
 };
 
 export const makeUsualDevice = async (
@@ -72,13 +72,13 @@ export const makeUsualDevice = async (
   client: Client = db
 ) => {
   await client.trn_user_devices.updateMany({
-    where: { userId, is_usual: true, device_id: { not: deviceId } },
-    data: { is_usual: false },
+    where: { userId, isUsual: true, deviceId: { not: deviceId } },
+    data: { isUsual: false },
   });
 
   await client.trn_user_devices.upsert({
-    where: { userId_device_id: { userId, device_id: deviceId } },
-    update: { is_usual: true },
-    create: { userId, device_id: deviceId, is_usual: true },
+    where: { userId_deviceId: { userId, deviceId } },
+    update: { isUsual: true },
+    create: { userId, deviceId, isUsual: true },
   });
 };

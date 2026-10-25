@@ -62,7 +62,7 @@ const saveMeetingName = <T>(
     const meetings = await tx.trn_meetings.findMany({
       where: {
         classId,
-        deleted_at: null,
+        deletedAt: null,
         ...(exceptId ? { id: { not: exceptId } } : {}),
       },
       select: { name: true },
@@ -77,7 +77,7 @@ const saveMeetingName = <T>(
 
 const findManagedMeeting = async (meetingId: string, req: Request) => {
   const meeting = await db.trn_meetings.findFirst({
-    where: { id: meetingId, deleted_at: null },
+    where: { id: meetingId, deletedAt: null },
     include: { _count: { select: { participants: true } } },
   });
 
@@ -125,8 +125,8 @@ export const SAddClassMeeting = async (
   );
 
   void publishClassMembersEvent(meeting.classId, "meeting", {
-    class_id: meeting.classId,
-    meeting_id: meeting.id,
+    classId: meeting.classId,
+    meetingId: meeting.id,
     action: "created",
   });
 
@@ -151,13 +151,13 @@ export const SUpdateMeeting = async (
   await saveMeetingName(meeting.classId, meetingName, meeting.id, (tx) =>
     tx.trn_meetings.update({
       where: { id: meeting.id },
-      data: { name: meetingName, updated_at: new Date() },
+      data: { name: meetingName, updatedAt: new Date() },
     })
   );
 
   void publishClassMembersEvent(meeting.classId, "meeting", {
-    class_id: meeting.classId,
-    meeting_id: meeting.id,
+    classId: meeting.classId,
+    meetingId: meeting.id,
     action: "updated",
   });
 
@@ -209,8 +209,8 @@ export const SDeleteMeeting = async (
   }
 
   void publishClassMembersEvent(meeting.classId, "meeting", {
-    class_id: meeting.classId,
-    meeting_id: meeting.id,
+    classId: meeting.classId,
+    meetingId: meeting.id,
     action: "deleted",
   });
 
@@ -241,7 +241,7 @@ export const SGetAllClassMeeting = async (
 
     if (user?.role === "MAHASISWA") {
       const isClassParticipant = await db.trn_class_participants.findFirst({
-        where: { classId: isClassExist.id, userId: user.id, deleted_at: null },
+        where: { classId: isClassExist.id, userId: user.id, deletedAt: null },
       });
 
       isStudent = Boolean(isClassParticipant);
@@ -253,7 +253,7 @@ export const SGetAllClassMeeting = async (
     const meetingsData = await db.trn_meetings.findMany({
       where: {
         classId: isClassExist.id,
-        deleted_at: null,
+        deletedAt: null,
       },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: {
@@ -262,7 +262,7 @@ export const SGetAllClassMeeting = async (
             userId: true,
             createdAt: true,
             status: true,
-            device_check: true,
+            deviceCheck: true,
             user: {
               select: {
                 id: true,
@@ -280,7 +280,7 @@ export const SGetAllClassMeeting = async (
       : await db.trn_class_participants.findMany({
           where: {
             classId: isClassExist.id,
-            deleted_at: null,
+            deletedAt: null,
           },
           orderBy: { user: { nim: "asc" } },
           include: {
@@ -307,37 +307,37 @@ export const SGetAllClassMeeting = async (
 
           return {
             id: meeting.id,
-            meeting_name: meeting.name,
-            is_open: meeting.status,
-            submitted_at: ownRecord?.createdAt.toISOString() ?? null,
-            is_attended: ownRecord?.status ?? false,
+            meetingName: meeting.name,
+            isOpen: meeting.status,
+            submittedAt: ownRecord?.createdAt.toISOString() ?? null,
+            isAttended: ownRecord?.status ?? false,
           };
         }
 
         const studentsInClass = classParticipants.map((participant) => ({
-          student_id: participant.user.id,
-          student_name: participant.user.fullname,
+          studentId: participant.user.id,
+          studentName: participant.user.fullname,
           nim: participant.user.nim,
-          submitted_at: null as string | null,
-          is_attended: false,
-          device_check: null as DeviceCheck | null,
+          submittedAt: null as string | null,
+          isAttended: false,
+          deviceCheck: null as DeviceCheck | null,
         }));
 
         meeting.participants.forEach((meetingParticipant) => {
           const student = studentsInClass.find(
-            (s) => s.student_id === meetingParticipant.user.id
+            (s) => s.studentId === meetingParticipant.user.id
           );
           if (student) {
-            student.is_attended = meetingParticipant.status;
-            student.submitted_at = meetingParticipant.createdAt.toISOString();
-            student.device_check = meetingParticipant.device_check;
+            student.isAttended = meetingParticipant.status;
+            student.submittedAt = meetingParticipant.createdAt.toISOString();
+            student.deviceCheck = meetingParticipant.deviceCheck;
           }
         });
 
         return {
           id: meeting.id,
-          meeting_name: meeting.name,
-          is_open: meeting.status,
+          meetingName: meeting.name,
+          isOpen: meeting.status,
           students: studentsInClass,
         };
       }
@@ -363,7 +363,7 @@ export const SGetMeetingQrToken = async (
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -383,8 +383,8 @@ export const SGetMeetingQrToken = async (
       message: "Berhasil",
       data: {
         token,
-        period_seconds: periodSeconds,
-        expires_in_ms: expiresInMs,
+        periodSeconds,
+        expiresInMs,
       },
     };
   } catch (error) {
@@ -403,7 +403,7 @@ export const SUpdateMeetingStatus = async (
     const meeting = await db.trn_meetings.findFirst({
       where: {
         id: meetingId,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -417,13 +417,13 @@ export const SUpdateMeetingStatus = async (
       },
       data: {
         status: status,
-        updated_at: new Date(),
+        updatedAt: new Date(),
       },
     });
 
     void publishClassMembersEvent(meeting.classId, "meeting", {
-      class_id: meeting.classId,
-      meeting_id: meeting.id,
+      classId: meeting.classId,
+      meetingId: meeting.id,
     });
 
     return {

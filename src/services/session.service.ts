@@ -160,7 +160,7 @@ const toResponse = (session: SessionWithCount): ISessionResponseBody => ({
   number: session.number,
   startAt: session.startAt,
   endAt: session.endAt,
-  is_active: session.is_active,
+  isActive: session.isActive,
   classes: session._count.classes,
 });
 
@@ -179,10 +179,10 @@ export const SGetSessions = async (
       periodId: period.id,
       ...(room && { room }),
       ...(day && { day }),
-      ...(onlyActive && { is_active: true }),
+      ...(onlyActive && { isActive: true }),
     },
     include: {
-      _count: { select: { classes: { where: { deleted_at: null } } } },
+      _count: { select: { classes: { where: { deletedAt: null } } } },
     },
   });
 
@@ -206,7 +206,7 @@ export const SAddSession = async (
   const body: ISessionRequestBody = req.body ?? {};
   const room = readRoom(body.room);
   const day = readDay(body.day);
-  const days = [day, ...readAlsoDays(body.also_days, day)];
+  const days = [day, ...readAlsoDays(body.alsoDays, day)];
   const number = readNumber(body.number);
   const { startAt, endAt } = readTimes(
     readText(body.startAt),
@@ -241,7 +241,7 @@ export const SAddSession = async (
               number,
               startAt,
               endAt,
-              created_by: req.user!.id,
+              createdBy: req.user!.id,
             },
             include: { _count: { select: { classes: true } } },
           })
@@ -253,7 +253,7 @@ export const SAddSession = async (
   );
 
   sessions.forEach((session) =>
-    publishRealtimeEvent("session", { session_id: session.id })
+    publishRealtimeEvent("session", { sessionId: session.id })
   );
 
   return {
@@ -276,7 +276,7 @@ export const SUpdateSession = async (
   await assertPeriodActive(found.periodId);
 
   const body: ISessionRequestBody = req.body ?? {};
-  const alsoDays = readAlsoDays(body.also_days, found.day);
+  const alsoDays = readAlsoDays(body.alsoDays, found.day);
 
   const { updated, classes, warnings } = await db.$transaction(
     async (tx) => {
@@ -296,7 +296,7 @@ export const SUpdateSession = async (
         body.endAt === undefined ? session.endAt : readText(body.endAt)
       );
 
-      if (body.is_active !== undefined && typeof body.is_active !== "boolean")
+      if (body.isActive !== undefined && typeof body.isActive !== "boolean")
         throw new BadRequestError("Status aktif harus berupa true atau false!");
 
       const siblings = await tx.mst_session.findMany({
@@ -331,15 +331,15 @@ export const SUpdateSession = async (
 
       const updated: SessionWithCount[] = [];
       const classes: Prisma.mst_classGetPayload<{
-        include: { subject: { select: { subject_name: true } } };
+        include: { subject: { select: { subjectName: true } } };
       }>[] = [];
 
       for (const target of targets) {
         const moved =
           target.startAt !== startAt || target.endAt !== endAt
             ? await tx.mst_class.findMany({
-                where: { sessionId: target.id, deleted_at: null },
-                include: { subject: { select: { subject_name: true } } },
+                where: { sessionId: target.id, deletedAt: null },
+                include: { subject: { select: { subjectName: true } } },
               })
             : [];
 
@@ -350,12 +350,12 @@ export const SUpdateSession = async (
               number,
               startAt,
               endAt,
-              is_active: body.is_active ?? target.is_active,
-              updated_by: req.user!.id,
-              updated_at: new Date(),
+              isActive: body.isActive ?? target.isActive,
+              updatedBy: req.user!.id,
+              updatedAt: new Date(),
             },
             include: {
-              _count: { select: { classes: { where: { deleted_at: null } } } },
+              _count: { select: { classes: { where: { deletedAt: null } } } },
             },
           })
         );
@@ -382,7 +382,7 @@ export const SUpdateSession = async (
 
         clashes.forEach((clash) =>
           warnings.add(
-            `${item.subject.subject_name} kelas ${item.name} (${formatSchedule(schedule)}, ${item.room}): ${clash.member} juga ${clash.activity} ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}, ${clash.room})`
+            `${item.subject.subjectName} kelas ${item.name} (${formatSchedule(schedule)}, ${item.room}): ${clash.member} juga ${clash.activity} ${clash.subject.subjectName} kelas ${clash.name} (${formatSchedule(clash)}, ${clash.room})`
           )
         );
       }
@@ -393,10 +393,10 @@ export const SUpdateSession = async (
   );
 
   updated.forEach((session) =>
-    publishRealtimeEvent("session", { session_id: session.id })
+    publishRealtimeEvent("session", { sessionId: session.id })
   );
   classes.forEach((item) =>
-    publishRealtimeEvent("class", { class_id: item.id })
+    publishRealtimeEvent("class", { classId: item.id })
   );
 
   const saved = classes.length
@@ -419,7 +419,7 @@ export const SDeleteSession = async (req: Request): Promise<IBaseResponse> => {
   const session = await db.mst_session.findUnique({
     where: { id: req.params.id.toString() },
     include: {
-      _count: { select: { classes: { where: { deleted_at: null } } } },
+      _count: { select: { classes: { where: { deletedAt: null } } } },
     },
   });
 
@@ -434,7 +434,7 @@ export const SDeleteSession = async (req: Request): Promise<IBaseResponse> => {
 
   await db.mst_session.delete({ where: { id: session.id } });
 
-  publishRealtimeEvent("session", { session_id: session.id });
+  publishRealtimeEvent("session", { sessionId: session.id });
 
   return { status: true, message: `${sessionLabel(session)} berhasil dihapus` };
 };

@@ -36,7 +36,7 @@ const SESSION_TIMES = [
 
 const notTestUser = { nim: { not: { startsWith: TEST_NIM_PREFIX } } };
 const notTestSubject = {
-  subject_code: { not: { startsWith: TEST_CODE_PREFIX } },
+  subjectCode: { not: { startsWith: TEST_CODE_PREFIX } },
 };
 
 const realDataQueries = {
@@ -137,7 +137,7 @@ const countTestData = (nimPrefix, codePrefix, sessionFrom, sessionTo) =>
     const counts = await Promise.all([
       db.mst_user.count({ where: { nim: { startsWith: nimPrefix } } }),
       db.mst_subject.count({
-        where: { subject_code: { startsWith: codePrefix } },
+        where: { subjectCode: { startsWith: codePrefix } },
       }),
       db.mst_session.count({
         where: { number: { gte: sessionFrom, lte: sessionTo } },
@@ -219,14 +219,14 @@ export class TestData {
     });
   }
 
-  subject(subject_name, { semester = "3", subject_code } = {}) {
+  subject(subjectName, { semester = "3", subjectCode } = {}) {
     return db.mst_subject.create({
       data: {
-        subject_code: subject_code ?? this.nextCode(),
-        subject_name,
+        subjectCode: subjectCode ?? this.nextCode(),
+        subjectName,
         semester,
-        lecturer_id: this.lecturer.id,
-        created_by: this.laboran.id,
+        lecturerId: this.lecturer.id,
+        createdBy: this.laboran.id,
       },
     });
   }
@@ -246,7 +246,7 @@ export class TestData {
               number: this.sessionFrom + index + 1,
               startAt,
               endAt,
-              created_by: this.laboran.id,
+              createdBy: this.laboran.id,
             })),
           })
           .then((list) => list.sort((a, b) => a.number - b.number))
@@ -275,7 +275,7 @@ export class TestData {
         sessionId: session.id,
         startAt: session.startAt,
         endAt: session.endAt,
-        created_by: this.laboran.id,
+        createdBy: this.laboran.id,
       },
     });
   }
@@ -327,9 +327,9 @@ export class TestData {
         await db.mst_subject.findMany({
           where: {
             OR: [
-              { subject_code: { startsWith: this.codePrefix } },
-              { created_by: { in: users } },
-              { lecturer_id: { in: users } },
+              { subjectCode: { startsWith: this.codePrefix } },
+              { createdBy: { in: users } },
+              { lecturerId: { in: users } },
             ],
           },
           select: { id: true },
@@ -340,7 +340,7 @@ export class TestData {
           where: {
             OR: [
               { subjectId: { in: subjects } },
-              { created_by: { in: users } },
+              { createdBy: { in: users } },
             ],
           },
           select: { id: true },
@@ -369,14 +369,14 @@ export class TestData {
       });
       await db.mst_class.deleteMany({ where: { id: { in: classes } } });
       await db.mst_academic_period.deleteMany({
-        where: { created_by: { in: users } },
+        where: { createdBy: { in: users } },
       });
       await db.mst_subject.deleteMany({ where: { id: { in: subjects } } });
       await db.mst_session.deleteMany({
         where: {
           OR: [
             { number: { gte: this.sessionFrom, lte: sessionTo } },
-            { created_by: { in: users } },
+            { createdBy: { in: users } },
           ],
         },
       });

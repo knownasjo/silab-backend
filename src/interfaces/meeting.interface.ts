@@ -11,24 +11,24 @@ export interface IUpdateMeetingRequestBody {
 
 export interface IGetAllClassMeetingResponseBody {
   id: string;
-  meeting_name: string;
-  is_open: boolean;
+  meetingName: string;
+  isOpen: boolean;
   students?: IMeetingParticipants[];
-  submitted_at?: string | null;
-  is_attended?: boolean;
+  submittedAt?: string | null;
+  isAttended?: boolean;
 }
 
 export interface IGetMeetingQrTokenResponseBody {
   token: string;
-  period_seconds: number;
-  expires_in_ms: number;
+  periodSeconds: number;
+  expiresInMs: number;
 }
 
 export interface IMeetingParticipants {
-  student_id: string;
-  student_name: string;
+  studentId: string;
+  studentName: string;
   nim: string;
-  submitted_at: string | null;
-  is_attended: boolean;
-  device_check: DeviceCheck | null;
+  submittedAt: string | null;
+  isAttended: boolean;
+  deviceCheck: DeviceCheck | null;
 }

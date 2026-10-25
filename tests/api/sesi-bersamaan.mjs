@@ -63,14 +63,14 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     results.filter((r) => r.code === 200 || r.code === 201).length;
   const ours = (place = friday) =>
     db.mst_session.findMany({
-      where: { ...place, created_by: data.laboran.id },
+      where: { ...place, createdBy: data.laboran.id },
     });
   const clear = async () =>
     db.mst_session.deleteMany({
       where: {
         periodId: data.period.id,
         room: ROOM,
-        created_by: data.laboran.id,
+        createdBy: data.laboran.id,
         number: { lte: 20 },
       },
     });
@@ -194,7 +194,7 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     const orders = [MANY_DAYS, [...MANY_DAYS].reverse(), [MANY_DAYS[1], MANY_DAYS[0], MANY_DAYS[2]]];
     const results = await together(
       orders.map(([day, ...also], n) =>
-        add(number, start + n * 5, start + n * 5 + 4, { day, also_days: also })
+        add(number, start + n * 5, start + n * 5 + 4, { day, alsoDays: also })
       )
     );
     const saved = await db.mst_session.findMany({
@@ -231,12 +231,12 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     update(mondayOne, {
       startAt: "22.30",
       endAt: "22.45",
-      also_days: ["TUESDAY"],
+      alsoDays: ["TUESDAY"],
     }),
     update(tuesdayOne, {
       startAt: "22.30",
       endAt: "22.50",
-      also_days: ["MONDAY"],
+      alsoDays: ["MONDAY"],
     }),
   ]);
   const [mondayAfter, tuesdayAfter] = await Promise.all(
@@ -269,7 +269,7 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
   for (const removed of [goneAlone, goneShared])
     await db.mst_class.update({
       where: { id: removed.id },
-      data: { deleted_at: new Date() },
+      data: { deletedAt: new Date() },
     });
 
   const listed = (await call("GET", "/session", { token })).json.data;

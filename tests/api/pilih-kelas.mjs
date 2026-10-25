@@ -130,10 +130,10 @@ await runTest(
     });
     check(
       "  ketiga kelas Y langsung muncul di pilihan HP mahasiswa",
-      (options.json.data ?? []).filter((o) => o.subject_name === "Uji Kelas Y")
+      (options.json.data ?? []).filter((o) => o.subjectName === "Uji Kelas Y")
         .length === 3,
       JSON.stringify(
-        options.json.data?.map((o) => `${o.subject_name} ${o.subject_class}`)
+        options.json.data?.map((o) => `${o.subjectName} ${o.subjectClass}`)
       )
     );
     expect(
@@ -215,7 +215,7 @@ await runTest(
       token: s16.token,
     });
     const labels = (sorted.json.data ?? []).map(
-      (o) => `${o.subject_name} ${o.subject_class}`
+      (o) => `${o.subjectName} ${o.subjectClass}`
     );
     check(
       "mata kuliah dan kelas urut A→Z walau dibuat acak",

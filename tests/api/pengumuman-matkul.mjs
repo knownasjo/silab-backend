@@ -83,7 +83,7 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
   const emptyList = await byTitle("Uji PM Daftar Kosong");
   check(
     "  pengumuman mata kuliah tercatat dengan semester aktif",
-    forX.for_all === false &&
+    forX.forAll === false &&
       forX.periodId === data.period.id &&
       forX.subjects.length === 1 &&
       forX.subjects[0].subjectId === X.id,
@@ -91,7 +91,7 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
   );
   check(
     "  daftar kosong tersimpan untuk semua, tanpa semester",
-    emptyList.for_all === true &&
+    emptyList.forAll === true &&
       emptyList.periodId === null &&
       emptyList.subjects.length === 0
   );
@@ -132,7 +132,7 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
   );
 
   const oldPeriod = await db.mst_academic_period.create({
-    data: { year: "1919/1920", term: "GANJIL", created_by: data.laboran.id },
+    data: { year: "1919/1920", term: "GANJIL", createdBy: data.laboran.id },
   });
   const oldForX = await db.mst_announcement.create({
     data: {
@@ -140,7 +140,7 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
       title: "Uji PM Semester Lalu Untuk X",
       body: "Pengumuman semester lalu.",
       author: data.laboran.id,
-      for_all: false,
+      forAll: false,
       periodId: oldPeriod.id,
       subjects: { create: [{ subjectId: X.id }] },
     },
@@ -195,9 +195,9 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
   check(
     "  detail menyebut tujuan dan semesternya",
     detail.code === 200 &&
-      detail.json.data.for_all === false &&
+      detail.json.data.forAll === false &&
       detail.json.data.period === "1919/1920 Ganjil" &&
-      JSON.stringify(detail.json.data.subjects.map((s) => s.subject_name)) ===
+      JSON.stringify(detail.json.data.subjects.map((s) => s.subjectName)) ===
         JSON.stringify(["Uji PM Algoritma"]),
     JSON.stringify(detail.json.data)
   );
@@ -206,8 +206,8 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
     token: laboran,
   });
   check(
-    "  pengumuman untuk semua: for_all true, tanpa mata kuliah dan semester",
-    general.json.data?.for_all === true &&
+    "  pengumuman untuk semua: forAll true, tanpa mata kuliah dan semester",
+    general.json.data?.forAll === true &&
       general.json.data.subjects.length === 0 &&
       general.json.data.period === null,
     JSON.stringify(general.json.data)
@@ -271,7 +271,7 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
   );
   check(
     "  tersimpan untuk semua tanpa semester",
-    (await byTitle("Uji PM Untuk X")).for_all === true &&
+    (await byTitle("Uji PM Untuk X")).forAll === true &&
       (await byTitle("Uji PM Untuk X")).periodId === null
   );
   expect(
@@ -318,7 +318,7 @@ await runTest("Pengumuman untuk mata kuliah tertentu", data, async () => {
   const becameAll = await byTitle("Uji PM Untuk X dan Y");
   check(
     "  otomatis untuk semua mahasiswa",
-    becameAll.for_all === true && becameAll.subjects.length === 0
+    becameAll.forAll === true && becameAll.subjects.length === 0
   );
   expect(
     "hanya teks pengumuman semester lalu yang diubah",

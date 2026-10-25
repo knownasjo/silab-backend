@@ -110,7 +110,7 @@ const findClassSession = async (
   if (
     !session ||
     session.periodId !== periodId ||
-    (!session.is_active && session.id !== currentSessionId)
+    (!session.isActive && session.id !== currentSessionId)
   )
     throw new BadRequestError("Sesi tidak ditemukan atau sudah nonaktif!");
 
@@ -138,7 +138,7 @@ const assertClassNameFree = async (
       subjectId,
       name,
       periodId,
-      deleted_at: null,
+      deletedAt: null,
       ...(exceptId && { id: { not: exceptId } }),
     },
   });
@@ -158,16 +158,16 @@ const assertRoomFree = async (
       day: schedule.day,
       room: schedule.room,
       periodId,
-      deleted_at: null,
+      deletedAt: null,
       ...(exceptId && { id: { not: exceptId } }),
     },
-    include: { subject: { select: { subject_name: true } } },
+    include: { subject: { select: { subjectName: true } } },
   });
   const clash = sameRoom.find((item) => isScheduleClash(item, schedule));
 
   if (clash)
     throw new ConflictError(
-      `Ruang ${schedule.room} sudah dipakai ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
+      `Ruang ${schedule.room} sudah dipakai ${clash.subject.subjectName} kelas ${clash.name} (${formatSchedule(clash)}).`
     );
 };
 
@@ -185,7 +185,7 @@ export const SAddClass = async (
   const fields = readClassFields(body);
 
   const subject = await db.mst_subject.findFirst({
-    where: { id: subjectId, deleted_at: null },
+    where: { id: subjectId, deletedAt: null },
   });
 
   if (!subject) throw new NotFoundError("Mata kuliah tidak ditemukan!");
@@ -200,7 +200,7 @@ export const SAddClass = async (
         await assertClassNameFree(
           tx,
           subjectId,
-          subject.subject_name,
+          subject.subjectName,
           fields.name,
           period.id
         );
@@ -222,7 +222,7 @@ export const SAddClass = async (
             ...fields,
             startAt: session.startAt,
             endAt: session.endAt,
-            created_by: req.user!.id,
+            createdBy: req.user!.id,
           },
         });
       },
@@ -230,11 +230,11 @@ export const SAddClass = async (
     )
     .catch(rethrowIfSubjectDeleted);
 
-  publishRealtimeEvent("class", { class_id: newClass.id, action: "created" });
+  publishRealtimeEvent("class", { classId: newClass.id, action: "created" });
 
   return {
     status: true,
-    message: `Kelas ${subject.subject_name} ${fields.name} berhasil ditambahkan`,
+    message: `Kelas ${subject.subjectName} ${fields.name} berhasil ditambahkan`,
     data: { id: newClass.id },
   };
 };
@@ -248,9 +248,9 @@ export const SUpdateClass = async (
     throw new ForbiddenError("Hanya laboran yang dapat mengubah kelas!");
 
   const current = await db.mst_class.findFirst({
-    where: { id, deleted_at: null },
+    where: { id, deletedAt: null },
     include: {
-      subject: { select: { subject_name: true } },
+      subject: { select: { subjectName: true } },
     },
   });
 
@@ -302,7 +302,7 @@ export const SUpdateClass = async (
       await assertClassNameFree(
         tx,
         current.subjectId,
-        current.subject.subject_name,
+        current.subject.subjectName,
         fields.name,
         current.periodId,
         id
@@ -314,7 +314,7 @@ export const SUpdateClass = async (
       await assertNoMemberScheduleClash(id, schedule, current.periodId, tx);
 
     const participants = await tx.trn_class_participants.count({
-      where: { classId: id, deleted_at: null },
+      where: { classId: id, deletedAt: null },
     });
 
     if (fields.quota < participants)
@@ -328,18 +328,18 @@ export const SUpdateClass = async (
         ...fields,
         startAt: session.startAt,
         endAt: session.endAt,
-        updated_by: req.user!.id,
-        updated_at: new Date(),
+        updatedBy: req.user!.id,
+        updatedAt: new Date(),
       },
     });
   });
 
-  publishRealtimeEvent("class", { class_id: id, action: "updated" });
-  void publishClassMembersEvent(id, "activation", { class_id: id });
+  publishRealtimeEvent("class", { classId: id, action: "updated" });
+  void publishClassMembersEvent(id, "activation", { classId: id });
 
   return {
     status: true,
-    message: `Kelas ${current.subject.subject_name} ${fields.name} berhasil diperbarui`,
+    message: `Kelas ${current.subject.subjectName} ${fields.name} berhasil diperbarui`,
   };
 };
 
@@ -351,15 +351,15 @@ export const SDeleteClass = async (
     throw new ForbiddenError("Hanya laboran yang dapat menghapus kelas!");
 
   const classData = await db.mst_class.findFirst({
-    where: { id, deleted_at: null },
+    where: { id, deletedAt: null },
     include: {
-      subject: { select: { subject_name: true } },
-      participants: { where: { deleted_at: null }, select: { userId: true } },
-      trn_class_collaborator: {
+      subject: { select: { subjectName: true } },
+      participants: { where: { deletedAt: null }, select: { userId: true } },
+      collaborators: {
         where: { deletedAt: null },
         select: { userId: true },
       },
-      trn_meetings: {
+      meetings: {
         select: { _count: { select: { participants: true } } },
       },
     },
@@ -369,7 +369,7 @@ export const SDeleteClass = async (
 
   await assertPeriodActive(classData.periodId);
 
-  const recordedMeetings = classData.trn_meetings.filter(
+  const recordedMeetings = classData.meetings.filter(
     (meeting) => meeting._count.participants > 0
   ).length;
 
@@ -399,20 +399,20 @@ export const SDeleteClass = async (
 
   const memberIds = [
     ...classData.participants,
-    ...classData.trn_class_collaborator,
+    ...classData.collaborators,
   ].map((member) => member.userId);
 
-  publishRealtimeEvent("class", { class_id: id, action: "deleted" });
+  publishRealtimeEvent("class", { classId: id, action: "deleted" });
   if (memberIds.length > 0)
-    publishRealtimeEvent("activation", { class_id: id }, memberIds);
+    publishRealtimeEvent("activation", { classId: id }, memberIds);
 
   return {
     status: true,
-    message: `Kelas ${classData.subject.subject_name} ${classData.name} berhasil dihapus`,
+    message: `Kelas ${classData.subject.subjectName} ${classData.name} berhasil dihapus`,
     data: {
       participants: classData.participants.length,
-      assistants: classData.trn_class_collaborator.length,
-      meetings: classData.trn_meetings.length,
+      assistants: classData.collaborators.length,
+      meetings: classData.meetings.length,
     },
   };
 };
@@ -428,15 +428,15 @@ export const SGetAllClasses = async (
 
     const classesData = await db.mst_class.findMany({
       where: {
-        deleted_at: null,
+        deletedAt: null,
         periodId: period.id,
         ...(user?.role === "MAHASISWA" && {
-          trn_class_collaborator: {
+          collaborators: {
             some: { userId: user.id, deletedAt: null },
           },
         }),
         ...(user?.role === "DOSEN" && {
-          subject: { lecturer_id: user.id },
+          subject: { lecturerId: user.id },
         }),
       },
       include: {
@@ -447,7 +447,7 @@ export const SGetAllClasses = async (
         },
         subject: {
           select: {
-            subject_name: true,
+            subjectName: true,
             semester: true,
           },
         },
@@ -458,7 +458,7 @@ export const SGetAllClasses = async (
       id: classData.id,
       subjectId: classData.subjectId,
       name: classData.name,
-      subject_name: classData.subject.subject_name,
+      subjectName: classData.subject.subjectName,
       semester: classData.subject.semester,
       quota: classData.quota,
       isFull: classData.quota === classData.participants.length,
@@ -488,7 +488,7 @@ export const SGetClassById = async (
     const classData = await db.mst_class.findUnique({
       where: {
         id,
-        deleted_at: null,
+        deletedAt: null,
       },
       include: {
         participants: {
@@ -499,12 +499,12 @@ export const SGetClassById = async (
         subject: {
           select: {
             semester: true,
-            subject_code: true,
-            subject_name: true,
+            subjectCode: true,
+            subjectName: true,
             lecturer: true,
           },
         },
-        trn_meetings: {
+        meetings: {
           select: { _count: { select: { participants: true } } },
         },
         period: true,
@@ -521,8 +521,8 @@ export const SGetClassById = async (
       id: classData.id,
       subjectId: classData.subjectId,
       name: classData.name,
-      subject_code: classData.subject.subject_code,
-      subject_name: classData.subject.subject_name,
+      subjectCode: classData.subject.subjectCode,
+      subjectName: classData.subject.subjectName,
       semester: classData.subject.semester,
       quota: classData.quota,
       isFull: classData.quota === classData.participants.length,
@@ -533,14 +533,14 @@ export const SGetClassById = async (
       endAt: classData.endAt,
       lecturer: classData.subject.lecturer.fullname,
       participants: classData.participants.length,
-      meetings: classData.trn_meetings.length,
-      recorded_meetings: classData.trn_meetings.filter(
+      meetings: classData.meetings.length,
+      recordedMeetings: classData.meetings.filter(
         (meeting) => meeting._count.participants > 0
       ).length,
       period: classData.period && {
         id: classData.period.id,
         name: periodLabel(classData.period),
-        is_active: classData.period.id === activePeriod?.id,
+        isActive: classData.period.id === activePeriod?.id,
       },
     };
 
@@ -572,7 +572,7 @@ export const SGetAllClassByPaidActivations = async (
         userId: user.id,
         periodId: period.id,
         status: true,
-        deleted_at: null,
+        deletedAt: null,
       },
     });
 
@@ -588,27 +588,27 @@ export const SGetAllClassByPaidActivations = async (
           in: subjectIds,
         },
         periodId: period.id,
-        deleted_at: null,
+        deletedAt: null,
       },
       include: {
         subject: true,
         participants: {
-          where: { deleted_at: null },
+          where: { deletedAt: null },
         },
       },
-      orderBy: [{ subject: { subject_name: "asc" } }, { name: "asc" }],
+      orderBy: [{ subject: { subjectName: "asc" } }, { name: "asc" }],
     });
 
     const data: IGetAllClassByPaidActivationsResponseBody[] =
       availableClass.map((data) => ({
         id: data.id,
-        subject_name: data.subject.subject_name,
-        subject_class: data.name,
+        subjectName: data.subject.subjectName,
+        subjectClass: data.name,
         semester: data.subject.semester,
         quota: data.quota,
         day: data.day,
-        registered_students: data.participants.length,
-        session_time: `${data.startAt} - ${data.endAt}`,
+        registeredStudents: data.participants.length,
+        sessionTime: `${data.startAt} - ${data.endAt}`,
       }));
 
     return {
@@ -645,10 +645,10 @@ export const SClassRegistration = async (
       where: {
         id: { in: classIds },
         periodId: period.id,
-        deleted_at: null,
+        deletedAt: null,
       },
       include: {
-        subject: { select: { subject_name: true } },
+        subject: { select: { subjectName: true } },
       },
     });
 
@@ -666,7 +666,7 @@ export const SClassRegistration = async (
         subjectId: { in: subjectIds },
         periodId: period.id,
         status: true,
-        deleted_at: null,
+        deletedAt: null,
       },
       select: { subjectId: true },
     });
@@ -677,7 +677,7 @@ export const SClassRegistration = async (
 
     if (unpaidClass)
       throw new ForbiddenError(
-        `Pembayaran praktikum ${unpaidClass.subject.subject_name} belum dikonfirmasi!`
+        `Pembayaran praktikum ${unpaidClass.subject.subjectName} belum dikonfirmasi!`
       );
 
     const existingEnrollment = await findEnrollmentInSubjects(
@@ -689,14 +689,14 @@ export const SClassRegistration = async (
 
     if (existingEnrollment)
       throw new ConflictError(
-        `Anda sudah terdaftar di kelas ${existingEnrollment.class.name} untuk ${existingEnrollment.class.subject.subject_name}!`
+        `Anda sudah terdaftar di kelas ${existingEnrollment.class.name} untuk ${existingEnrollment.class.subject.subjectName}!`
       );
 
     const fullClass = await findFullClass(tx, classes);
 
     if (fullClass)
       throw new ConflictError(
-        `Kelas ${fullClass.name} ${fullClass.subject.subject_name} sudah penuh!`
+        `Kelas ${fullClass.name} ${fullClass.subject.subjectName} sudah penuh!`
       );
 
     await assertNoAssistantScheduleClash(user.id, classes, "Anda pegang", tx);
@@ -709,7 +709,7 @@ export const SClassRegistration = async (
     return classes;
   });
 
-  classes.forEach((c) => publishRealtimeEvent("class", { class_id: c.id }));
+  classes.forEach((c) => publishRealtimeEvent("class", { classId: c.id }));
   publishRealtimeEvent("activation", {}, [user.id]);
 
   return {
@@ -733,8 +733,8 @@ export const SGetMyClasses = async (
   const enrollments = await db.trn_class_participants.findMany({
     where: {
       userId: user.id,
-      deleted_at: null,
-      class: { deleted_at: null, periodId: period.id },
+      deletedAt: null,
+      class: { deletedAt: null, periodId: period.id },
     },
     include: {
       class: {
@@ -751,13 +751,13 @@ export const SGetMyClasses = async (
   const data: IGetMyClassResponseBody[] = enrollments.map(
     ({ class: classData }) => ({
       id: classData.id,
-      subject_id: classData.subjectId,
-      subject_name: classData.subject.subject_name,
-      subject_class: classData.name,
+      subjectId: classData.subjectId,
+      subjectName: classData.subject.subjectName,
+      subjectClass: classData.name,
       semester: classData.subject.semester,
       lecturer: classData.subject.lecturer.fullname,
       day: classData.day,
-      session_time: `${classData.startAt} - ${classData.endAt}`,
+      sessionTime: `${classData.startAt} - ${classData.endAt}`,
       room: classData.room,
     })
   );
@@ -776,8 +776,8 @@ const getEnrolledSubjectIds = async (
   const enrollments = await db.trn_class_participants.findMany({
     where: {
       userId,
-      deleted_at: null,
-      class: { deleted_at: null, periodId },
+      deletedAt: null,
+      class: { deletedAt: null, periodId },
     },
     select: { class: { select: { subjectId: true } } },
   });
@@ -792,7 +792,7 @@ export const SGetClassmates = async (
   const user = req.user;
 
   const classData = await db.mst_class.findFirst({
-    where: { id: classId, deleted_at: null },
+    where: { id: classId, deletedAt: null },
     select: { id: true },
   });
 
@@ -801,7 +801,7 @@ export const SGetClassmates = async (
   await assertLecturerOfClass(user, classData.id);
 
   const participants = await db.trn_class_participants.findMany({
-    where: { classId: classData.id, deleted_at: null },
+    where: { classId: classData.id, deletedAt: null },
     select: { userId: true, user: { select: { fullname: true } } },
     orderBy: { user: { fullname: "asc" } },
   });
@@ -817,7 +817,7 @@ export const SGetClassmates = async (
     message: "Berhasil",
     data: participants.map((participant) => ({
       name: participant.user.fullname,
-      is_me: participant.userId === user?.id,
+      isMe: participant.userId === user?.id,
     })),
   };
 };

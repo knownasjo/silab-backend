@@ -1,14 +1,14 @@
 export interface IAddAttendanceRequestBody {
   token: string;
-  device_id?: string;
+  deviceId?: string;
 }
 
 export interface IAddAttendanceResponseBody {
-  meeting_id: string;
-  meeting_name: string;
-  student_name: string;
+  meetingId: string;
+  meetingName: string;
+  studentName: string;
   nim: string;
-  submitted_at: Date;
+  submittedAt: Date;
 }
 
 export interface IUpdateAttendanceRequestBody {
@@ -20,11 +20,11 @@ export interface ICheckAttendanceDeviceRequestBody {
 }
 
 export interface IUpdateAttendanceResponseBody {
-  meeting_id: string;
-  meeting_name: string;
-  student_id: string;
-  student_name: string;
+  meetingId: string;
+  meetingName: string;
+  studentId: string;
+  studentName: string;
   nim: string;
-  is_attended: boolean;
-  submitted_at: Date;
+  isAttended: boolean;
+  submittedAt: Date;
 }

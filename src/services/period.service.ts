@@ -48,8 +48,8 @@ export const SGetPeriods = async (): Promise<
     include: {
       _count: {
         select: {
-          classes: { where: { deleted_at: null } },
-          activations: { where: { deleted_at: null } },
+          classes: { where: { deletedAt: null } },
+          activations: { where: { deletedAt: null } },
         },
       },
     },
@@ -63,7 +63,7 @@ export const SGetPeriods = async (): Promise<
       year: period.year,
       term: period.term,
       name: periodLabel(period),
-      is_active: index === 0,
+      isActive: index === 0,
       classes: period._count.classes,
       activations: period._count.activations,
     })),
@@ -85,7 +85,7 @@ export const SStartPeriod = async (
         ? nextPeriodOf(previous)
         : readFirstPeriod(req.body);
       const period = await tx.mst_academic_period.create({
-        data: { ...next, created_by: req.user!.id },
+        data: { ...next, createdBy: req.user!.id },
       });
       const sessions = previous
         ? await tx.mst_session.findMany({ where: { periodId: previous.id } })
@@ -99,18 +99,18 @@ export const SStartPeriod = async (
           number: session.number,
           startAt: session.startAt,
           endAt: session.endAt,
-          is_active: session.is_active,
-          created_by: req.user!.id,
+          isActive: session.isActive,
+          createdBy: req.user!.id,
         })),
       });
       const closed = previous
         ? await tx.trn_meetings.updateMany({
             where: {
               status: true,
-              deleted_at: null,
+              deletedAt: null,
               class: { periodId: previous.id },
             },
-            data: { status: false, updated_at: new Date() },
+            data: { status: false, updatedAt: new Date() },
           })
         : { count: 0 };
 
@@ -120,7 +120,7 @@ export const SStartPeriod = async (
 
   const name = periodLabel(period);
 
-  publishRealtimeEvent("period", { period_id: period.id, action: "started" });
+  publishRealtimeEvent("period", { periodId: period.id, action: "started" });
 
   return {
     status: true,
@@ -128,6 +128,6 @@ export const SStartPeriod = async (
       previous && closedMeetings > 0
         ? `Semester ${name} dimulai; ${closedMeetings} sesi presensi yang masih terbuka di ${periodLabel(previous)} ditutup`
         : `Semester ${name} dimulai`,
-    data: { id: period.id, name, closed_meetings: closedMeetings },
+    data: { id: period.id, name, closedMeetings },
   };
 };

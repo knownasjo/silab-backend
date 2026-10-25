@@ -4,8 +4,8 @@ export interface ISessionRequestBody {
   number?: number;
   startAt?: string;
   endAt?: string;
-  is_active?: boolean;
-  also_days?: string[];
+  isActive?: boolean;
+  alsoDays?: string[];
 }
 
 export interface ISessionResponseBody {
@@ -15,6 +15,6 @@ export interface ISessionResponseBody {
   number: number;
   startAt: string;
   endAt: string;
-  is_active: boolean;
+  isActive: boolean;
   classes: number;
 }

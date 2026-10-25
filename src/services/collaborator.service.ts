@@ -25,7 +25,7 @@ const classSchedule = {
     day: true,
     startAt: true,
     endAt: true,
-    subject: { select: { subject_name: true } },
+    subject: { select: { subjectName: true } },
   },
 };
 
@@ -53,8 +53,8 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
     throw new BadRequestError("Pilih kelas dan minimal satu mahasiswa!");
 
   const targetClass = await db.mst_class.findFirst({
-    where: { id: classId, deleted_at: null },
-    include: { subject: { select: { subject_name: true } } },
+    where: { id: classId, deletedAt: null },
+    include: { subject: { select: { subjectName: true } } },
   });
 
   if (!targetClass) throw new NotFoundError("Kelas tidak ditemukan!");
@@ -93,22 +93,22 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
         userId: user.id,
         subjectId: targetClass.subjectId,
         periodId: targetClass.periodId,
-        deleted_at: null,
+        deletedAt: null,
       },
       select: { id: true },
     });
 
     if (activation)
       throw new ConflictError(
-        `${user.fullname} sedang mengikuti praktikum ${targetClass.subject.subject_name}, jadi tidak bisa menjadi asisten mata kuliah ini.`
+        `${user.fullname} sedang mengikuti praktikum ${targetClass.subject.subjectName}, jadi tidak bisa menjadi asisten mata kuliah ini.`
       );
 
     const [enrollments, assisting] = await Promise.all([
       db.trn_class_participants.findMany({
         where: {
           userId: user.id,
-          deleted_at: null,
-          class: { deleted_at: null, periodId: targetClass.periodId },
+          deletedAt: null,
+          class: { deletedAt: null, periodId: targetClass.periodId },
         },
         select: { class: classSchedule },
       }),
@@ -117,7 +117,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
           userId: user.id,
           deletedAt: null,
           classId: { not: classId },
-          class: { deleted_at: null, periodId: targetClass.periodId },
+          class: { deletedAt: null, periodId: targetClass.periodId },
         },
         select: { class: classSchedule },
       }),
@@ -130,7 +130,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
 
     if (clash)
       throw new ConflictError(
-        `Jadwal bentrok: ${user.fullname} ${clash.role} ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
+        `Jadwal bentrok: ${user.fullname} ${clash.role} ${clash.subject.subjectName} kelas ${clash.name} (${formatSchedule(clash)}).`
       );
   }
 
@@ -146,7 +146,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
     }),
   ]);
 
-  publishRealtimeEvent("class", { class_id: classId, action: "assistants" });
+  publishRealtimeEvent("class", { classId: classId, action: "assistants" });
 
   return {
     status: true,
@@ -174,7 +174,7 @@ export const SRemoveCollaborator = async (
   if (count === 0)
     throw new NotFoundError("Asisten tidak ditemukan di kelas ini!");
 
-  publishRealtimeEvent("class", { class_id: classId, action: "assistants" });
+  publishRealtimeEvent("class", { classId: classId, action: "assistants" });
 
   return {
     status: true,

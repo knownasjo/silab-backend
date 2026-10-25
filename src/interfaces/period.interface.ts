@@ -10,7 +10,7 @@ export interface IPeriodResponseBody {
   year: string;
   term: AcademicTerm;
   name: string;
-  is_active: boolean;
+  isActive: boolean;
   classes: number;
   activations: number;
 }
@@ -18,5 +18,5 @@ export interface IPeriodResponseBody {
 export interface IStartPeriodResponseBody {
   id: string;
   name: string;
-  closed_meetings: number;
+  closedMeetings: number;
 }

@@ -10,7 +10,7 @@ interface IClassSchedule {
   startAt: string;
   endAt: string;
   periodId: string;
-  subject: { subject_name: string };
+  subject: { subjectName: string };
 }
 
 const findAssistedClasses = async (
@@ -23,7 +23,7 @@ const findAssistedClasses = async (
       where: {
         userId,
         deletedAt: null,
-        class: { deleted_at: null, periodId: { in: periodIds } },
+        class: { deletedAt: null, periodId: { in: periodIds } },
       },
       select: {
         class: {
@@ -33,7 +33,7 @@ const findAssistedClasses = async (
             day: true,
             startAt: true,
             endAt: true,
-            subject: { select: { subject_name: true } },
+            subject: { select: { subjectName: true } },
           },
         },
       },
@@ -51,7 +51,7 @@ export const assertNotAssistantOfSubjects = async (
 
   if (assisted)
     throw new ConflictError(
-      `Anda adalah asisten praktikum ${assisted.subject.subject_name} kelas ${assisted.name}, jadi tidak bisa mendaftar sebagai praktikan mata kuliah ini.`
+      `Anda adalah asisten praktikum ${assisted.subject.subjectName} kelas ${assisted.name}, jadi tidak bisa mendaftar sebagai praktikan mata kuliah ini.`
     );
 };
 
@@ -74,7 +74,7 @@ export const assertNoAssistantScheduleClash = async (
 
     if (clash)
       throw new ConflictError(
-        `Jadwal bentrok: ${target.subject.subject_name} kelas ${target.name} (${formatSchedule(target)}) bersamaan dengan ${clash.subject.subject_name} kelas ${clash.name} yang ${holder} sebagai asisten.`
+        `Jadwal bentrok: ${target.subject.subjectName} kelas ${target.name} (${formatSchedule(target)}) bersamaan dengan ${clash.subject.subjectName} kelas ${clash.name} yang ${holder} sebagai asisten.`
       );
   }
 };
@@ -86,7 +86,7 @@ const classSchedule = {
     room: true,
     startAt: true,
     endAt: true,
-    subject: { select: { subject_name: true } },
+    subject: { select: { subjectName: true } },
   },
 };
 
@@ -98,7 +98,7 @@ export const findMemberScheduleClashes = async (
 ) => {
   const elsewhere = {
     classId: { not: classId },
-    class: { deleted_at: null, periodId },
+    class: { deletedAt: null, periodId },
   };
   const assistingElsewhere = {
     where: { ...elsewhere, deletedAt: null },
@@ -112,25 +112,25 @@ export const findMemberScheduleClashes = async (
         select: {
           fullname: true,
           classEnrollments: {
-            where: { ...elsewhere, deleted_at: null },
+            where: { ...elsewhere, deletedAt: null },
             select: { class: classSchedule },
           },
-          trn_class_collaborator: assistingElsewhere,
+          classCollaborators: assistingElsewhere,
         },
       },
     },
   });
   const participants = await client.trn_class_participants.findMany({
-    where: { classId, deleted_at: null },
+    where: { classId, deletedAt: null },
     select: {
       user: {
         select: {
           fullname: true,
           classEnrollments: {
-            where: { ...elsewhere, deleted_at: null },
+            where: { ...elsewhere, deletedAt: null },
             select: { class: classSchedule },
           },
-          trn_class_collaborator: assistingElsewhere,
+          classCollaborators: assistingElsewhere,
         },
       },
     },
@@ -143,7 +143,7 @@ export const findMemberScheduleClashes = async (
         activity: "mengikuti praktikum",
         ...row.class,
       })),
-      ...user.trn_class_collaborator.map((row) => ({
+      ...user.classCollaborators.map((row) => ({
         member: `asisten ${user.fullname}`,
         activity: "menjadi asisten",
         ...row.class,
@@ -155,7 +155,7 @@ export const findMemberScheduleClashes = async (
         activity: "mengikuti praktikum",
         ...row.class,
       })),
-      ...user.trn_class_collaborator.map((row) => ({
+      ...user.classCollaborators.map((row) => ({
         member: `peserta ${user.fullname}`,
         activity: "menjadi asisten",
         ...row.class,
@@ -183,6 +183,6 @@ export const assertNoMemberScheduleClash = async (
 
   if (clash)
     throw new ConflictError(
-      `Jadwal baru bentrok: ${clash.member} ${clash.activity} ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}).`
+      `Jadwal baru bentrok: ${clash.member} ${clash.activity} ${clash.subject.subjectName} kelas ${clash.name} (${formatSchedule(clash)}).`
     );
 };

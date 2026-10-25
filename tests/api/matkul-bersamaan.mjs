@@ -15,7 +15,7 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
   const add = (body) =>
     call("POST", "/subject", {
       token,
-      body: { semester: "2", lecturer_id: data.lecturer.id, ...body },
+      body: { semester: "2", lecturerId: data.lecturer.id, ...body },
     });
   const update = (subject, body) =>
     call("PUT", `/subject/${subject.id}`, { token, body });
@@ -24,9 +24,9 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
   const succeeded = (results) =>
     results.filter((r) => r.code === 200 || r.code === 201).length;
   const countSubjects = (where) =>
-    db.mst_subject.count({ where: { deleted_at: null, ...where } });
+    db.mst_subject.count({ where: { deletedAt: null, ...where } });
   const sameName = (name) => ({
-    subject_name: { equals: name, mode: "insensitive" },
+    subjectName: { equals: name, mode: "insensitive" },
   });
 
   section("Kode yang sama dikirim bersamaan");
@@ -34,7 +34,7 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
     const code = data.nextCode();
     const results = await together(
       [1, 2, 3, 4].map((n) =>
-        add({ subject_code: code, subject_name: `Uji Kode Sama ${round}-${n}` })
+        add({ subjectCode: code, subjectName: `Uji Kode Sama ${round}-${n}` })
       )
     );
     check(
@@ -51,7 +51,7 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
       ).length === 3,
       summary(results)
     );
-    const saved = await countSubjects({ subject_code: code });
+    const saved = await countSubjects({ subjectCode: code });
     check(`  kode ${code} tersimpan tepat satu (${saved})`, saved === 1);
   }
 
@@ -60,8 +60,8 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
     const results = await together(
       [1, 2, 3, 4].map((n) =>
         add({
-          subject_code: data.nextCode(),
-          subject_name: n % 2 === 0 ? name.toLowerCase() : name,
+          subjectCode: data.nextCode(),
+          subjectName: n % 2 === 0 ? name.toLowerCase() : name,
         })
       )
     );
@@ -87,8 +87,8 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
   const first = await data.subject("Uji Ubah Bersamaan Satu");
   const second = await data.subject("Uji Ubah Bersamaan Dua");
   const renames = await together([
-    update(first, { subject_name: "Uji Nama Baru Sama" }),
-    update(second, { subject_name: "Uji Nama Baru Sama" }),
+    update(first, { subjectName: "Uji Nama Baru Sama" }),
+    update(second, { subjectName: "Uji Nama Baru Sama" }),
   ]);
   check(
     "dua mata kuliah diganti ke nama yang sama bersamaan: tepat satu berhasil",
@@ -100,22 +100,22 @@ await runTest("Tambah dan ubah mata kuliah bersamaan", data, async () => {
 
   const newCode = data.nextCode();
   const recodes = await together([
-    update(first, { subject_code: newCode }),
-    update(second, { subject_code: newCode }),
+    update(first, { subjectCode: newCode }),
+    update(second, { subjectCode: newCode }),
   ]);
   check(
     "dua mata kuliah diganti ke kode yang sama bersamaan: tepat satu berhasil",
     succeeded(recodes) === 1 && recodes.some((r) => r.code === 409),
     summary(recodes)
   );
-  const recoded = await countSubjects({ subject_code: newCode });
+  const recoded = await countSubjects({ subjectCode: newCode });
   check(`  kode itu dipakai tepat satu (${recoded})`, recoded === 1);
 
   section("Tambah dan ubah bersamaan");
   const third = await data.subject("Uji Ubah Bersamaan Tiga");
   const mixed = await together([
-    add({ subject_code: data.nextCode(), subject_name: "Uji Nama Rebutan" }),
-    update(third, { subject_name: "Uji Nama Rebutan" }),
+    add({ subjectCode: data.nextCode(), subjectName: "Uji Nama Rebutan" }),
+    update(third, { subjectName: "Uji Nama Rebutan" }),
   ]);
   check(
     "mata kuliah baru dan ganti nama ke nama yang sama bersamaan: tepat satu berhasil",

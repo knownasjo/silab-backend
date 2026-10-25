@@ -11,7 +11,7 @@ interface IEnrollTarget {
   endAt: string;
   quota: number;
   periodId: string;
-  subject: { subject_name: string };
+  subject: { subjectName: string };
 }
 
 export const periodsOf = (targets: { periodId: string }[]) => [
@@ -44,7 +44,7 @@ export const findFullClass = async <C extends IEnrollTarget>(
 ) => {
   for (const target of classes) {
     const taken = await tx.trn_class_participants.count({
-      where: { classId: target.id, deleted_at: null },
+      where: { classId: target.id, deletedAt: null },
     });
 
     if (taken >= target.quota) return target;
@@ -63,12 +63,12 @@ export const findEnrollmentInSubjects = (
   tx.trn_class_participants.findFirst({
     where: {
       userId,
-      deleted_at: null,
-      class: { subjectId: { in: subjectIds }, deleted_at: null, periodId },
+      deletedAt: null,
+      class: { subjectId: { in: subjectIds }, deletedAt: null, periodId },
       ...(exceptClassId && { classId: { not: exceptClassId } }),
     },
     include: {
-      class: { include: { subject: { select: { subject_name: true } } } },
+      class: { include: { subject: { select: { subjectName: true } } } },
     },
   });
 
@@ -83,8 +83,8 @@ export const assertNoParticipantScheduleClash = async (
     await tx.trn_class_participants.findMany({
       where: {
         userId,
-        deleted_at: null,
-        class: { deleted_at: null, periodId: { in: periodsOf(targets) } },
+        deletedAt: null,
+        class: { deletedAt: null, periodId: { in: periodsOf(targets) } },
         ...(exceptClassId && { classId: { not: exceptClassId } }),
       },
       select: {
@@ -95,7 +95,7 @@ export const assertNoParticipantScheduleClash = async (
             day: true,
             startAt: true,
             endAt: true,
-            subject: { select: { subject_name: true } },
+            subject: { select: { subjectName: true } },
           },
         },
       },
@@ -109,7 +109,7 @@ export const assertNoParticipantScheduleClash = async (
 
     if (clash)
       throw new ConflictError(
-        `Jadwal bentrok: ${target.subject.subject_name} kelas ${target.name} (${formatSchedule(target)}) bersamaan dengan ${clash.subject.subject_name} kelas ${clash.name} yang ${holder}.`
+        `Jadwal bentrok: ${target.subject.subjectName} kelas ${target.name} (${formatSchedule(target)}) bersamaan dengan ${clash.subject.subjectName} kelas ${clash.name} yang ${holder}.`
       );
 
     const picked = targets
@@ -118,7 +118,7 @@ export const assertNoParticipantScheduleClash = async (
 
     if (picked)
       throw new ConflictError(
-        `Jadwal bentrok: ${target.subject.subject_name} kelas ${target.name} (${formatSchedule(target)}) bersamaan dengan ${picked.subject.subject_name} kelas ${picked.name} yang juga dipilih.`
+        `Jadwal bentrok: ${target.subject.subjectName} kelas ${target.name} (${formatSchedule(target)}) bersamaan dengan ${picked.subject.subjectName} kelas ${picked.name} yang juga dipilih.`
       );
   });
 };

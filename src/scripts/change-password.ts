@@ -170,7 +170,7 @@ const changePassword = async (nim: string) => {
     where: { id: user.id },
     data: {
       password: await bcrypt.hash(password, 10),
-      password_changed_at: passwordChangeTime(),
+      passwordChangedAt: passwordChangeTime(),
     },
   });
 

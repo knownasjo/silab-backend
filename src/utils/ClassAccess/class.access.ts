@@ -34,7 +34,7 @@ export const isLecturer = (user: mst_user | undefined) =>
   user?.role === "DOSEN";
 
 export const lecturerSubjectScope = (user: mst_user | undefined) =>
-  isLecturer(user) ? { lecturer_id: user!.id } : {};
+  isLecturer(user) ? { lecturerId: user!.id } : {};
 
 export const assertLecturerOfSubject = (
   user: mst_user | undefined,
@@ -52,9 +52,9 @@ export const assertLecturerOfClass = async (
 
   const classData = await db.mst_class.findUnique({
     where: { id: classId },
-    select: { subject: { select: { lecturer_id: true } } },
+    select: { subject: { select: { lecturerId: true } } },
   });
 
-  if (classData && classData.subject.lecturer_id !== user!.id)
+  if (classData && classData.subject.lecturerId !== user!.id)
     throw new ForbiddenError("Kelas ini bukan mata kuliah yang Anda ampu.");
 };

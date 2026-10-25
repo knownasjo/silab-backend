@@ -19,7 +19,7 @@ export interface IGetClassResponseBody {
   id: string;
   subjectId: string;
   name: string;
-  subject_name: string;
+  subjectName: string;
   semester: string;
   quota: number;
   isFull: boolean;
@@ -35,8 +35,8 @@ export interface IGetClassByIdResponseBody {
   id: string;
   subjectId: string;
   name: string;
-  subject_code: string;
-  subject_name: string;
+  subjectCode: string;
+  subjectName: string;
   semester: string;
   quota: number;
   isFull: boolean;
@@ -48,18 +48,18 @@ export interface IGetClassByIdResponseBody {
   lecturer: string;
   participants: number;
   meetings: number;
-  recorded_meetings: number;
-  period: { id: string; name: string; is_active: boolean } | null;
+  recordedMeetings: number;
+  period: { id: string; name: string; isActive: boolean } | null;
 }
 
 export interface IGetAllClassByPaidActivationsResponseBody {
   id: string;
-  subject_name: string;
-  subject_class: string;
+  subjectName: string;
+  subjectClass: string;
   semester: string;
-  session_time: string;
+  sessionTime: string;
   quota: number;
-  registered_students: number;
+  registeredStudents: number;
   day: string;
 }
 
@@ -69,17 +69,17 @@ export interface IClassRegistrationRequestBody {
 
 export interface IGetClassmateResponseBody {
   name: string;
-  is_me: boolean;
+  isMe: boolean;
 }
 
 export interface IGetMyClassResponseBody {
   id: string;
-  subject_id: string;
-  subject_name: string;
-  subject_class: string;
+  subjectId: string;
+  subjectName: string;
+  subjectClass: string;
   semester: string;
   lecturer: string;
   day: string;
-  session_time: string;
+  sessionTime: string;
   room: string;
 }

@@ -84,7 +84,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"nim\": \"2000016099\",\n  \"password\": \"mahasiswa001\",\n  \"device_id\": \"{{deviceId}}\"\n}",
+							"raw": "{\n  \"nim\": \"2000016099\",\n  \"password\": \"mahasiswa001\",\n  \"deviceId\": \"{{deviceId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -101,7 +101,7 @@
 								"login"
 							]
 						},
-						"description": "Masuk dengan NIM dan password akun uji mahasiswa. Token disimpan otomatis ke variabel `accessTokenMahasiswa` dan `refreshTokenMahasiswa`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran\n\n`device_id` (opsional) adalah kode HP dari aplikasi: 64 karakter heksadesimal (SHA-256 dari Android ID / kode Keychain iPhone). Untuk MAHASISWA, HP itu dicatat di `trn_user_devices`; HP pertama sebuah akun menjadi perangkat biasanya. Kode yang rusak atau tidak dikirim diabaikan, login tetap berhasil."
+						"description": "Masuk dengan NIM dan password akun uji mahasiswa. Token disimpan otomatis ke variabel `accessTokenMahasiswa` dan `refreshTokenMahasiswa`.\n\n- 200 `{ accessToken, refreshToken }` (access 15 menit, refresh 1 hari)\n- 401 \"NIM/NIY atau password salah!\"\n- 403 \"Akun belum diverifikasi...\" bila NIM masih menunggu kode pendaftaran\n\n`deviceId` (opsional) adalah kode HP dari aplikasi: 64 karakter heksadesimal (SHA-256 dari Android ID / kode Keychain iPhone). Untuk MAHASISWA, HP itu dicatat di `trn_user_devices`; HP pertama sebuah akun menjadi perangkat biasanya. Kode yang rusak atau tidak dikirim diabaikan, login tetap berhasil."
 					},
 					"response": []
 				},
@@ -310,7 +310,7 @@
 								"register"
 							]
 						},
-						"description": "Mengirim kode 6 angka ke email. NIM diambil dari 10 angka sebelum `@`; role selalu MAHASISWA.\n\n- 201 `{ email, nim, expires_in: 600, resend_in: 60 }`\n- 400 format email, nama (3–100 karakter), password (min. 8), atau konfirmasi\n- 409 \"Email sudah terdaftar\" / \"NIM sudah terdaftar\"\n- 429 bila meminta lagi sebelum 60 detik"
+						"description": "Mengirim kode 6 angka ke email. NIM diambil dari 10 angka sebelum `@`; role selalu MAHASISWA.\n\n- 201 `{ email, nim, expiresIn: 600, resendIn: 60 }`\n- 400 format email, nama (3–100 karakter), password (min. 8), atau konfirmasi\n- 409 \"Email sudah terdaftar\" / \"NIM sudah terdaftar\"\n- 429 bila meminta lagi sebelum 60 detik"
 					},
 					"response": []
 				},
@@ -344,7 +344,7 @@
 								"resend"
 							]
 						},
-						"description": "Mengirim kode baru (kode lama tidak berlaku). Baru boleh 60 detik setelah kiriman terakhir.\n\n- 200 `{ email, nim, expires_in, resend_in }`\n- 404 \"Pendaftaran tidak ditemukan, silakan daftar ulang.\"\n- 429 \"Tunggu n detik sebelum meminta kode baru.\""
+						"description": "Mengirim kode baru (kode lama tidak berlaku). Baru boleh 60 detik setelah kiriman terakhir.\n\n- 200 `{ email, nim, expiresIn, resendIn }`\n- 404 \"Pendaftaran tidak ditemukan, silakan daftar ulang.\"\n- 429 \"Tunggu n detik sebelum meminta kode baru.\""
 					},
 					"response": []
 				},
@@ -583,7 +583,7 @@
 								"forgot"
 							]
 						},
-						"description": "Mengirim kode reset 6 angka (berlaku 10 menit, minta ulang dengan request yang sama setelah 60 detik).\n\n- 200 `{ email, expires_in: 600, resend_in: 60 }`\n- 404 \"Email ini belum terdaftar di SILAB.\"\n- 403 \"Akun ini belum diverifikasi...\" (dengan `data.email`) atau \"Reset password akun laboran dan dosen dilakukan oleh laboran.\"\n- 429 \"Tunggu n detik sebelum meminta kode baru.\""
+						"description": "Mengirim kode reset 6 angka (berlaku 10 menit, minta ulang dengan request yang sama setelah 60 detik).\n\n- 200 `{ email, expiresIn: 600, resendIn: 60 }`\n- 404 \"Email ini belum terdaftar di SILAB.\"\n- 403 \"Akun ini belum diverifikasi...\" (dengan `data.email`) atau \"Reset password akun laboran dan dosen dilakukan oleh laboran.\"\n- 429 \"Tunggu n detik sebelum meminta kode baru.\""
 					},
 					"response": []
 				},
@@ -865,7 +865,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"subject_code\": \"{{newSubjectCode}}\",\n  \"subject_name\": \"{{newSubjectName}}\",\n  \"semester\": \"3\",\n  \"lecturer_id\": \"{{lecturerId}}\"\n}",
+							"raw": "{\n  \"subjectCode\": \"{{newSubjectCode}}\",\n  \"subjectName\": \"{{newSubjectName}}\",\n  \"semester\": \"3\",\n  \"lecturerId\": \"{{lecturerId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -881,7 +881,7 @@
 								"subject"
 							]
 						},
-						"description": "Hanya LABORAN (selain itu 403). Aturannya sama dengan \"Ubah Mata Kuliah\": `subject_code` wajib, tepat 9 angka, `subject_name` wajib (maks. 100), `semester` 1–8, `lecturer_id` akun DOSEN dari \"Daftar Dosen\"; spasi berlebih dirapikan dan field lain di body diabaikan. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Membuat data sungguhan; id mata kuliah baru disimpan ke `newSubjectId`.\n\n- 201 \"Mata kuliah <nama> berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
+						"description": "Hanya LABORAN (selain itu 403). Aturannya sama dengan \"Ubah Mata Kuliah\": `subjectCode` wajib, tepat 9 angka, `subjectName` wajib (maks. 100), `semester` 1–8, `lecturerId` akun DOSEN dari \"Daftar Dosen\"; spasi berlebih dirapikan dan field lain di body diabaikan. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Membuat data sungguhan; id mata kuliah baru disimpan ke `newSubjectId`.\n\n- 201 \"Mata kuliah <nama> berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
 				},
@@ -894,7 +894,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"if (pm.response.code === 200) {",
-									"    const subject = pm.response.json().data.find((item) => item.subject_name === pm.collectionVariables.get(\"newSubjectName\"));",
+									"    const subject = pm.response.json().data.find((item) => item.subjectName === pm.collectionVariables.get(\"newSubjectName\"));",
 									"    if (subject) pm.collectionVariables.set(\"newSubjectId\", subject.id);",
 									"}"
 								]
@@ -923,7 +923,7 @@
 								"subject"
 							]
 						},
-						"description": "LABORAN: semua mata kuliah. DOSEN: hanya yang ia ampu. `[{ id, subject_code, subject_name, semester, lecturer_id, lecturer }]`, urut menurut waktu dibuat. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
+						"description": "LABORAN: semua mata kuliah. DOSEN: hanya yang ia ampu. `[{ id, subjectCode, subjectName, semester, lecturerId, lecturer }]`, urut menurut waktu dibuat. Id mata kuliah bernama `newSubjectName` disimpan ke `newSubjectId`."
 					},
 					"response": []
 				},
@@ -952,7 +952,7 @@
 								"{{subjectId}}"
 							]
 						},
-						"description": "Detail satu mata kuliah: `{ id, subject_code, subject_name, semester, lecturer_id, lecturer }`. DOSEN hanya mata kuliah yang ia ampu (403 \"Mata kuliah ini bukan yang Anda ampu.\")."
+						"description": "Detail satu mata kuliah: `{ id, subjectCode, subjectName, semester, lecturerId, lecturer }`. DOSEN hanya mata kuliah yang ia ampu (403 \"Mata kuliah ini bukan yang Anda ampu.\")."
 					},
 					"response": []
 				},
@@ -978,7 +978,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"semester\": \"4\",\n  \"lecturer_id\": \"{{lecturerId}}\"\n}",
+							"raw": "{\n  \"semester\": \"4\",\n  \"lecturerId\": \"{{lecturerId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -995,7 +995,7 @@
 								"{{newSubjectId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Semua field opsional: `subject_code` (tepat 9 angka), `subject_name` (maks. 100), `semester` (1–8), `lecturer_id` (akun DOSEN); yang tidak dikirim memakai nilai sekarang. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Bila dosen diganti, dosen baru langsung bisa membaca semua kelas, pertemuan, dan presensi mata kuliah itu, sedangkan dosen lama tidak lagi.\n\n- 200 \"Mata kuliah <nama> berhasil diperbarui\" (+ \"; dosen pengampu sekarang <nama>\" bila dosen diganti) atau \"Tidak ada perubahan pada mata kuliah\"\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 403 bukan laboran\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
+						"description": "Hanya LABORAN. Semua field opsional: `subjectCode` (tepat 9 angka), `subjectName` (maks. 100), `semester` (1–8), `lecturerId` (akun DOSEN); yang tidak dikirim memakai nilai sekarang. Kode dan nama tidak boleh sama dengan mata kuliah lain (tanpa membedakan huruf besar-kecil). Bila dosen diganti, dosen baru langsung bisa membaca semua kelas, pertemuan, dan presensi mata kuliah itu, sedangkan dosen lama tidak lagi.\n\n- 200 \"Mata kuliah <nama> berhasil diperbarui\" (+ \"; dosen pengampu sekarang <nama>\" bila dosen diganti) atau \"Tidak ada perubahan pada mata kuliah\"\n- 400 isian tidak valid atau \"Dosen pengampu harus akun dosen yang terdaftar!\"\n- 403 bukan laboran\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kode ... sudah dipakai mata kuliah ...!\" atau \"Nama ... sudah dipakai mata kuliah berkode ...!\""
 					},
 					"response": []
 				},
@@ -1042,7 +1042,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"subject_code\": \"{{trialSubjectCode}}\",\n  \"subject_name\": \"{{trialSubjectName}}\",\n  \"semester\": \"8\",\n  \"lecturer_id\": \"{{lecturerId}}\"\n}",
+							"raw": "{\n  \"subjectCode\": \"{{trialSubjectCode}}\",\n  \"subjectName\": \"{{trialSubjectName}}\",\n  \"semester\": \"8\",\n  \"lecturerId\": \"{{lecturerId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1106,7 +1106,7 @@
 									"if (pm.response.code === 200) {",
 									"    const sessions = pm.response.json().data;",
 									"    const current = pm.collectionVariables.get(\"sessionId\");",
-									"    const sbtiMonday = sessions.find((session) => session.room === \"SBTI\" && session.day === \"MONDAY\" && session.is_active);",
+									"    const sbtiMonday = sessions.find((session) => session.room === \"SBTI\" && session.day === \"MONDAY\" && session.isActive);",
 									"    if (sbtiMonday && !sessions.some((session) => session.id === current)) pm.collectionVariables.set(\"sessionId\", sbtiMonday.id);",
 									"}"
 								]
@@ -1152,7 +1152,7 @@
 								}
 							]
 						},
-						"description": "Semua peran yang login. Hanya jam sesi semester aktif (setiap semester punya salinan jam sesinya sendiri). Urut per ruangan, lalu hari Senin–Jumat, lalu jam mulai: `[{ id, room, day, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Web memuat semuanya lalu menyaring per ruangan dan hari. `room` atau `day` yang tidak dikenal dibalas 400. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin SBTI aktif pertama (dipakai Tambah Kelas)."
+						"description": "Semua peran yang login. Hanya jam sesi semester aktif (setiap semester punya salinan jam sesinya sendiri). Urut per ruangan, lalu hari Senin–Jumat, lalu jam mulai: `[{ id, room, day, number, startAt, endAt, isActive, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Web memuat semuanya lalu menyaring per ruangan dan hari. `room` atau `day` yang tidak dikenal dibalas 400. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin SBTI aktif pertama (dipakai Tambah Kelas)."
 					},
 					"response": []
 				},
@@ -1189,7 +1189,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"room\": \"PSI\",\n  \"day\": \"FRIDAY\",\n  \"number\": 9,\n  \"startAt\": \"18.00\",\n  \"endAt\": \"19.00\",\n  \"also_days\": []\n}",
+							"raw": "{\n  \"room\": \"PSI\",\n  \"day\": \"FRIDAY\",\n  \"number\": 9,\n  \"startAt\": \"18.00\",\n  \"endAt\": \"19.00\",\n  \"alsoDays\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1205,7 +1205,7 @@
 								"session"
 							]
 						},
-						"description": "Hanya LABORAN. `room`: PSI atau SBTI, `day`: MONDAY–FRIDAY, `number` 1–20 (unik per ruangan dan hari di semester aktif). `also_days` (opsional): hari lain yang ikut dibuatkan sesi bernomor dan berjam sama, misalnya `[\"MONDAY\", \"TUESDAY\"]`; semuanya tersimpan bersama atau tidak sama sekali. Sesi baru menjadi milik semester aktif, jam `JJ.MM` dan jam mulai sebelum jam selesai. Jam yang bertabrakan hanya dicek di ruangan dan hari yang sama. Id sesi hari `day` disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat PSI berhasil ditambahkan\" (atau \"Sesi 9 PSI hari Senin dan Jumat berhasil ditambahkan\")\n- 400 format salah, misalnya \"Ruangan harus PSI atau SBTI!\" atau \"Hari lain harus berisi hari Senin sampai Jumat!\"\n- 409 \"Sesi n <hari> <ruang> sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n <hari> <ruang> (JJ.MM–JJ.MM)!\""
+						"description": "Hanya LABORAN. `room`: PSI atau SBTI, `day`: MONDAY–FRIDAY, `number` 1–20 (unik per ruangan dan hari di semester aktif). `alsoDays` (opsional): hari lain yang ikut dibuatkan sesi bernomor dan berjam sama, misalnya `[\"MONDAY\", \"TUESDAY\"]`; semuanya tersimpan bersama atau tidak sama sekali. Sesi baru menjadi milik semester aktif, jam `JJ.MM` dan jam mulai sebelum jam selesai. Jam yang bertabrakan hanya dicek di ruangan dan hari yang sama. Id sesi hari `day` disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat PSI berhasil ditambahkan\" (atau \"Sesi 9 PSI hari Senin dan Jumat berhasil ditambahkan\")\n- 400 format salah, misalnya \"Ruangan harus PSI atau SBTI!\" atau \"Hari lain harus berisi hari Senin sampai Jumat!\"\n- 409 \"Sesi n <hari> <ruang> sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n <hari> <ruang> (JJ.MM–JJ.MM)!\""
 					},
 					"response": []
 				},
@@ -1248,7 +1248,7 @@
 								"{{newSessionId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `is_active` (false = nonaktif, tidak muncul di pilihan kelas baru), dan `also_days`: hari lain di ruangan yang sama yang punya nomor sesi ini. Hari-hari itu ikut mendapat nomor dan jam yang sama dengan sesi ini (serta `is_active` bila dikirim); semuanya tersimpan bersama atau tidak sama sekali. Ruangan dan hari sesi tidak bisa diganti. Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim. Bila jam baru membuat peserta atau asisten kelas itu bentrok dengan kelas lain (termasuk kelas di ruangan lain), perubahan tetap disimpan dan `warnings` berisi daftar bentroknya. Jam sesi semester lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\"\n\n- 200 \"Sesi n <hari> <ruang> berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\", + \". Perhatian, n jadwal jadi bentrok.\"), dengan `warnings: [\"<mata kuliah> kelas A (Senin, 07.00 - 08.40, SBTI): peserta <nama> juga mengikuti praktikum ...\"]`\n- 404 \"Sesi n <hari> <ruang> tidak ditemukan!\" (hari di `also_days` tidak punya nomor sesi itu)\n- 409 tumpang tindih dengan sesi lain"
+						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `isActive` (false = nonaktif, tidak muncul di pilihan kelas baru), dan `alsoDays`: hari lain di ruangan yang sama yang punya nomor sesi ini. Hari-hari itu ikut mendapat nomor dan jam yang sama dengan sesi ini (serta `isActive` bila dikirim); semuanya tersimpan bersama atau tidak sama sekali. Ruangan dan hari sesi tidak bisa diganti. Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim. Bila jam baru membuat peserta atau asisten kelas itu bentrok dengan kelas lain (termasuk kelas di ruangan lain), perubahan tetap disimpan dan `warnings` berisi daftar bentroknya. Jam sesi semester lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\"\n\n- 200 \"Sesi n <hari> <ruang> berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\", + \". Perhatian, n jadwal jadi bentrok.\"), dengan `warnings: [\"<mata kuliah> kelas A (Senin, 07.00 - 08.40, SBTI): peserta <nama> juga mengikuti praktikum ...\"]`\n- 404 \"Sesi n <hari> <ruang> tidak ditemukan!\" (hari di `alsoDays` tidak punya nomor sesi itu)\n- 409 tumpang tindih dengan sesi lain"
 					},
 					"response": []
 				},
@@ -1296,7 +1296,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"if (pm.response.code === 200) {",
-									"    const active = pm.response.json().data.find((period) => period.is_active);",
+									"    const active = pm.response.json().data.find((period) => period.isActive);",
 									"    if (active) pm.collectionVariables.set(\"periodId\", active.id);",
 									"}"
 								]
@@ -1325,7 +1325,7 @@
 								"period"
 							]
 						},
-						"description": "Semua peran yang login. Urut dari yang terbaru: `[{ id, year, term, name, is_active, classes, activations }]`; `name` contohnya \"2026/2027 Ganjil\", `is_active` hanya benar untuk periode terbaru, `classes` dan `activations` adalah jumlah kelas dan pendaftaran mata kuliah di periode itu. ID periode aktif disimpan ke variabel `periodId`."
+						"description": "Semua peran yang login. Urut dari yang terbaru: `[{ id, year, term, name, isActive, classes, activations }]`; `name` contohnya \"2026/2027 Ganjil\", `isActive` hanya benar untuk periode terbaru, `classes` dan `activations` adalah jumlah kelas dan pendaftaran mata kuliah di periode itu. ID periode aktif disimpan ke variabel `periodId`."
 					},
 					"response": []
 				},
@@ -1362,7 +1362,7 @@
 								"period"
 							]
 						},
-						"description": "**Hati-hati: mengganti semester untuk semua pengguna.** Hanya LABORAN (selain itu 403 \"Hanya laboran yang dapat memulai semester baru!\").\n\nMembuat periode berikutnya secara otomatis dan menyalin semua jam sesi semester lama ke semester baru (2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil); isi body diabaikan. Hanya bila belum ada periode sama sekali, body wajib berisi periode pertama: `{ \"year\": \"2026/2027\", \"term\": \"GANJIL\" }` (400 \"Tahun ajaran harus seperti 2026/2027!\" atau \"Semester harus GANJIL atau GENAP!\").\n\nSesi presensi yang masih terbuka di periode lama ditutup otomatis. Berhasil: 201 \"Semester 2026/2027 Genap dimulai\" (ditambah \"; n sesi presensi yang masih terbuka di … ditutup\" bila ada) `{ id, name, closed_meetings }` dan event `period` (`action: \"started\"`) ke semua. Setelah itu semua perubahan pada kelas, pertemuan, presensi, pembayaran, dan asisten di periode lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\" Tidak ada tombol batal; periode yang salah dibuat hanya bisa dihapus lewat skrip terminal."
+						"description": "**Hati-hati: mengganti semester untuk semua pengguna.** Hanya LABORAN (selain itu 403 \"Hanya laboran yang dapat memulai semester baru!\").\n\nMembuat periode berikutnya secara otomatis dan menyalin semua jam sesi semester lama ke semester baru (2026/2027 Ganjil → 2026/2027 Genap → 2027/2028 Ganjil); isi body diabaikan. Hanya bila belum ada periode sama sekali, body wajib berisi periode pertama: `{ \"year\": \"2026/2027\", \"term\": \"GANJIL\" }` (400 \"Tahun ajaran harus seperti 2026/2027!\" atau \"Semester harus GANJIL atau GENAP!\").\n\nSesi presensi yang masih terbuka di periode lama ditutup otomatis. Berhasil: 201 \"Semester 2026/2027 Genap dimulai\" (ditambah \"; n sesi presensi yang masih terbuka di … ditutup\" bila ada) `{ id, name, closedMeetings }` dan event `period` (`action: \"started\"`) ke semua. Setelah itu semua perubahan pada kelas, pertemuan, presensi, pembayaran, dan asisten di periode lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\" Tidak ada tombol batal; periode yang salah dibuat hanya bisa dihapus lewat skrip terminal."
 					},
 					"response": []
 				}
@@ -1478,7 +1478,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Detail satu kelas: mata kuliah (`subject_code`, `subject_name`, `semester`), jadwal, ruang, `sessionId`, dosen, jumlah peserta, jumlah pertemuan (`meetings`), dan jumlah pertemuan yang sudah berisi presensi (`recorded_meetings`). DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\").\n\nBerisi juga `period: { id, name, is_active }`. Kelas periode lama tetap bisa dibuka, tetapi tidak bisa diubah."
+						"description": "Detail satu kelas: mata kuliah (`subjectCode`, `subjectName`, `semester`), jadwal, ruang, `sessionId`, dosen, jumlah peserta, jumlah pertemuan (`meetings`), dan jumlah pertemuan yang sudah berisi presensi (`recordedMeetings`). DOSEN hanya kelas mata kuliah yang ia ampu (403 \"Kelas ini bukan mata kuliah yang Anda ampu.\").\n\nBerisi juga `period: { id, name, isActive }`. Kelas periode lama tetap bisa dibuka, tetapi tidak bisa diubah."
 					},
 					"response": []
 				},
@@ -1811,7 +1811,7 @@
 								}
 							]
 						},
-						"description": "Satu baris per aktivasi, terbaru di atas: `{ id, user_id, nim, student, status, subject_id, ... }`. Id aktivasi pertama disimpan ke `activationId`. DOSEN ditolak 403.\n\nHanya pendaftaran periode aktif; laboran bisa meminta periode lain dengan `&periodId=<id>`."
+						"description": "Satu baris per aktivasi, terbaru di atas: `{ id, userId, nim, student, status, subjectId, ... }`. Id aktivasi pertama disimpan ke `activationId`. DOSEN ditolak 403.\n\nHanya pendaftaran periode aktif; laboran bisa meminta periode lain dengan `&periodId=<id>`."
 					},
 					"response": []
 				},
@@ -1998,7 +1998,7 @@
 								"type": "text/javascript",
 								"exec": [
 									"if (pm.response.code === 200) {",
-									"    const meeting = pm.response.json().data.find((item) => item.meeting_name === pm.collectionVariables.get(\"meetingName\"));",
+									"    const meeting = pm.response.json().data.find((item) => item.meetingName === pm.collectionVariables.get(\"meetingName\"));",
 									"    if (meeting) pm.collectionVariables.set(\"meetingId\", meeting.id);",
 									"}"
 								]
@@ -2028,7 +2028,7 @@
 								"{{classId}}"
 							]
 						},
-						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Setiap mahasiswa juga membawa `device_check` (`BIASA`, `TIDAK_BIASA`, `SUDAH_DICEK`, atau `null` bila belum presensi atau presensi manual); presensi `TIDAK_BIASA` dicek lewat Cek HP Tidak Biasa. Pertemuan diurutkan menurut judul, dengan angka dibaca sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil diabaikan. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
+						"description": "Tampilan staf: setiap pertemuan beserta daftar mahasiswa dan status presensinya. Setiap mahasiswa juga membawa `deviceCheck` (`BIASA`, `TIDAK_BIASA`, `SUDAH_DICEK`, atau `null` bila belum presensi atau presensi manual); presensi `TIDAK_BIASA` dicek lewat Cek HP Tidak Biasa. Pertemuan diurutkan menurut judul, dengan angka dibaca sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil diabaikan. DOSEN mendapat tampilan yang sama untuk kelas mata kuliah yang ia ampu. Id pertemuan bernama `meetingName` disimpan ke `meetingId`."
 					},
 					"response": []
 				},
@@ -2173,7 +2173,7 @@
 								"qr"
 							]
 						},
-						"description": "LABORAN atau asisten kelas itu. `{ token, period_seconds: 10, expires_in_ms }`; token berganti setiap 10 detik dan disimpan ke `qrToken`. Jalankan \"Presensi Scan QR\" kurang dari 10–20 detik sesudahnya."
+						"description": "LABORAN atau asisten kelas itu. `{ token, periodSeconds: 10, expiresInMs }`; token berganti setiap 10 detik dan disimpan ke `qrToken`. Jalankan \"Presensi Scan QR\" kurang dari 10–20 detik sesudahnya."
 					},
 					"response": []
 				},
@@ -2199,7 +2199,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"token\": \"{{qrToken}}\",\n  \"device_id\": \"{{deviceId}}\"\n}",
+							"raw": "{\n  \"token\": \"{{qrToken}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -2220,7 +2220,7 @@
 								"attendances"
 							]
 						},
-						"description": "Hanya MAHASISWA peserta kelas. Urutan pemeriksaan: token ada → MAHASISWA → pertemuan milik kelas → sesi dibuka → token QR masih berlaku → peserta kelas → kode HP ada → belum presensi → HP belum dipakai akun lain di pertemuan ini.\n\n- 201 presensi tercatat\n- 403 \"Sesi presensi belum dibuka!\" / \"Anda tidak terdaftar di kelas ini!\"\n- 400/409 token kedaluwarsa atau sudah presensi\n- 400 \"Perbarui aplikasi SILAB ke versi terbaru untuk melakukan presensi.\" bila `device_id` tidak ada atau bukan 64 karakter heksadesimal\n- 409 \"HP ini sudah dipakai presensi akun lain di pertemuan ini.\" bila kode HP yang sama sudah dipakai akun lain di pertemuan itu\n\nPresensi dicatat bersama kode HP dan status perangkat: `BIASA` bila HP itu perangkat biasa akun tersebut, `TIDAK_BIASA` bila bukan. Untuk mencoba penolakan, login akun lain lalu scan dengan `deviceId` yang sama."
+						"description": "Hanya MAHASISWA peserta kelas. Urutan pemeriksaan: token ada → MAHASISWA → pertemuan milik kelas → sesi dibuka → token QR masih berlaku → peserta kelas → kode HP ada → belum presensi → HP belum dipakai akun lain di pertemuan ini.\n\n- 201 presensi tercatat\n- 403 \"Sesi presensi belum dibuka!\" / \"Anda tidak terdaftar di kelas ini!\"\n- 400/409 token kedaluwarsa atau sudah presensi\n- 400 \"Perbarui aplikasi SILAB ke versi terbaru untuk melakukan presensi.\" bila `deviceId` tidak ada atau bukan 64 karakter heksadesimal\n- 409 \"HP ini sudah dipakai presensi akun lain di pertemuan ini.\" bila kode HP yang sama sudah dipakai akun lain di pertemuan itu\n\nPresensi dicatat bersama kode HP dan status perangkat: `BIASA` bila HP itu perangkat biasa akun tersebut, `TIDAK_BIASA` bila bukan. Untuk mencoba penolakan, login akun lain lalu scan dengan `deviceId` yang sama."
 					},
 					"response": []
 				},
@@ -2311,7 +2311,7 @@
 								"device"
 							]
 						},
-						"description": "LABORAN atau asisten kelas itu, hanya untuk presensi scan yang bertanda `device_check: \"TIDAK_BIASA\"` (lihat Daftar Pertemuan Kelas). `present: true` (Ada): tetap hadir dan HP itu menjadi perangkat biasa akun tersebut. `present: false` (Tidak ada): diubah menjadi tidak hadir. Keduanya mengubah `device_check` menjadi `SUDAH_DICEK`. Presensi lain dibalas 409 \"Presensi ini tidak perlu dicek.\", dan yang sudah dicek dibalas 409 \"Presensi ini sudah dicek.\""
+						"description": "LABORAN atau asisten kelas itu, hanya untuk presensi scan yang bertanda `deviceCheck: \"TIDAK_BIASA\"` (lihat Daftar Pertemuan Kelas). `present: true` (Ada): tetap hadir dan HP itu menjadi perangkat biasa akun tersebut. `present: false` (Tidak ada): diubah menjadi tidak hadir. Keduanya mengubah `deviceCheck` menjadi `SUDAH_DICEK`. Presensi lain dibalas 409 \"Presensi ini tidak perlu dicek.\", dan yang sudah dicek dibalas 409 \"Presensi ini sudah dicek.\""
 					},
 					"response": []
 				},
@@ -2588,7 +2588,7 @@
 								"announcement"
 							]
 						},
-						"description": "Terbaru di atas; id pengumuman teratas disimpan ke `announcementId`. Setiap pengumuman berisi `for_all`, `subjects` (`id`, `subject_name`, `subject_code`), dan `period`.\n\nLABORAN dan DOSEN menerima semua. MAHASISWA hanya menerima pengumuman untuk semua, ditambah pengumuman mata kuliah semester aktif yang mata kuliahnya ia daftarkan atau kelasnya ia pegang sebagai asisten."
+						"description": "Terbaru di atas; id pengumuman teratas disimpan ke `announcementId`. Setiap pengumuman berisi `forAll`, `subjects` (`id`, `subjectName`, `subjectCode`), dan `period`.\n\nLABORAN dan DOSEN menerima semua. MAHASISWA hanya menerima pengumuman untuk semua, ditambah pengumuman mata kuliah semester aktif yang mata kuliahnya ia daftarkan atau kelasnya ia pegang sebagai asisten."
 					},
 					"response": []
 				},
@@ -2831,7 +2831,7 @@
 								"dosen"
 							]
 						},
-						"description": "Hanya DOSEN. Angka dashboard untuk mata kuliah yang ia ampu:\n\n`{ total_class, total_student, total_meeting, total_attended, total_expected_attendance, attendance_rate }`\n\n- `total_student`: mahasiswa di kelas-kelasnya, dihitung sekali walau ikut dua mata kuliah\n- `total_meeting`: semua pertemuan yang sudah dibuat\n- `total_expected_attendance`: jumlah mahasiswa × jumlah pertemuan per kelas, dijumlahkan\n- `attendance_rate`: persen hadir dibulatkan, `null` bila belum ada pertemuan atau mahasiswa\n\n403 \"Ringkasan ini hanya untuk dosen!\" untuk peran lain.\n\nHanya kelas periode aktif; bisa diganti dengan `?periodId=<id>`."
+						"description": "Hanya DOSEN. Angka dashboard untuk mata kuliah yang ia ampu:\n\n`{ totalClass, totalStudent, totalMeeting, totalAttended, totalExpectedAttendance, attendanceRate }`\n\n- `totalStudent`: mahasiswa di kelas-kelasnya, dihitung sekali walau ikut dua mata kuliah\n- `totalMeeting`: semua pertemuan yang sudah dibuat\n- `totalExpectedAttendance`: jumlah mahasiswa × jumlah pertemuan per kelas, dijumlahkan\n- `attendanceRate`: persen hadir dibulatkan, `null` bila belum ada pertemuan atau mahasiswa\n\n403 \"Ringkasan ini hanya untuk dosen!\" untuk peran lain.\n\nHanya kelas periode aktif; bisa diganti dengan `?periodId=<id>`."
 					},
 					"response": []
 				},

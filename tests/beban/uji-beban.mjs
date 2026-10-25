@@ -117,7 +117,7 @@ class Phone {
     const res = await timed("POST", "/auth/login", null, {
       nim: this.user.nim,
       password: data.password,
-      device_id: this.deviceId,
+      deviceId: this.deviceId,
     });
     record("POST /auth/login", res);
     this.token = res.json.data?.accessToken;
@@ -169,7 +169,7 @@ class Phone {
     if (type === "class") {
       if (
         payload.action === "created" ||
-        this.options.includes(payload.class_id)
+        this.options.includes(payload.classId)
       )
         this.refresh(
           "options",
@@ -180,7 +180,7 @@ class Phone {
       if (
         this.profileLoaded &&
         (payload.action === "assistants" ||
-          this.assisted.includes(payload.class_id))
+          this.assisted.includes(payload.classId))
       )
         this.refresh("assisted", "GET /class (kelas asisten)", "/class");
     }
@@ -198,7 +198,7 @@ class Phone {
     if (
       (type === "meeting" || type === "attendance") &&
       this.meetingsClassId &&
-      payload.class_id === this.meetingsClassId
+      payload.classId === this.meetingsClassId
     )
       this.refresh(
         "meetings",
@@ -477,7 +477,7 @@ try {
     Promise.all(
       rush.map((c) =>
         db.trn_class_participants.count({
-          where: { classId: c.id, deleted_at: null },
+          where: { classId: c.id, deletedAt: null },
         })
       )
     );
@@ -649,7 +649,7 @@ try {
           "POST",
           `/subject/classes/${cls.id}/meetings/${meeting.id}/attendances`,
           p.token,
-          { token, device_id: p.deviceId }
+          { token, deviceId: p.deviceId }
         );
         record("POST presensi (scan QR)", res);
       })

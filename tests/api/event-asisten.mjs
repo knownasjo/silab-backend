@@ -20,7 +20,7 @@ await runTest("Pembaruan real-time saat asisten diubah", data, async () => {
     if (type === "class") events.push(payload);
   });
   const announced = () =>
-    events.some((e) => e.class_id === cls.id && e.action === "assistants");
+    events.some((e) => e.classId === cls.id && e.action === "assistants");
 
   try {
     const added = await call("POST", "/collaborator", {
