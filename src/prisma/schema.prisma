@@ -28,11 +28,6 @@ enum DaysOfWeek {
     FRIDAY
 }
 
-enum SessionDayGroup {
-    WEEKDAY
-    FRIDAY
-}
-
 enum DeviceCheck {
     BIASA
     TIDAK_BIASA
@@ -140,22 +135,23 @@ model mst_class {
 }
 
 model mst_session {
-    id         String          @id @default(uuid())
+    id         String     @id @default(uuid())
     periodId   String
-    day_group  SessionDayGroup
+    room       ClassRoom
+    day        DaysOfWeek
     number     Int
     startAt    String
     endAt      String
-    is_active  Boolean         @default(true)
+    is_active  Boolean    @default(true)
     updated_by String?
     created_by String
     updated_at DateTime?
-    created_at DateTime?       @default(now())
+    created_at DateTime?  @default(now())
 
     period  mst_academic_period @relation(name: "PeriodSessions", fields: [periodId], references: [id], onDelete: Cascade)
     classes mst_class[]         @relation(name: "ClassSession")
 
-    @@unique([periodId, day_group, number])
+    @@unique([periodId, room, day, number])
 }
 
 model trn_class_participants {

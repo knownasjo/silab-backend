@@ -98,13 +98,13 @@ const ROUTES = [
     "POST",
     "/session",
     "laboran",
-    ["day_group", "number", "startAt", "endAt", "is_active"],
+    ["room", "day", "number", "startAt", "endAt", "is_active", "also_days"],
   ],
   [
     "PUT",
     "/session/:session",
     "laboran",
-    ["day_group", "number", "startAt", "endAt", "is_active"],
+    ["room", "day", "number", "startAt", "endAt", "is_active", "also_days"],
   ],
   ["DELETE", "/session/:none", "laboran"],
   [

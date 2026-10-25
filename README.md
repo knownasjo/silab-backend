@@ -218,9 +218,9 @@ Catatan: `trn_activations` hanya menyimpan `subjectId`, **bukan** `classId`.
 | PUT | `/class/:id` | LABORAN (lihat "Ubah dan hapus kelas") |
 | DELETE | `/class/:id` | LABORAN (hanya kelas yang belum punya presensi) |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri, DOSEN hanya kelas mata kuliah yang ia ampu) |
-| GET | `/session?day=&active=` | login (jam sesi; `day` = hari kelas, `active=true` = hanya yang aktif) |
-| POST | `/session` | LABORAN |
-| PUT | `/session/:id` | LABORAN (ubah jam, nomor, atau status aktif) |
+| GET | `/session?room=&day=&active=` | login (jam sesi; `room` = PSI/SBTI, `day` = hari, `active=true` = hanya yang aktif; nilai yang tidak dikenal 400) |
+| POST | `/session` | LABORAN (`also_days` membuat sesi yang sama di hari lain sekaligus) |
+| PUT | `/session/:id` | LABORAN (ubah jam, nomor, atau status aktif; `also_days` ikut mengubah hari lain; balasan berisi `warnings` bila jadwal jadi bentrok) |
 | DELETE | `/session/:id` | LABORAN (hanya sesi yang belum dipakai kelas) |
 | POST | `/activation` | MAHASISWA |
 | GET | `/activation?status=&name=&periodId=` | LABORAN, MAHASISWA (hanya miliknya); DOSEN ditolak. Hanya periode aktif; LABORAN boleh meminta periode lain |
@@ -272,10 +272,10 @@ balasan yang diharapkan. Import ke Postman, lalu:
 4. Folder **Dosen** berisi semua yang bisa dibaca dosen: ringkasan dashboard,
    mata kuliah dan kelas yang diampu, presensi kelas, dan contoh penolakan data
    pembayaran.
-5. Folder **Jam Sesi** membuat sesi contoh (Sesi 9 Jumat), mengubah, lalu
-   menghapusnya. "Tambah Kelas" memakai variabel `sessionId` (Sesi 2
-   Senin–Kamis). Bila sesi itu sudah dihapus dan dibuat ulang, "Semua Jam
-   Sesi" mengganti `sessionId` dengan sesi Senin–Kamis aktif pertama.
+5. Folder **Jam Sesi** membuat sesi contoh (Sesi 9 Jumat PSI), mengubah, lalu
+   menghapusnya. "Tambah Kelas" memakai variabel `sessionId` (sesi aktif
+   pertama Senin SBTI). Bila sesi itu sudah dihapus dan dibuat ulang, "Semua
+   Jam Sesi" mengganti `sessionId` dengan sesi Senin SBTI aktif pertama.
 6. Folder **Kelas** menambah kelas A untuk mata kuliah baru, mengubahnya
    ("Ubah Kelas"), lalu menghapusnya ("Hapus Kelas").
 
@@ -749,8 +749,9 @@ tertentu (`mst_announcement.periodId`) hanya berlaku di periode saat dibuat. Sem
     terhapus bersama periodenya. Menghapus semester yang terlanjur dimulai
     dengan `npm run hapus-periode` membuat jam sesi semester sebelumnya tampil
     lagi apa adanya.
-  - Nomor sesi kini unik per periode dan kelompok hari
-    (`@@unique([periodId, day_group, number])`).
+  - Nomor sesi unik per periode, ruangan, dan hari
+    (`@@unique([periodId, room, day, number])`; sampai 25 Oktober 2026 per
+    periode dan kelompok hari, lihat "Jam sesi per ruangan dan per hari").
   - Saat diterapkan (30 September 2026), 8 jam sesi yang ada dicatat sebagai
     milik 2026/2027 Ganjil (dipakai 6 kelasnya), lalu disalin untuk 2026/2027
     Genap yang sudah aktif. Sebelumnya jam sesi berlaku lintas periode,
@@ -779,15 +780,17 @@ laboran (tabel `mst_session`, menu web Master Data → Jam Sesi).
 
 - Jam sesi milik satu periode (lihat "Periode akademik"): tambah, ubah, dan
   hapus hanya berlaku di periode aktif, dan semester baru mendapat salinannya.
-- Jam sesi dibagi dua kelompok hari (`day_group`): `WEEKDAY` untuk Senin–Kamis
-  dan `FRIDAY` untuk Jumat, karena jam hari Jumat berbeda. Setiap sesi punya
-  nomor 1–20 yang unik per kelompok di periode itu, jam mulai dan selesai berformat `JJ.MM`,
-  dan status aktif. Sesi dalam satu kelompok tidak boleh tumpang tindih (yang
-  bersambung, misalnya 08.40 dan 08.40, boleh).
-- Isi awal: Senin–Kamis Sesi 1–6 (07.00–08.40, 08.45–10.25, 10.30–12.10,
-  12.30–14.10, 14.15–16.05, 16.10–17.10), sama dengan daftar yang sebelumnya
-  tertulis di kode web. Jam sesi Jumat masih kosong, jadi kelas hari Jumat baru
-  bisa dibuat setelah laboran mengisinya.
+- Jam sesi diatur per ruangan (`room`: PSI atau SBTI) dan per hari (`day`:
+  MONDAY–FRIDAY), karena tiap ruangan dan tiap hari bisa punya jam sendiri
+  (lihat "Jam sesi per ruangan dan per hari"). Setiap sesi punya nomor 1–20
+  yang unik per ruangan dan hari di periode itu, jam mulai dan selesai
+  berformat `JJ.MM`, dan status aktif. Sesi di ruangan dan hari yang sama
+  tidak boleh tumpang tindih (yang bersambung, misalnya 08.40 dan 08.40,
+  boleh); sesi di ruangan lain boleh.
+- Isi per 25 Oktober 2026: setiap ruangan punya Senin–Kamis Sesi 1–6
+  (07.00–08.40, 08.45–10.25, 10.30–12.10, 12.30–14.10, 14.15–16.05,
+  16.10–17.10) dan Jumat Sesi 1–2 (07.00–08.40, 08.45–10.25). Jamnya masih
+  sama di semua ruangan dan hari sampai lab menetapkan jam masing-masing.
 - `mst_class.sessionId` mencatat sesi kelas, sedangkan `startAt`/`endAt` tetap
   disimpan, sehingga aplikasi mobile dan pengecekan bentrok jadwal asisten tidak
   berubah. Mengubah jam sesi (`PUT /session/:id`) ikut mengubah jam semua kelas
@@ -806,9 +809,10 @@ laboran (tabel `mst_session`, menu web Master Data → Jam Sesi).
     menulis "jam 2 kelas ikut berubah" untuk sesi berisi 1 kelas.
 - **Simpan bersamaan** (23 Oktober 2026): `POST /session` dan
   `PUT /session/:id` memeriksa nomor dan jam lalu menyimpan di satu transaksi
-  yang dikunci per periode dan kelompok hari
-  (`pg_advisory_xact_lock` dengan kunci `session:<periodId>:<day_group>`,
-  `lockSessions` di `src/services/session.service.ts`).
+  yang dikunci per periode, ruangan, dan hari
+  (`pg_advisory_xact_lock` dengan kunci `session:<periodId>:<room>:<day>`,
+  `lockSessions` di `src/services/session.service.ts`; sampai 25 Oktober 2026
+  per kelompok hari).
   - `PUT` membaca ulang sesi setelah mendapat kunci, jadi nilai yang tidak
     dikirim diambil dari data terbaru.
   - Dulu permintaan bersamaan sama-sama lolos pemeriksaan. Nomor yang sama
@@ -824,8 +828,8 @@ selain itu 403) memeriksa, dengan pesan berbahasa Indonesia:
 - nama kelas satu huruf A–Z (huruf kecil diubah jadi besar, spasi dibuang),
   kuota 1–99, hari MONDAY–FRIDAY, ruang PSI atau SBTI, dan sesi wajib dipilih
   (400);
-- mata kuliah ada (404), sesi ada dan aktif, dan sesi sesuai kelompok hari
-  kelas (400 "Sesi 2 bukan sesi hari Jumat!");
+- mata kuliah ada (404), sesi ada dan aktif, dan sesi sesuai hari dan ruangan
+  kelas (400 "Sesi 2 bukan sesi hari Jumat di ruang PSI!");
 - nama kelas belum dipakai di mata kuliah itu (409 "Kelas B sudah ada di
   ...!");
 - **ruang tidak bentrok**: satu ruang hanya untuk satu kelas pada hari dan jam
@@ -847,6 +851,67 @@ berhasil ditambahkan" `{ id }`. Sebelum aturan ini, empat kelas Senin 07.00 dan
 dua kelas Selasa 07.00 di PSI saling bentrok; keenamnya sudah dihapus beserta
 pertemuan, presensi, dan pesertanya, sedangkan aktivasi mahasiswa tetap ada.
 
+### Jam sesi per ruangan dan per hari
+
+Sejak 25 Oktober 2026 jam sesi tidak lagi dibagi kelompok hari Senin–Kamis dan
+Jumat, tetapi diatur per ruangan dan per hari. Contohnya Sesi 1 PSI
+07.00–08.55 sementara Sesi 1 SBTI 07.35–09.20, atau Sesi 1 Senin berbeda
+dengan Sesi 1 Selasa.
+
+- `mst_session` punya `room` (`ClassRoom`) dan `day` (`DaysOfWeek`) sebagai
+  pengganti `day_group`, dengan `@@unique([periodId, room, day, number])`.
+  Ruangan dan hari sebuah sesi tidak bisa diubah; buat sesi baru di ruangan
+  atau hari lain.
+- `GET /session` urut per ruangan, lalu hari Senin–Jumat, lalu jam mulai, dan
+  bisa disaring `?room=PSI&day=MONDAY`. Nilai kosong (seperti di Postman)
+  berarti tanpa saringan, sedangkan nilai yang tidak dikenal dibalas 400.
+- `POST /session { room, day, number, startAt, endAt, also_days? }`:
+  `also_days` berisi hari lain yang ikut dibuatkan sesi bernomor dan berjam
+  sama, misalnya `["TUESDAY", "WEDNESDAY"]`. Semuanya tersimpan bersama atau
+  tidak sama sekali. Bila satu hari bentrok, pesannya menyebut hari itu
+  (409 "Jam sesi bertabrakan dengan Sesi 17 Rabu PSI (22.30–22.40)!").
+  Balasan 201: "Sesi 7 PSI hari Senin, Selasa dan Rabu berhasil ditambahkan".
+- `PUT /session/:id { number?, startAt?, endAt?, is_active?, also_days? }`:
+  `also_days` berisi hari lain di ruangan yang sama yang punya nomor sesi ini.
+  Hari-hari itu ikut mendapat nomor dan jam yang sama dengan sesi ini (serta
+  `is_active` bila dikirim), juga semua atau tidak sama sekali. Hari yang
+  tidak punya nomor itu dibalas 404 "Sesi 18 Rabu PSI tidak ditemukan!".
+- Kunci simpan bersamaan per periode, ruangan, dan hari
+  (`session:<periodId>:<room>:<day>`). Permintaan untuk beberapa hari
+  mengambil semua kuncinya dengan urutan yang sama, sehingga dua permintaan
+  yang saling silang (Senin ikut Selasa dan Selasa ikut Senin) diproses
+  bergiliran, bukan saling menunggu (deadlock). Pada uji dengan urutan kunci
+  mengikuti urutan kiriman, 7 dari 44 permintaan berakhir 500 karena
+  deadlock.
+- Kelas wajib memakai sesi dari hari dan ruangannya (400 "Sesi 2 bukan sesi
+  hari Senin di ruang SBTI!"), juga saat `PUT /class/:id` hanya mengganti
+  ruangan tanpa memilih sesi baru.
+- **Peringatan bentrok.** Karena jam tiap ruangan bisa berbeda, kelas di
+  ruangan lain kini bisa tumpang tindih walau nomor sesinya berbeda (misalnya
+  PSI Sesi 2 08.45–10.25 dan SBTI Sesi 1 07.35–09.20).
+  - Saat jam sesi berubah, server memeriksa peserta dan asisten setiap kelas
+    di sesi itu terhadap kelas lain mereka di periode yang sama, dengan aturan
+    yang sama seperti "Ubah dan hapus kelas" (`findMemberScheduleClashes` di
+    `src/utils/AssistantRules/assistant.rules.ts`).
+  - Perubahan tetap disimpan, pesannya ditambah ". Perhatian, n jadwal jadi
+    bentrok.", dan `warnings` berisi satu baris per bentrok, misalnya
+    "Jaringan kelas A (Senin, 17.15 - 18.20, SBTI): peserta Andi juga
+    mengikuti praktikum Basis Data kelas A (Senin, 18.00 - 18.40, PSI)".
+    Tanpa bentrok, `warnings` berupa `[]`.
+  - Dulu pemeriksaan ini tidak perlu, karena sesi dalam satu kelompok hari
+    tidak pernah tumpang tindih.
+- Semester baru menyalin ruangan dan hari setiap sesi.
+- Pemindahan data (25 Oktober 2026) memakai skrip sekali jalan dalam satu
+  transaksi yang memeriksa hasilnya sebelum disimpan.
+  - 8 jam sesi lama menjadi 52: setiap sesi `WEEKDAY` disalin ke Senin–Kamis
+    dan setiap sesi `FRIDAY` ke Jumat, masing-masing untuk PSI dan SBTI,
+    dengan jam dan status aktif yang sama.
+  - Keenam kelas dipasang ke sesi dengan ruangan, hari, dan nomor yang sama,
+    jadi jam kelasnya tidak berubah.
+  - Kolom `day_group` dan enum `SessionDayGroup` dihapus.
+- Aplikasi HP tidak berubah, karena memakai `startAt`/`endAt` yang tersimpan
+  di kelas.
+
 ### Ubah dan hapus kelas
 
 Laboran mengubah atau menghapus kelas dari halaman detail kelas di web.
@@ -855,7 +920,7 @@ Laboran mengubah atau menghapus kelas dari halaman detail kelas di web.
 selain itu 403 "Hanya laboran yang dapat mengubah kelas!"):
 
 - Field yang tidak dikirim memakai nilai sekarang, lalu hasilnya diperiksa
-  dengan aturan yang sama seperti tambah kelas (format, sesi sesuai hari,
+  dengan aturan yang sama seperti tambah kelas (format, sesi sesuai hari dan ruangan,
   nama belum dipakai kelas lain, ruang tidak bentrok dengan kelas lain).
   Pemeriksaan nama, ruang, jadwal anggota, dan kuota berjalan di dalam
   transaksi yang dikunci per kelas dan per periode, sama seperti tambah kelas,
@@ -1221,7 +1286,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 477/477 cek lulus dari 20 tes, 553 detik
+Total: 517/517 cek lulus dari 21 tes, 600 detik
 Data uji sudah bersih.
 ```
 
@@ -1245,7 +1310,8 @@ Data uji sudah bersih.
 | `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
-| `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan: 4 sesi Jumat bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 25 |
+| `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan (Jumat SBTI): 4 sesi bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; 3 permintaan untuk Senin–Rabu sekaligus dengan urutan hari berbeda (3 kali), tepat satu berhasil tanpa deadlock; Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan, keduanya berhasil bergantian dan hasilnya sama di kedua hari; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 33 |
+| `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `also_days` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1258,7 +1324,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–30, web 51–69 dan 71–73,
+- Setiap file tes punya blok 2 angka sendiri (API 11–31, web 51–69 dan 71–73,
   uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
@@ -1613,8 +1679,8 @@ Password akun test berhasil diganti. Semua sesi login akun ini diakhiri.
 
 ## Pekerjaan yang masih tersisa
 
-- [ ] Pastikan jam sesi Senin–Kamis dan isi jam sesi Jumat lewat web
-      (Master Data → Jam Sesi)
+- [ ] Pastikan jam sesi tiap ruangan dan hari lewat web (Master Data → Jam
+      Sesi) setelah lab menetapkannya
 
 ## Catatan lain
 

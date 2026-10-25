@@ -125,7 +125,7 @@ await runTest("Hapus mata kuliah", data, async () => {
   );
 
   section("Bersamaan");
-  const session = (await data.sessions())[5];
+  const session = (await data.sessions({ day: "THURSDAY" }))[5];
   const delays = Array.from({ length: 9 }, (_, i) => i * 50);
   const race = async (label, makeRequest, winCode, loseCode) => {
     let consistent = 0;

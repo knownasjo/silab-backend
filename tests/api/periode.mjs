@@ -215,11 +215,13 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
     orderBy: { number: "asc" },
   });
   check(
-    "jam sesi semester lama disalin ke semester baru",
+    "jam sesi semester lama disalin ke semester baru, lengkap dengan ruangan dan harinya",
     copies.length === sessions.length &&
       copies.every(
         (copy, i) =>
           copy.id !== sessions[i].id &&
+          copy.room === sessions[i].room &&
+          copy.day === sessions[i].day &&
           copy.startAt === sessions[i].startAt &&
           copy.endAt === sessions[i].endAt &&
           copy.is_active === sessions[i].is_active

@@ -83,13 +83,14 @@ const classSchedule = {
   select: {
     name: true,
     day: true,
+    room: true,
     startAt: true,
     endAt: true,
     subject: { select: { subject_name: true } },
   },
 };
 
-export const assertNoMemberScheduleClash = async (
+export const findMemberScheduleClashes = async (
   classId: string,
   schedule: { day: string; startAt: string; endAt: string },
   periodId: string,
@@ -162,8 +163,22 @@ export const assertNoMemberScheduleClash = async (
     ]),
   ];
 
-  const clash = commitments.find((commitment) =>
+  return commitments.filter((commitment) =>
     isScheduleClash(commitment, schedule)
+  );
+};
+
+export const assertNoMemberScheduleClash = async (
+  classId: string,
+  schedule: { day: string; startAt: string; endAt: string },
+  periodId: string,
+  client: Prisma.TransactionClient = db
+) => {
+  const [clash] = await findMemberScheduleClashes(
+    classId,
+    schedule,
+    periodId,
+    client
   );
 
   if (clash)

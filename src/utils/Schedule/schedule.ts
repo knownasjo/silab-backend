@@ -20,14 +20,6 @@ export const toMinutes = (time: string) => {
 export const isValidTime = (time: string) =>
   /^([01]\d|2[0-3])\.[0-5]\d$/.test(time);
 
-export const DAY_GROUP_LABELS: Record<string, string> = {
-  WEEKDAY: "Senin–Kamis",
-  FRIDAY: "Jumat",
-};
-
-export const dayGroupOf = (day: string) =>
-  day === "FRIDAY" ? "FRIDAY" : "WEEKDAY";
-
 export const isScheduleClash = (a: ISchedule, b: ISchedule) => {
   if (a.day !== b.day) return false;
 

@@ -231,27 +231,27 @@ export class TestData {
     });
   }
 
-  async sessions(period = this.period) {
+  sessions({ room = "PSI", day = "MONDAY", period = this.period } = {}) {
     this.sessionLists ??= new Map();
-    if (!this.sessionLists.has(period.id)) {
-      const list = [];
-      this.sessionLists.set(period.id, list);
-      for (const [index, [startAt, endAt]] of SESSION_TIMES.entries()) {
-        list.push(
-          await db.mst_session.create({
-            data: {
+    const key = `${period.id}:${room}:${day}`;
+    if (!this.sessionLists.has(key))
+      this.sessionLists.set(
+        key,
+        db.mst_session
+          .createManyAndReturn({
+            data: SESSION_TIMES.map(([startAt, endAt], index) => ({
               periodId: period.id,
-              day_group: "WEEKDAY",
+              room,
+              day,
               number: this.sessionFrom + index + 1,
               startAt,
               endAt,
               created_by: this.laboran.id,
-            },
+            })),
           })
-        );
-      }
-    }
-    return this.sessionLists.get(period.id);
+          .then((list) => list.sort((a, b) => a.number - b.number))
+      );
+    return this.sessionLists.get(key);
   }
 
   async classOf(
@@ -261,7 +261,9 @@ export class TestData {
     sessionNumber,
     { room = "PSI", quota = 30, period = this.period } = {}
   ) {
-    const session = (await this.sessions(period))[sessionNumber - 1];
+    const session = (await this.sessions({ room, day, period }))[
+      sessionNumber - 1
+    ];
     return db.mst_class.create({
       data: {
         subjectId: subject.id,

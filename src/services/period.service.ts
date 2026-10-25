@@ -94,7 +94,8 @@ export const SStartPeriod = async (
       await tx.mst_session.createMany({
         data: sessions.map((session) => ({
           periodId: period.id,
-          day_group: session.day_group,
+          room: session.room,
+          day: session.day,
           number: session.number,
           startAt: session.startAt,
           endAt: session.endAt,

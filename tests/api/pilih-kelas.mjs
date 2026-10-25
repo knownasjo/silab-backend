@@ -15,7 +15,7 @@ await runTest(
   "Pilih kelas: bentrok jadwal, kuota, dan rebutan kursi",
   data,
   async () => {
-    const sessions = await data.sessions();
+    const sbtiMonday = await data.sessions({ room: "SBTI", day: "MONDAY" });
     const when = (cls) => `${DAYS[cls.day]}, ${cls.startAt} - ${cls.endAt}`;
     const laboran = (await login(data.laboran, data.password)).token;
     const newStudent = async (n) => {
@@ -184,7 +184,7 @@ await runTest(
       "jadwal baru membuat peserta bentrok: ditolak",
       await call("PUT", `/class/${XA.id}`, {
         token: laboran,
-        body: { sessionId: sessions[2].id, room: "SBTI" },
+        body: { sessionId: sbtiMonday[2].id, room: "SBTI" },
       }),
       409,
       `Jadwal baru bentrok: peserta Uji Kelas 02 mengikuti praktikum Uji Kelas Y kelas B (${when(YB)}).`
@@ -198,7 +198,7 @@ await runTest(
       "jadwal baru yang tidak membuat bentrok: diterima",
       await call("PUT", `/class/${XA.id}`, {
         token: laboran,
-        body: { sessionId: sessions[4].id, room: "SBTI" },
+        body: { sessionId: sbtiMonday[4].id, room: "SBTI" },
       }),
       200
     );

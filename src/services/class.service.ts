@@ -38,7 +38,6 @@ import {
 } from "../utils/EnrollmentRules/enrollment.rules";
 import {
   DAY_LABELS,
-  dayGroupOf,
   formatSchedule,
   isScheduleClash,
 } from "../utils/Schedule/schedule";
@@ -115,9 +114,9 @@ const findClassSession = async (
   )
     throw new BadRequestError("Sesi tidak ditemukan atau sudah nonaktif!");
 
-  if (session.day_group !== dayGroupOf(fields.day))
+  if (session.day !== fields.day || session.room !== fields.room)
     throw new BadRequestError(
-      `Sesi ${session.number} bukan sesi hari ${DAY_LABELS[fields.day]}!`
+      `Sesi ${session.number} bukan sesi hari ${DAY_LABELS[fields.day]} di ruang ${fields.room}!`
     );
 
   return session;

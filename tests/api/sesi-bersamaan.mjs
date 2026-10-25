@@ -5,27 +5,37 @@ const data = new TestData("30");
 const toMinutes = (time) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
 const at = (minutes) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}.${String(minutes % 60).padStart(2, "0")}`;
+const ROOM = "SBTI";
+const MANY_DAYS = ["MONDAY", "TUESDAY", "WEDNESDAY"];
+const WINDOW = [toMinutes("22.30"), toMinutes("23.59")];
 
 await runTest("Simpan jam sesi bersamaan", data, async () => {
   const token = (await login(data.laboran, data.password)).token;
   const all = [];
-  const friday = { periodId: data.period.id, day_group: "FRIDAY" };
-  const existing = await db.mst_session.findMany({ where: friday });
-  const used = new Set(existing.map((session) => session.number));
-  const free = Array.from({ length: 20 }, (_, i) => 20 - i).filter(
-    (number) => !used.has(number)
-  );
-  const WINDOW = [toMinutes("22.30"), toMinutes("23.59")];
-  if (
-    free.length < 8 ||
-    existing.some(
+  const placeOf = (day) => ({ periodId: data.period.id, room: ROOM, day });
+  const friday = placeOf("FRIDAY");
+  const freeOn = async (days) => {
+    const existing = await db.mst_session.findMany({
+      where: { periodId: data.period.id, room: ROOM, day: { in: days } },
+    });
+    const used = new Set(existing.map((session) => session.number));
+    const busy = existing.some(
       (session) =>
         toMinutes(session.startAt) < WINDOW[1] &&
         WINDOW[0] < toMinutes(session.endAt)
-    )
-  )
+    );
+    return {
+      busy,
+      free: Array.from({ length: 20 }, (_, i) => 20 - i).filter(
+        (number) => !used.has(number)
+      ),
+    };
+  };
+  const { busy, free } = await freeOn(["FRIDAY"]);
+  const spread = await freeOn(MANY_DAYS);
+  if (free.length < 8 || busy || spread.free.length < 3 || spread.busy)
     throw new Error(
-      "Butuh 8 nomor sesi Jumat yang kosong dan jam 22.30–23.59 Jumat yang kosong"
+      `Butuh 8 nomor sesi Jumat ${ROOM} dan 3 nomor sesi Senin–Rabu ${ROOM} yang kosong, serta jam 22.30–23.59 yang kosong di hari-hari itu`
     );
 
   const together = async (requests) => {
@@ -33,10 +43,17 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     all.push(...results);
     return results;
   };
-  const add = (number, start, end) =>
+  const add = (number, start, end, extra = {}) =>
     call("POST", "/session", {
       token,
-      body: { day_group: "FRIDAY", number, startAt: at(start), endAt: at(end) },
+      body: {
+        room: ROOM,
+        day: "FRIDAY",
+        number,
+        startAt: at(start),
+        endAt: at(end),
+        ...extra,
+      },
     });
   const update = (session, body) =>
     call("PUT", `/session/${session.id}`, { token, body });
@@ -44,16 +61,21 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     JSON.stringify(results.map((r) => `${r.code} ${r.message}`));
   const succeeded = (results) =>
     results.filter((r) => r.code === 200 || r.code === 201).length;
-  const ours = () =>
+  const ours = (place = friday) =>
     db.mst_session.findMany({
-      where: { ...friday, created_by: data.laboran.id },
+      where: { ...place, created_by: data.laboran.id },
     });
   const clear = async () =>
     db.mst_session.deleteMany({
-      where: { ...friday, created_by: data.laboran.id },
+      where: {
+        periodId: data.period.id,
+        room: ROOM,
+        created_by: data.laboran.id,
+        number: { lte: 20 },
+      },
     });
-  const overlapping = async () => {
-    const list = await db.mst_session.findMany({ where: friday });
+  const overlapping = async (place = friday) => {
+    const list = await db.mst_session.findMany({ where: place });
     let pairs = 0;
     for (let i = 0; i < list.length; i++)
       for (let j = i + 1; j < list.length; j++)
@@ -77,9 +99,11 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
       summary(results)
     );
     check(
-      `  sisanya 409 "Sesi ${number} Jumat sudah ada!"`,
+      `  sisanya 409 "Sesi ${number} Jumat ${ROOM} sudah ada!"`,
       results.filter(
-        (r) => r.code === 409 && r.message === `Sesi ${number} Jumat sudah ada!`
+        (r) =>
+          r.code === 409 &&
+          r.message === `Sesi ${number} Jumat ${ROOM} sudah ada!`
       ).length === 3,
       summary(results)
     );
@@ -118,7 +142,7 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
   ]) {
     const res = await call("POST", "/session", {
       token,
-      body: { day_group: "FRIDAY", number, startAt: start, endAt: end },
+      body: { room: ROOM, day: "FRIDAY", number, startAt: start, endAt: end },
     });
     all.push(res);
     created.push(res.json.data);
@@ -150,7 +174,9 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     `dua sesi diganti ke nomor ${free[2]} bersamaan: tepat satu berhasil, yang lain 409 "sudah ada"`,
     succeeded(renumbered) === 1 &&
       renumbered.some(
-        (r) => r.code === 409 && r.message === `Sesi ${free[2]} Jumat sudah ada!`
+        (r) =>
+          r.code === 409 &&
+          r.message === `Sesi ${free[2]} Jumat ${ROOM} sudah ada!`
       ),
     summary(renumbered)
   );
@@ -162,13 +188,84 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
   );
   await clear();
 
+  section("Beberapa hari sekaligus, bersamaan");
+  for (const [round, number] of spread.free.slice(0, 3).entries()) {
+    const start = WINDOW[0] + round * 25;
+    const orders = [MANY_DAYS, [...MANY_DAYS].reverse(), [MANY_DAYS[1], MANY_DAYS[0], MANY_DAYS[2]]];
+    const results = await together(
+      orders.map(([day, ...also], n) =>
+        add(number, start + n * 5, start + n * 5 + 4, { day, also_days: also })
+      )
+    );
+    const saved = await db.mst_session.findMany({
+      where: {
+        periodId: data.period.id,
+        room: ROOM,
+        day: { in: MANY_DAYS },
+        number,
+      },
+    });
+    check(
+      `3 permintaan Sesi ${number} untuk Senin–Rabu dengan urutan hari berbeda: tepat satu berhasil, tanpa macet`,
+      succeeded(results) === 1 &&
+        results.filter(
+          (r) => r.code === 409 && r.message.endsWith(`${ROOM} sudah ada!`)
+        ).length === 2,
+      summary(results)
+    );
+    check(
+      "  tiap hari punya tepat satu sesi itu, semuanya dari permintaan yang menang",
+      saved.length === 3 &&
+        new Set(saved.map((session) => session.day)).size === 3 &&
+        new Set(saved.map((session) => session.startAt)).size === 1,
+      JSON.stringify(saved.map((s) => `${s.day} ${s.startAt}`))
+    );
+  }
+  const sameNumber = (day) =>
+    db.mst_session.findFirst({
+      where: { ...placeOf(day), number: spread.free[0] },
+    });
+  const mondayOne = await sameNumber("MONDAY");
+  const tuesdayOne = await sameNumber("TUESDAY");
+  const crossed = await together([
+    update(mondayOne, {
+      startAt: "22.30",
+      endAt: "22.45",
+      also_days: ["TUESDAY"],
+    }),
+    update(tuesdayOne, {
+      startAt: "22.30",
+      endAt: "22.50",
+      also_days: ["MONDAY"],
+    }),
+  ]);
+  const [mondayAfter, tuesdayAfter] = await Promise.all(
+    [mondayOne, tuesdayOne].map((session) =>
+      db.mst_session.findUnique({ where: { id: session.id } })
+    )
+  );
+  check(
+    "Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan: keduanya berhasil bergantian, hasil akhirnya sama di kedua hari",
+    succeeded(crossed) === 2 &&
+      mondayAfter.endAt === tuesdayAfter.endAt &&
+      ["22.45", "22.50"].includes(mondayAfter.endAt),
+    `${summary(crossed)} senin ${mondayAfter.endAt} selasa ${tuesdayAfter.endAt}`
+  );
+  check(
+    "  tidak ada jam sesi yang tumpang tindih di Senin–Rabu",
+    (
+      await Promise.all(MANY_DAYS.map((day) => overlapping(placeOf(day))))
+    ).every((pairs) => pairs === 0)
+  );
+  await clear();
+
   section("Kelas yang sudah dihapus");
-  const [busy, unused, shared] = await data.sessions();
+  const [busyOne, unused, shared] = await data.sessions();
   const subject = await data.subject("Uji Sesi Kelas Terhapus");
   const live = await data.classOf(subject, "A", "MONDAY", 1);
-  const goneAlone = await data.classOf(subject, "B", "TUESDAY", 2);
-  const liveShared = await data.classOf(subject, "C", "WEDNESDAY", 3);
-  const goneShared = await data.classOf(subject, "D", "THURSDAY", 3);
+  const goneAlone = await data.classOf(subject, "B", "MONDAY", 2);
+  const liveShared = await data.classOf(subject, "C", "MONDAY", 3);
+  const goneShared = await data.classOf(subject, "D", "MONDAY", 3);
   for (const removed of [goneAlone, goneShared])
     await db.mst_class.update({
       where: { id: removed.id },
@@ -188,7 +285,7 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
   check(
     "sesi yang kelasnya sudah dihapus semua bisa dihapus",
     removeUnused.code === 200 &&
-      removeUnused.message === `Sesi ${unused.number} Senin–Kamis berhasil dihapus`,
+      removeUnused.message === `Sesi ${unused.number} Senin PSI berhasil dihapus`,
     `${removeUnused.code} ${removeUnused.message}`
   );
   const orphan = await db.mst_class.findUnique({ where: { id: goneAlone.id } });
@@ -199,13 +296,13 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
       orphan.endAt === goneAlone.endAt,
     JSON.stringify(orphan)
   );
-  const removeBusy = await call("DELETE", `/session/${busy.id}`, { token });
+  const removeBusy = await call("DELETE", `/session/${busyOne.id}`, { token });
   all.push(removeBusy);
   check(
     "sesi yang masih dipakai kelas tetap tidak bisa dihapus",
     removeBusy.code === 409 &&
       removeBusy.message ===
-        `Sesi ${busy.number} Senin–Kamis dipakai 1 kelas. Nonaktifkan saja agar tidak muncul di pilihan kelas baru.` &&
+        `Sesi ${busyOne.number} Senin PSI dipakai 1 kelas. Nonaktifkan saja agar tidak muncul di pilihan kelas baru.` &&
       !!(await db.mst_class.findUnique({ where: { id: live.id } }))?.sessionId,
     `${removeBusy.code} ${removeBusy.message}`
   );
@@ -216,7 +313,7 @@ await runTest("Simpan jam sesi bersamaan", data, async () => {
     "ubah jam sesi dengan 1 kelas aktif dan 1 kelas terhapus: pesan menyebut 1 kelas",
     moved.code === 200 &&
       moved.message ===
-        `Sesi ${shared.number} Senin–Kamis berhasil diperbarui; jam 1 kelas ikut berubah`,
+        `Sesi ${shared.number} Senin PSI berhasil diperbarui; jam 1 kelas ikut berubah`,
     `${moved.code} ${moved.message}`
   );
   const [movedLive, keptGone] = await Promise.all(

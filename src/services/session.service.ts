@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { mst_session, Prisma, SessionDayGroup } from "@prisma/client";
+import { ClassRoom, DaysOfWeek, mst_session, Prisma } from "@prisma/client";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
   ISessionRequestBody,
@@ -13,9 +13,10 @@ import {
   NotFoundError,
 } from "../utils/HttpErrors/HttptErrors";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import { findMemberScheduleClashes } from "../utils/AssistantRules/assistant.rules";
 import {
-  DAY_GROUP_LABELS,
-  dayGroupOf,
+  DAY_LABELS,
+  formatSchedule,
   isValidTime,
   toMinutes,
 } from "../utils/Schedule/schedule";
@@ -25,11 +26,38 @@ import {
   getActivePeriod,
 } from "../utils/PeriodRules/period.rules";
 
+type SessionWithCount = mst_session & { _count: { classes: number } };
+
+type SessionPlace = Pick<mst_session, "room" | "day">;
+
+const DAYS = Object.values(DaysOfWeek);
+
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
-const sessionLabel = (session: Pick<mst_session, "number" | "day_group">) =>
-  `Sesi ${session.number} ${DAY_GROUP_LABELS[session.day_group]}`;
+const sessionLabel = (
+  session: Pick<mst_session, "number" | "room" | "day">
+) => `Sesi ${session.number} ${DAY_LABELS[session.day]} ${session.room}`;
+
+const listText = (items: string[]) =>
+  items.length > 1
+    ? `${items.slice(0, -1).join(", ")} dan ${items[items.length - 1]}`
+    : items[0];
+
+const byDay = (a: { day: DaysOfWeek }, b: { day: DaysOfWeek }) =>
+  DAYS.indexOf(a.day) - DAYS.indexOf(b.day);
+
+const sessionsLabel = (
+  sessions: Pick<mst_session, "number" | "room" | "day">[]
+) => {
+  const [first] = sessions;
+
+  return sessions.length === 1
+    ? sessionLabel(first)
+    : `Sesi ${first.number} ${first.room} hari ${listText(
+        [...sessions].sort(byDay).map((session) => DAY_LABELS[session.day])
+      )}`;
+};
 
 const assertLaboran = (req: Request) => {
   if (req.user?.role !== "LABORAN")
@@ -53,17 +81,47 @@ const readTimes = (startAt: string, endAt: string) => {
   return { startAt, endAt };
 };
 
-const lockSessions = (
+const readRoom = (value: unknown) => {
+  const room = readText(value);
+
+  if (!Object.values(ClassRoom).includes(room as ClassRoom))
+    throw new BadRequestError("Ruangan harus PSI atau SBTI!");
+
+  return room as ClassRoom;
+};
+
+const readDay = (value: unknown) => {
+  const day = readText(value);
+
+  if (!DAYS.includes(day as DaysOfWeek))
+    throw new BadRequestError("Hari harus Senin sampai Jumat!");
+
+  return day as DaysOfWeek;
+};
+
+const readAlsoDays = (value: unknown, day: DaysOfWeek) => {
+  if (value === undefined) return [];
+
+  if (!Array.isArray(value) || value.some((item) => !DAYS.includes(item)))
+    throw new BadRequestError("Hari lain harus berisi hari Senin sampai Jumat!");
+
+  return DAYS.filter((item) => item !== day && value.includes(item));
+};
+
+const lockSessions = async (
   tx: Prisma.TransactionClient,
   periodId: string,
-  dayGroup: SessionDayGroup
-) =>
-  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`session:${periodId}:${dayGroup}`}))`;
+  room: ClassRoom,
+  days: DaysOfWeek[]
+) => {
+  for (const day of [...days].sort())
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`session:${periodId}:${room}:${day}`}))`;
+};
 
 const assertNoConflict = async (
   tx: Prisma.TransactionClient,
   periodId: string,
-  dayGroup: SessionDayGroup,
+  place: SessionPlace,
   number: number,
   startAt: string,
   endAt: string,
@@ -72,7 +130,8 @@ const assertNoConflict = async (
   const others = await tx.mst_session.findMany({
     where: {
       periodId,
-      day_group: dayGroup,
+      room: place.room,
+      day: place.day,
       ...(exceptId && { id: { not: exceptId } }),
     },
   });
@@ -94,11 +153,10 @@ const assertNoConflict = async (
     );
 };
 
-const toResponse = (
-  session: mst_session & { _count: { classes: number } }
-): ISessionResponseBody => ({
+const toResponse = (session: SessionWithCount): ISessionResponseBody => ({
   id: session.id,
-  day_group: session.day_group,
+  room: session.room,
+  day: session.day,
   number: session.number,
   startAt: session.startAt,
   endAt: session.endAt,
@@ -109,7 +167,8 @@ const toResponse = (
 export const SGetSessions = async (
   req: Request
 ): Promise<IBaseResponse<ISessionResponseBody[]>> => {
-  const day = readText(req.query.day);
+  const room = readText(req.query.room) ? readRoom(req.query.room) : undefined;
+  const day = readText(req.query.day) ? readDay(req.query.day) : undefined;
   const onlyActive = req.query.active === "true";
   const period = await findActivePeriod();
 
@@ -118,7 +177,8 @@ export const SGetSessions = async (
   const sessions = await db.mst_session.findMany({
     where: {
       periodId: period.id,
-      ...(day && { day_group: dayGroupOf(day) }),
+      ...(room && { room }),
+      ...(day && { day }),
       ...(onlyActive && { is_active: true }),
     },
     include: {
@@ -129,11 +189,9 @@ export const SGetSessions = async (
   const data = sessions
     .sort(
       (a, b) =>
-        a.day_group.localeCompare(b.day_group) === 0
-          ? toMinutes(a.startAt)! - toMinutes(b.startAt)!
-          : a.day_group === SessionDayGroup.WEEKDAY
-            ? -1
-            : 1
+        a.room.localeCompare(b.room) ||
+        byDay(a, b) ||
+        toMinutes(a.startAt)! - toMinutes(b.startAt)!
     )
     .map(toResponse);
 
@@ -146,13 +204,9 @@ export const SAddSession = async (
   assertLaboran(req);
 
   const body: ISessionRequestBody = req.body ?? {};
-  const dayGroup = readText(body.day_group);
-
-  if (!Object.values(SessionDayGroup).includes(dayGroup as SessionDayGroup))
-    throw new BadRequestError(
-      "Kelompok hari harus WEEKDAY (Senin–Kamis) atau FRIDAY (Jumat)!"
-    );
-
+  const room = readRoom(body.room);
+  const day = readDay(body.day);
+  const days = [day, ...readAlsoDays(body.also_days, day)];
   const number = readNumber(body.number);
   const { startAt, endAt } = readTimes(
     readText(body.startAt),
@@ -161,46 +215,57 @@ export const SAddSession = async (
 
   const period = await getActivePeriod();
 
-  const session = await db.$transaction(
+  const sessions = await db.$transaction(
     async (tx) => {
-      await lockSessions(tx, period.id, dayGroup as SessionDayGroup);
+      await lockSessions(tx, period.id, room, days);
 
-      await assertNoConflict(
-        tx,
-        period.id,
-        dayGroup as SessionDayGroup,
-        number,
-        startAt,
-        endAt
-      );
-
-      return tx.mst_session.create({
-        data: {
-          periodId: period.id,
-          day_group: dayGroup as SessionDayGroup,
+      for (const target of days)
+        await assertNoConflict(
+          tx,
+          period.id,
+          { room, day: target },
           number,
           startAt,
-          endAt,
-          created_by: req.user!.id,
-        },
-        include: { _count: { select: { classes: true } } },
-      });
+          endAt
+        );
+
+      const created: SessionWithCount[] = [];
+
+      for (const target of days)
+        created.push(
+          await tx.mst_session.create({
+            data: {
+              periodId: period.id,
+              room,
+              day: target,
+              number,
+              startAt,
+              endAt,
+              created_by: req.user!.id,
+            },
+            include: { _count: { select: { classes: true } } },
+          })
+        );
+
+      return created;
     },
     { maxWait: 10000, timeout: 20000 }
   );
 
-  publishRealtimeEvent("session", { session_id: session.id });
+  sessions.forEach((session) =>
+    publishRealtimeEvent("session", { session_id: session.id })
+  );
 
   return {
     status: true,
-    message: `${sessionLabel(session)} berhasil ditambahkan`,
-    data: toResponse(session),
+    message: `${sessionsLabel(sessions)} berhasil ditambahkan`,
+    data: toResponse(sessions[0]),
   };
 };
 
 export const SUpdateSession = async (
   req: Request
-): Promise<IBaseResponse<ISessionResponseBody>> => {
+): Promise<IBaseResponse<ISessionResponseBody> & { warnings: string[] }> => {
   assertLaboran(req);
 
   const id = req.params.id.toString();
@@ -211,10 +276,14 @@ export const SUpdateSession = async (
   await assertPeriodActive(found.periodId);
 
   const body: ISessionRequestBody = req.body ?? {};
+  const alsoDays = readAlsoDays(body.also_days, found.day);
 
-  const { updated, classes, timesChanged } = await db.$transaction(
+  const { updated, classes, warnings } = await db.$transaction(
     async (tx) => {
-      await lockSessions(tx, found.periodId, found.day_group);
+      await lockSessions(tx, found.periodId, found.room, [
+        found.day,
+        ...alsoDays,
+      ]);
 
       const session = await tx.mst_session.findUnique({ where: { id } });
 
@@ -230,62 +299,117 @@ export const SUpdateSession = async (
       if (body.is_active !== undefined && typeof body.is_active !== "boolean")
         throw new BadRequestError("Status aktif harus berupa true atau false!");
 
-      const timesChanged =
-        startAt !== session.startAt || endAt !== session.endAt;
-
-      await assertNoConflict(
-        tx,
-        session.periodId,
-        session.day_group,
-        number,
-        startAt,
-        endAt,
-        session.id
+      const siblings = await tx.mst_session.findMany({
+        where: {
+          periodId: session.periodId,
+          room: session.room,
+          number: session.number,
+          day: { in: alsoDays },
+        },
+      });
+      const missing = alsoDays.find(
+        (day) => !siblings.some((sibling) => sibling.day === day)
       );
 
-      const classes = timesChanged
-        ? await tx.mst_class.findMany({
-            where: { sessionId: session.id, deleted_at: null },
-            select: { id: true },
-          })
-        : [];
+      if (missing)
+        throw new NotFoundError(
+          `${sessionLabel({ ...session, day: missing })} tidak ditemukan!`
+        );
 
-      const updated = await tx.mst_session.update({
-        where: { id: session.id },
-        data: {
+      const targets = [session, ...siblings.sort(byDay)];
+
+      for (const target of targets)
+        await assertNoConflict(
+          tx,
+          session.periodId,
+          target,
           number,
           startAt,
           endAt,
-          is_active: body.is_active ?? session.is_active,
-          updated_by: req.user!.id,
-          updated_at: new Date(),
-        },
-        include: {
-          _count: { select: { classes: { where: { deleted_at: null } } } },
-        },
-      });
+          target.id
+        );
 
-      await tx.mst_class.updateMany({
-        where: { id: { in: classes.map((item) => item.id) } },
-        data: { startAt, endAt },
-      });
+      const updated: SessionWithCount[] = [];
+      const classes: Prisma.mst_classGetPayload<{
+        include: { subject: { select: { subject_name: true } } };
+      }>[] = [];
 
-      return { updated, classes, timesChanged };
+      for (const target of targets) {
+        const moved =
+          target.startAt !== startAt || target.endAt !== endAt
+            ? await tx.mst_class.findMany({
+                where: { sessionId: target.id, deleted_at: null },
+                include: { subject: { select: { subject_name: true } } },
+              })
+            : [];
+
+        updated.push(
+          await tx.mst_session.update({
+            where: { id: target.id },
+            data: {
+              number,
+              startAt,
+              endAt,
+              is_active: body.is_active ?? target.is_active,
+              updated_by: req.user!.id,
+              updated_at: new Date(),
+            },
+            include: {
+              _count: { select: { classes: { where: { deleted_at: null } } } },
+            },
+          })
+        );
+
+        if (moved.length)
+          await tx.mst_class.updateMany({
+            where: { id: { in: moved.map((item) => item.id) } },
+            data: { startAt, endAt },
+          });
+
+        classes.push(...moved);
+      }
+
+      const warnings = new Set<string>();
+
+      for (const item of classes) {
+        const schedule = { day: item.day, startAt, endAt };
+        const clashes = await findMemberScheduleClashes(
+          item.id,
+          schedule,
+          item.periodId,
+          tx
+        );
+
+        clashes.forEach((clash) =>
+          warnings.add(
+            `${item.subject.subject_name} kelas ${item.name} (${formatSchedule(schedule)}, ${item.room}): ${clash.member} juga ${clash.activity} ${clash.subject.subject_name} kelas ${clash.name} (${formatSchedule(clash)}, ${clash.room})`
+          )
+        );
+      }
+
+      return { updated, classes, warnings: [...warnings] };
     },
     { maxWait: 10000, timeout: 20000 }
   );
 
-  publishRealtimeEvent("session", { session_id: updated.id });
+  updated.forEach((session) =>
+    publishRealtimeEvent("session", { session_id: session.id })
+  );
   classes.forEach((item) =>
     publishRealtimeEvent("class", { class_id: item.id })
   );
 
+  const saved = classes.length
+    ? `${sessionsLabel(updated)} berhasil diperbarui; jam ${classes.length} kelas ikut berubah`
+    : `${sessionsLabel(updated)} berhasil diperbarui`;
+
   return {
     status: true,
-    message: timesChanged && classes.length
-      ? `${sessionLabel(updated)} berhasil diperbarui; jam ${classes.length} kelas ikut berubah`
-      : `${sessionLabel(updated)} berhasil diperbarui`,
-    data: toResponse(updated),
+    message: warnings.length
+      ? `${saved}. Perhatian, ${warnings.length} jadwal jadi bentrok.`
+      : saved,
+    data: toResponse(updated[0]),
+    warnings,
   };
 };
 

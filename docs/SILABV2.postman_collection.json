@@ -1093,7 +1093,7 @@
 		},
 		{
 			"name": "Jam Sesi",
-			"description": "Jam sesi praktikum dalam dua kelompok hari: `WEEKDAY` (Senin–Kamis) dan `FRIDAY` (Jumat). Kelas mengikuti jam sesinya, jadi mengubah jam sesi ikut mengubah jam semua kelas di sesi itu, tetapi hanya kelas di periode aktif; kelas periode lama tetap memakai jam lamanya.",
+			"description": "Jam sesi praktikum per ruangan (`PSI`, `SBTI`) dan per hari (`MONDAY`–`FRIDAY`), jadi Sesi 1 Senin PSI boleh berbeda jam dengan Sesi 1 Senin SBTI atau Sesi 1 Selasa PSI. Kelas mengikuti jam sesinya, jadi mengubah jam sesi ikut mengubah jam semua kelas di sesi itu, tetapi hanya kelas di periode aktif; kelas periode lama tetap memakai jam lamanya.",
 			"item": [
 				{
 					"name": "Semua Jam Sesi",
@@ -1106,8 +1106,8 @@
 									"if (pm.response.code === 200) {",
 									"    const sessions = pm.response.json().data;",
 									"    const current = pm.collectionVariables.get(\"sessionId\");",
-									"    const weekday = sessions.find((session) => session.day_group === \"WEEKDAY\" && session.is_active);",
-									"    if (weekday && !sessions.some((session) => session.id === current)) pm.collectionVariables.set(\"sessionId\", weekday.id);",
+									"    const sbtiMonday = sessions.find((session) => session.room === \"SBTI\" && session.day === \"MONDAY\" && session.is_active);",
+									"    if (sbtiMonday && !sessions.some((session) => session.id === current)) pm.collectionVariables.set(\"sessionId\", sbtiMonday.id);",
 									"}"
 								]
 							}
@@ -1127,7 +1127,7 @@
 							]
 						},
 						"url": {
-							"raw": "{{baseUrl}}/session?day=&active=",
+							"raw": "{{baseUrl}}/session?room=&day=&active=",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -1135,6 +1135,11 @@
 								"session"
 							],
 							"query": [
+								{
+									"key": "room",
+									"value": "",
+									"description": "PSI atau SBTI: hanya sesi ruangan itu (opsional)"
+								},
 								{
 									"key": "day",
 									"value": "",
@@ -1147,7 +1152,7 @@
 								}
 							]
 						},
-						"description": "Semua peran yang login. Hanya jam sesi semester aktif (setiap semester punya salinan jam sesinya sendiri). Urut per kelompok hari lalu jam mulai: `[{ id, day_group, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Form Tambah Praktikum memakai `?day=<hari>&active=true`. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin–Kamis aktif pertama."
+						"description": "Semua peran yang login. Hanya jam sesi semester aktif (setiap semester punya salinan jam sesinya sendiri). Urut per ruangan, lalu hari Senin–Jumat, lalu jam mulai: `[{ id, room, day, number, startAt, endAt, is_active, classes }]`; `classes` adalah jumlah kelas yang memakai sesi itu. Web memuat semuanya lalu menyaring per ruangan dan hari. `room` atau `day` yang tidak dikenal dibalas 400. Bila sesi di variabel `sessionId` sudah tidak ada, variabel itu diganti otomatis dengan sesi Senin SBTI aktif pertama (dipakai Tambah Kelas)."
 					},
 					"response": []
 				},
@@ -1184,7 +1189,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"day_group\": \"FRIDAY\",\n  \"number\": 9,\n  \"startAt\": \"18.00\",\n  \"endAt\": \"19.00\"\n}",
+							"raw": "{\n  \"room\": \"PSI\",\n  \"day\": \"FRIDAY\",\n  \"number\": 9,\n  \"startAt\": \"18.00\",\n  \"endAt\": \"19.00\",\n  \"also_days\": []\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -1200,7 +1205,7 @@
 								"session"
 							]
 						},
-						"description": "Hanya LABORAN. `day_group`: WEEKDAY atau FRIDAY, `number` 1–20 (unik per kelompok di semester aktif). Sesi baru menjadi milik semester aktif, jam `JJ.MM` dan jam mulai sebelum jam selesai. Id sesi baru disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat berhasil ditambahkan\"\n- 400 format salah\n- 409 \"Sesi n ... sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n ... (JJ.MM–JJ.MM)!\""
+						"description": "Hanya LABORAN. `room`: PSI atau SBTI, `day`: MONDAY–FRIDAY, `number` 1–20 (unik per ruangan dan hari di semester aktif). `also_days` (opsional): hari lain yang ikut dibuatkan sesi bernomor dan berjam sama, misalnya `[\"MONDAY\", \"TUESDAY\"]`; semuanya tersimpan bersama atau tidak sama sekali. Sesi baru menjadi milik semester aktif, jam `JJ.MM` dan jam mulai sebelum jam selesai. Jam yang bertabrakan hanya dicek di ruangan dan hari yang sama. Id sesi hari `day` disimpan ke `newSessionId`.\n\n- 201 \"Sesi 9 Jumat PSI berhasil ditambahkan\" (atau \"Sesi 9 PSI hari Senin dan Jumat berhasil ditambahkan\")\n- 400 format salah, misalnya \"Ruangan harus PSI atau SBTI!\" atau \"Hari lain harus berisi hari Senin sampai Jumat!\"\n- 409 \"Sesi n <hari> <ruang> sudah ada!\" atau \"Jam sesi bertabrakan dengan Sesi n <hari> <ruang> (JJ.MM–JJ.MM)!\""
 					},
 					"response": []
 				},
@@ -1243,7 +1248,7 @@
 								"{{newSessionId}}"
 							]
 						},
-						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `is_active` (false = nonaktif, tidak muncul di pilihan kelas baru). Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim. Jam sesi semester lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\"\n\n- 200 \"Sesi n ... berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\")\n- 409 tumpang tindih dengan sesi lain"
+						"description": "Hanya LABORAN. Semua field opsional: `number`, `startAt`, `endAt`, `is_active` (false = nonaktif, tidak muncul di pilihan kelas baru), dan `also_days`: hari lain di ruangan yang sama yang punya nomor sesi ini. Hari-hari itu ikut mendapat nomor dan jam yang sama dengan sesi ini (serta `is_active` bila dikirim); semuanya tersimpan bersama atau tidak sama sekali. Ruangan dan hari sesi tidak bisa diganti. Bila jam berubah, jam semua kelas di sesi itu ikut berubah dan event `session` serta `class` dikirim. Bila jam baru membuat peserta atau asisten kelas itu bentrok dengan kelas lain (termasuk kelas di ruangan lain), perubahan tetap disimpan dan `warnings` berisi daftar bentroknya. Jam sesi semester lama dibalas 409 \"Periode … sudah selesai, data hanya bisa dilihat.\"\n\n- 200 \"Sesi n <hari> <ruang> berhasil diperbarui\" (+ \"; jam n kelas ikut berubah\", + \". Perhatian, n jadwal jadi bentrok.\"), dengan `warnings: [\"<mata kuliah> kelas A (Senin, 07.00 - 08.40, SBTI): peserta <nama> juga mengikuti praktikum ...\"]`\n- 404 \"Sesi n <hari> <ruang> tidak ditemukan!\" (hari di `also_days` tidak punya nomor sesi itu)\n- 409 tumpang tindih dengan sesi lain"
 					},
 					"response": []
 				},
@@ -1416,7 +1421,7 @@
 								"class"
 							]
 						},
-						"description": "Hanya LABORAN. `name` satu huruf A–Z (huruf kecil diubah jadi besar), `quota` 1–99, `day` MONDAY–FRIDAY, `room` PSI atau SBTI, `sessionId` dari \"Semua Jam Sesi\" yang aktif dan sesuai kelompok harinya. Jam kelas diambil dari sesi. Membuat data sungguhan; id kelas baru disimpan ke `newClassId`.\n\n- 201 \"Kelas <mata kuliah> A berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid, sesi nonaktif, atau sesi bukan untuk hari itu\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kelas A sudah ada di ...!\" atau \"Ruang PSI sudah dipakai <mata kuliah> kelas X (Senin, 07.00 - 08.40).\"\n\nKelas otomatis masuk periode aktif. Nama kelas dan ruang hanya diperiksa terhadap kelas di periode yang sama."
+						"description": "Hanya LABORAN. `name` satu huruf A–Z (huruf kecil diubah jadi besar), `quota` 1–99, `day` MONDAY–FRIDAY, `room` PSI atau SBTI, `sessionId` dari \"Semua Jam Sesi\" yang aktif, untuk hari dan ruangan kelas itu. Jam kelas diambil dari sesi. Membuat data sungguhan; id kelas baru disimpan ke `newClassId`.\n\n- 201 \"Kelas <mata kuliah> A berhasil ditambahkan\" `{ id }`\n- 400 isian tidak valid, sesi nonaktif, atau \"Sesi n bukan sesi hari Senin di ruang SBTI!\"\n- 404 \"Mata kuliah tidak ditemukan!\"\n- 409 \"Kelas A sudah ada di ...!\" atau \"Ruang PSI sudah dipakai <mata kuliah> kelas X (Senin, 07.00 - 08.40).\"\n\nKelas otomatis masuk periode aktif. Nama kelas dan ruang hanya diperiksa terhadap kelas di periode yang sama."
 					},
 					"response": []
 				},
@@ -3169,9 +3174,9 @@
 		},
 		{
 			"key": "sessionId",
-			"value": "4848cbf2-e575-4971-854a-b50edef9dd65",
+			"value": "6b025d87-4319-4813-b793-6e30590a26bd",
 			"type": "string",
-			"description": "Sesi 2 Senin–Kamis (dipakai Tambah Kelas); diganti otomatis oleh Semua Jam Sesi bila sesinya sudah tidak ada"
+			"description": "Sesi aktif pertama Senin SBTI (dipakai Tambah Kelas); diganti otomatis oleh Semua Jam Sesi bila sesinya sudah tidak ada"
 		},
 		{
 			"key": "newSessionId",

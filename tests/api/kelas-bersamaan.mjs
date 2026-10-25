@@ -44,7 +44,7 @@ await runTest("Tambah dan ubah kelas bersamaan", data, async () => {
     ["WEDNESDAY", "H"],
   ]) {
     const results = await together(
-      sessions
+      (await data.sessions({ room: "SBTI", day }))
         .slice(0, 4)
         .map((session) =>
           add(subject, { name, day, room: "SBTI", sessionId: session.id })
@@ -69,11 +69,12 @@ await runTest("Tambah dan ubah kelas bersamaan", data, async () => {
   }
 
   section("Ruang dan jam yang sama dikirim bersamaan");
+  const thursday = await data.sessions({ day: "THURSDAY" });
   for (const [index, names] of [
     ["P", "Q", "R", "S"],
     ["T", "U", "V", "W"],
   ].entries()) {
-    const session = sessions[index];
+    const session = thursday[index];
     const results = await together(
       names.map((name, i) =>
         add(i % 2 === 0 ? subject : other, {
@@ -126,7 +127,11 @@ await runTest("Tambah dan ubah kelas bersamaan", data, async () => {
 
   const m = await data.classOf(subject, "M", "WEDNESDAY", 5);
   const n = await data.classOf(other, "N", "THURSDAY", 5);
-  const target = { day: "TUESDAY", room: "PSI", sessionId: sessions[5].id };
+  const target = {
+    day: "TUESDAY",
+    room: "PSI",
+    sessionId: (await data.sessions({ day: "TUESDAY" }))[5].id,
+  };
   const moves = await together([update(m, target), update(n, target)]);
   check(
     "kelas M dan N dipindah ke PSI Selasa jam yang sama bersamaan: tepat satu berhasil",
