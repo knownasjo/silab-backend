@@ -28,7 +28,10 @@ import {
   assertNoAssistantScheduleClash,
   assertNoMemberScheduleClash,
 } from "../utils/AssistantRules/assistant.rules";
-import { assertLecturerOfClass } from "../utils/ClassAccess/class.access";
+import {
+  assertAssistantOfClass,
+  assertLecturerOfClass,
+} from "../utils/ClassAccess/class.access";
 import { rethrowIfSubjectDeleted } from "../utils/SubjectRules/subject.rules";
 import {
   assertNoParticipantScheduleClash,
@@ -514,6 +517,7 @@ export const SGetClassById = async (
     if (!classData) throw new NotFoundError("Kelas tidak ditemukan!");
 
     await assertLecturerOfClass(req.user, classData.id);
+    await assertAssistantOfClass(req.user, classData.id);
 
     const activePeriod = await findActivePeriod();
 

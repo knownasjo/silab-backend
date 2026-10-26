@@ -21,7 +21,7 @@ await runTest("Dashboard dosen dan pertemuan yang sudah berjalan", data, async (
     alfaMeetings.push(
       await data.meeting(alfaA, `Pertemuan ${i}`, { status: i === 2 })
     );
-  const [p1, p2, p3, p4] = alfaMeetings;
+  const [p1, p2, , p4] = alfaMeetings;
   await data.attend(p1, s1, true);
   await data.attend(p1, s2, true);
   await data.attend(p1, s3, false);
@@ -33,7 +33,7 @@ await runTest("Dashboard dosen dan pertemuan yang sudah berjalan", data, async (
   });
 
   const betaFirst = await data.meeting(betaA, "Pertemuan 1");
-  await data.meeting(betaA, "Pertemuan 2");
+  const betaSecond = await data.meeting(betaA, "Pertemuan 2");
   await data.attend(betaFirst, leaver, true);
   await db.trn_class_participants.updateMany({
     where: { userId: leaver.id },
@@ -137,20 +137,23 @@ await runTest("Dashboard dosen dan pertemuan yang sudah berjalan", data, async (
   );
 
   section("Angka ikut berubah");
-  await call("PUT", `/meeting/${p3.id}/status`, {
+  const open = await call("PUT", `/meeting/${betaSecond.id}/status`, {
     token: laboran,
     body: { status: true },
   });
   const opened = await summary();
-  await call("PUT", `/meeting/${p3.id}/status`, {
+  const close = await call("PUT", `/meeting/${betaSecond.id}/status`, {
     token: laboran,
     body: { status: false },
   });
   const closedEmpty = await summary();
   check(
-    "presensi P3 dibuka langsung terhitung (4), ditutup tanpa presensi kembali 3",
-    opened?.totalMeeting === 4 && closedEmpty?.totalMeeting === 3,
-    `${opened?.totalMeeting} lalu ${closedEmpty?.totalMeeting}`
+    "presensi P2 Beta dibuka langsung terhitung (4), ditutup tanpa presensi kembali 3",
+    open.code === 200 &&
+      close.code === 200 &&
+      opened?.totalMeeting === 4 &&
+      closedEmpty?.totalMeeting === 3,
+    `${open.code} ${opened?.totalMeeting} lalu ${close.code} ${closedEmpty?.totalMeeting}`
   );
   const edited = await call("PUT", `/meeting/${p4.id}/attendances/${s2.id}`, {
     token: laboran,

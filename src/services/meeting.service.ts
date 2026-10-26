@@ -51,6 +51,9 @@ const readMeetingName = (value: unknown) => {
   return name;
 };
 
+const lockClassMeetings = (tx: Prisma.TransactionClient, classId: string) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${classId}))`;
+
 const saveMeetingName = <T>(
   classId: string,
   name: string,
@@ -58,7 +61,7 @@ const saveMeetingName = <T>(
   save: (tx: Prisma.TransactionClient) => Promise<T>
 ) =>
   db.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${classId}))`;
+    await lockClassMeetings(tx, classId);
 
     const meetings = await tx.trn_meetings.findMany({
       where: {
@@ -75,6 +78,26 @@ const saveMeetingName = <T>(
 
     return save(tx);
   });
+
+const assertNoOtherOpenMeeting = async (
+  tx: Prisma.TransactionClient,
+  meeting: { id: string; classId: string; name: string }
+) => {
+  const openMeeting = await tx.trn_meetings.findFirst({
+    where: {
+      classId: meeting.classId,
+      status: true,
+      deletedAt: null,
+      id: { not: meeting.id },
+    },
+    select: { name: true },
+  });
+
+  if (openMeeting)
+    throw new ConflictError(
+      `Presensi ${openMeeting.name} masih dibuka. Tutup dulu sebelum membuka ${meeting.name}.`
+    );
+};
 
 const findManagedMeeting = async (meetingId: string, req: Request) => {
   const meeting = await db.trn_meetings.findFirst({
@@ -413,14 +436,20 @@ export const SUpdateMeetingStatus = async (
 
     await assertCanManageClass(user, meeting.classId);
 
-    await db.trn_meetings.update({
-      where: {
-        id: meetingId,
-      },
-      data: {
-        status: status,
-        updatedAt: new Date(),
-      },
+    await db.$transaction(async (tx) => {
+      await lockClassMeetings(tx, meeting.classId);
+
+      if (status) await assertNoOtherOpenMeeting(tx, meeting);
+
+      await tx.trn_meetings.update({
+        where: {
+          id: meetingId,
+        },
+        data: {
+          status: status,
+          updatedAt: new Date(),
+        },
+      });
     });
 
     void publishClassMembersEvent(meeting.classId, "meeting", {

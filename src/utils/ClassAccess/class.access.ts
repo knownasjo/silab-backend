@@ -30,6 +30,16 @@ export const assertCanManageClass = async (
   await assertClassInActivePeriod(classId);
 };
 
+export const assertAssistantOfClass = async (
+  user: mst_user | undefined,
+  classId: string
+) => {
+  if (user?.role !== "MAHASISWA") return;
+
+  if (!(await isClassAssistant(user.id, classId)))
+    throw new ForbiddenError("Anda bukan asisten kelas ini.");
+};
+
 export const isLecturer = (user: mst_user | undefined) =>
   user?.role === "DOSEN";
 

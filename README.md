@@ -111,7 +111,8 @@ lihat bagian "Endpoint untuk aplikasi mobile" dan README `silab-mobile`.
    "Pembayaran dikonfirmasi. Mahasiswa memilih kelas sendiri di aplikasi.")
 4. Asisten/laboran membuat pertemuan (`POST /meeting`) — token 6 karakter
    digenerate otomatis
-5. Asisten/laboran membuka sesi presensi (`PUT /meeting/:id/status`)
+5. Asisten/laboran membuka sesi presensi (`PUT /meeting/:id/status`); satu
+   kelas hanya boleh punya satu sesi yang terbuka
 6. Asisten/laboran menampilkan QR (`GET /meeting/:id/qr`); token di dalamnya
    berganti setiap 10 detik
 7. Mahasiswa scan QR berisi token → presensi tercatat
@@ -268,7 +269,7 @@ kolomnya); di `mst_user` menjadi `meetingParticipants`, `announcements`,
 | GET | `/class/registration` | MAHASISWA |
 | POST | `/class/registration` | MAHASISWA |
 | GET | `/class/me` | MAHASISWA |
-| GET | `/class/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
+| GET | `/class/:id` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | PUT | `/class/:id` | LABORAN (lihat "Ubah dan hapus kelas") |
 | DELETE | `/class/:id` | LABORAN (hanya kelas yang belum punya presensi) |
 | GET | `/class/:id/classmates` | login (MAHASISWA hanya kelasnya sendiri, DOSEN hanya kelas mata kuliah yang ia ampu) |
@@ -286,7 +287,7 @@ kolomnya); di `mst_user` menjadi `meetingParticipants`, `announcements`,
 | GET | `/meeting/:id/qr` | LABORAN, asisten kelas itu |
 | PUT | `/meeting/:id` | LABORAN, asisten kelas itu (ubah judul) |
 | DELETE | `/meeting/:id` | LABORAN, asisten kelas itu (hanya pertemuan tanpa presensi yang sesinya ditutup) |
-| PUT | `/meeting/:id/status` | LABORAN, asisten kelas itu |
+| PUT | `/meeting/:id/status` | LABORAN, asisten kelas itu (satu sesi terbuka per kelas, lihat "Tambah, ubah, hapus, dan urutan pertemuan") |
 | PUT | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
 | PUT | `/meeting/:id/attendances/:userId/device` | LABORAN, asisten kelas itu (cek HP tidak biasa: Ada / Tidak ada) |
 | DELETE | `/meeting/:id/attendances/:userId` | LABORAN, asisten kelas itu |
@@ -301,7 +302,7 @@ kolomnya); di `mst_user` menjadi `meetingParticipants`, `announcements`,
 | PUT | `/announcement/:id` | LABORAN; `subjectIds` opsional |
 | DELETE | `/announcement/:id` | LABORAN |
 | POST | `/collaborator` | LABORAN |
-| GET | `/collaborator/:id` | login (DOSEN: hanya kelas mata kuliah yang ia ampu) |
+| GET | `/collaborator/:id` | login (MAHASISWA: hanya kelas yang ia pegang sebagai asisten; DOSEN: hanya kelas mata kuliah yang ia ampu) |
 | DELETE | `/collaborator/:classId/:userId` | LABORAN |
 | GET | `/events` | login; stream SSE real-time |
 | GET | `/dashboard/dosen?periodId=` | DOSEN (angka dashboard, lihat "Akses dosen"; periode aktif kecuali `periodId` diisi) |
@@ -705,6 +706,15 @@ lagi dan `POST /user` tidak menerimanya. Seleksi asisten tetap di luar sistem.
 - `GET /class` untuk MAHASISWA hanya berisi kelas yang ia pegang. Web memakainya
   untuk halaman Praktikum asisten dan untuk menolak login mahasiswa yang tidak
   memegang kelas; mobile memakainya untuk bagian "Asisten Praktikum" di Profil.
+- `GET /class/:id` (detail kelas) dan `GET /collaborator/:id` (daftar asisten)
+  untuk MAHASISWA hanya melayani kelas yang ia pegang, termasuk kelas semester
+  lama; selain itu 403 "Anda bukan asisten kelas ini." (`assertAssistantOfClass`
+  di `src/utils/ClassAccess/class.access.ts`). Sebelum 26 Oktober 2026 akun
+  mahasiswa mana pun bisa membaca detail kelas mana pun beserta nama dan NIM
+  asistennya. Web menampilkan pesan itu dengan tautan "Kembali ke Praktikum"
+  bila asisten membuka kelas lain lewat alamat, termasuk kelas tempat ia ikut
+  praktikum sebagai mahasiswa, atau dicabut laboran saat halaman kelasnya masih
+  terbuka. Aplikasi HP tidak memakai kedua endpoint ini.
 
 ### Akses dosen
 
@@ -1255,6 +1265,23 @@ dan dibalas 409 "Presensi baru saja tercatat di pertemuan ini, jadi tidak
 bisa dihapus." Berhasil: 200 "Pertemuan 2 berhasil dihapus". Judulnya bisa
 dipakai lagi setelah itu.
 
+`PUT /meeting/:id/status { status }` membuka atau menutup sesi presensi.
+Sejak 26 Oktober 2026 satu kelas hanya boleh punya **satu sesi terbuka**.
+Membuka pertemuan lain saat masih ada yang terbuka dibalas 409 "Presensi
+Pertemuan 1 masih dibuka. Tutup dulu sebelum membuka Pertemuan 3." Aturan ini
+juga berlaku untuk laboran. Membuka lagi sesi yang sudah terbuka dan menutup
+sesi selalu boleh, dan kelas lain tidak terpengaruh.
+
+- Alasannya: sesi yang lupa ditutup dulu tetap terbuka bersama sesi baru.
+  Aplikasi HP lalu menampilkan dua tombol Scan QR, dan mahasiswa yang menekan
+  baris yang salah ditolak "Token presensi tidak valid!". Web juga otomatis
+  memilih sesi lama itu, sehingga asisten bisa menampilkan QR yang salah.
+- Pemeriksaan dan penyimpanan memakai kunci
+  `pg_advisory_xact_lock(hashtext(classId))` yang sama dengan penambahan
+  pertemuan. Dua permintaan buka yang datang bersamaan untuk dua pertemuan
+  berbeda hanya meloloskan satu (diuji 5 kali; kode lama selalu membuka
+  keduanya).
+
 `GET /meeting/:classId` kini diurutkan menurut judul yang dirapikan dengan
 `Intl.Collator("id", { numeric: true, sensitivity: "base" })`: angka dibaca
 sebagai angka (Pertemuan 2 sebelum Pertemuan 10) dan huruf besar-kecil
@@ -1357,7 +1384,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 11 menit
+npm test                    # terminal 2: semua tes API, sekitar 12 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1368,10 +1395,10 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 
 ```
 == Ringkasan
+LULUS asisten-kelas                22/22
 LULUS batal-bayar                  16/16
-LULUS batal-daftar                 22/22
 ...
-Total: 553/553 cek lulus dari 23 tes, 673 detik
+Total: 575/575 cek lulus dari 24 tes, 698 detik
 Data uji sudah bersih.
 ```
 
@@ -1399,6 +1426,7 @@ Data uji sudah bersih.
 | `dashboard-dosen` | `GET /dashboard/dosen` menghitung Jumlah Pertemuan hanya dari pertemuan yang sedang dibuka atau sudah punya presensi (pertemuan terhapus, kelas terhapus, dan kelas dosen lain tidak dihitung), Jumlah Kelas dan Mahasiswa tetap, tanpa persentase kehadiran; `isHeld` di `GET /meeting/:classId` untuk dosen dan laboran, termasuk presensi mahasiswa yang sudah keluar kelas, mahasiswa tetap menerima bentuk lama; angka berubah saat presensi dibuka, ditutup tanpa presensi, dan diisi laboran | 13 |
 | `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan (Jumat SBTI): 4 sesi bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; 3 permintaan untuk Senin–Rabu sekaligus dengan urutan hari berbeda (3 kali), tepat satu berhasil tanpa deadlock; Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan, keduanya berhasil bergantian dan hasilnya sama di kedua hari; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 33 |
 | `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `alsoDays` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
+| `asisten-kelas` | detail kelas dan daftar asisten untuk akun mahasiswa: asisten melihat kelas yang ia pegang (juga di semester lama), ditolak 403 "Anda bukan asisten kelas ini." untuk kelas lain dan kelas tempat ia ikut praktikum, mahasiswa biasa tidak bisa membaca NIM asisten, laboran dan dosen pengampu tetap bisa, `GET /meeting/:classId` untuk HP tidak berubah; satu sesi terbuka per kelas: membuka pertemuan kedua ditolak 409 dengan nama kedua pertemuan (asisten dan laboran), membuka ulang sesi yang sama dan kelas lain tetap boleh, sesudah ditutup bisa membuka yang lain, dua pertemuan dibuka bersamaan oleh asisten dan laboran (5 kali) selalu hanya satu yang berhasil; asisten yang dicabut langsung ditolak | 22 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
@@ -1411,7 +1439,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–33, web 51–69 dan 71–78,
+- Setiap file tes punya blok 2 angka sendiri (API 11–34, web 51–69 dan 71–79,
   uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
