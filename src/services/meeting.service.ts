@@ -15,6 +15,7 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../utils/HttpErrors/HttptErrors";
+import { isMeetingHeld } from "../utils/MeetingRules/meeting.rules";
 import { getCurrentQrToken } from "../utils/QrToken/qr.token";
 import { publishClassMembersEvent } from "../utils/RealtimeEvents/realtime.events";
 import {
@@ -338,6 +339,7 @@ export const SGetAllClassMeeting = async (
           id: meeting.id,
           meetingName: meeting.name,
           isOpen: meeting.status,
+          isHeld: isMeetingHeld(meeting.status, meeting.participants.length),
           students: studentsInClass,
         };
       }

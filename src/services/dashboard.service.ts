@@ -3,6 +3,7 @@ import { IBaseResponse } from "../interfaces/global.interface";
 import { ILecturerDashboardResponseBody } from "../interfaces/dashboard.interface";
 import db from "../prisma/client.prisma";
 import { ForbiddenError } from "../utils/HttpErrors/HttptErrors";
+import { isMeetingHeld } from "../utils/MeetingRules/meeting.rules";
 import { resolveViewPeriod } from "../utils/PeriodRules/period.rules";
 
 export const SGetLecturerDashboard = async (
@@ -25,32 +26,25 @@ export const SGetLecturerDashboard = async (
       participants: { where: { deletedAt: null }, select: { userId: true } },
       meetings: {
         where: { deletedAt: null },
-        select: {
-          participants: { where: { status: true }, select: { userId: true } },
-        },
+        select: { status: true, _count: { select: { participants: true } } },
       },
     },
   });
 
-  const students = new Set<string>();
-  let totalMeeting = 0;
-  let totalAttended = 0;
-  let totalExpected = 0;
-
-  classes.forEach((classData) => {
-    const studentIds = new Set(
+  const students = new Set(
+    classes.flatMap((classData) =>
       classData.participants.map((participant) => participant.userId)
-    );
+    )
+  );
 
-    studentIds.forEach((studentId) => students.add(studentId));
-    totalMeeting += classData.meetings.length;
-    totalExpected += studentIds.size * classData.meetings.length;
-    classData.meetings.forEach((meeting) => {
-      totalAttended += meeting.participants.filter((participant) =>
-        studentIds.has(participant.userId)
-      ).length;
-    });
-  });
+  const totalMeeting = classes.reduce(
+    (total, classData) =>
+      total +
+      classData.meetings.filter((meeting) =>
+        isMeetingHeld(meeting.status, meeting._count.participants)
+      ).length,
+    0
+  );
 
   return {
     status: true,
@@ -58,12 +52,7 @@ export const SGetLecturerDashboard = async (
     data: {
       totalClass: classes.length,
       totalStudent: students.size,
-      totalMeeting: totalMeeting,
-      totalAttended: totalAttended,
-      totalExpectedAttendance: totalExpected,
-      attendanceRate: totalExpected
-        ? Math.round((totalAttended / totalExpected) * 100)
-        : null,
+      totalMeeting,
     },
   };
 };

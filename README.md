@@ -727,21 +727,26 @@ menolak dosen seperti sebelumnya.
   untuk dosen!") menghitung angka dashboard dari kelas mata kuliah yang ia ampu:
 
   ```
-  { totalClass, totalStudent, totalMeeting,
-    totalAttended, totalExpectedAttendance, attendanceRate }
+  { totalClass, totalStudent, totalMeeting }
   ```
 
   - `totalStudent`: peserta kelas, dihitung sekali walau ikut dua mata kuliah
     dosen yang sama.
-  - `totalMeeting`: semua pertemuan yang sudah dibuat (sama dengan kolom di
-    rekap presensi).
-  - `totalExpectedAttendance`: jumlah peserta × jumlah pertemuan per kelas,
-    dijumlahkan. `totalAttended`: presensi berstatus hadir dari peserta kelas
-    itu.
-  - `attendanceRate`: `totalAttended / totalExpectedAttendance × 100`
-    dibulatkan; `null` bila belum ada pertemuan atau peserta. "Belum presensi"
-    dihitung tidak hadir, sama seperti kolom Hadir di rekap.
+  - `totalMeeting`: pertemuan yang sudah berjalan, yaitu presensinya sedang
+    dibuka atau sudah punya minimal satu data presensi (scan HP atau diisi
+    laboran/asisten, termasuk dari mahasiswa yang kemudian keluar kelas).
+    Aturannya ada di `isMeetingHeld` (`src/utils/MeetingRules/meeting.rules.ts`).
+    Sebelum 26 Oktober 2026 semua pertemuan yang sudah dibuat ikut dihitung,
+    padahal pertemuan sering dibuat sekaligus untuk satu semester (data asli
+    punya kelas dengan Pertemuan 1–15 yang belum ada presensinya).
+  - Persentase kehadiran (`attendanceRate`, `totalAttended`,
+    `totalExpectedAttendance`) dihapus pada tanggal yang sama atas permintaan
+    pengguna, bersama kartunya di web.
   - Kelas dan pertemuan yang `deletedAt`-nya terisi tidak dihitung.
+- `GET /meeting/:classId` untuk staf (laboran, dosen pengampu, asisten)
+  mengirim `isHeld` di setiap pertemuan dengan aturan yang sama. Web memakainya
+  untuk kolom Hadir di rekap presensi dan untuk memilih pertemuan yang tampil
+  pertama di detail kelas. Bentuk balasan untuk mahasiswa tidak berubah.
 - Dosen tetap menerima semua event real-time seperti laboran, sehingga
   dashboard dan halaman kelasnya ikut berubah tanpa refresh.
 
@@ -1352,7 +1357,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 10 menit
+npm test                    # terminal 2: semua tes API, sekitar 11 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1366,7 +1371,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS batal-bayar                  16/16
 LULUS batal-daftar                 22/22
 ...
-Total: 540/540 cek lulus dari 22 tes, 635 detik
+Total: 553/553 cek lulus dari 23 tes, 673 detik
 Data uji sudah bersih.
 ```
 
@@ -1391,6 +1396,7 @@ Data uji sudah bersih.
 | `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
+| `dashboard-dosen` | `GET /dashboard/dosen` menghitung Jumlah Pertemuan hanya dari pertemuan yang sedang dibuka atau sudah punya presensi (pertemuan terhapus, kelas terhapus, dan kelas dosen lain tidak dihitung), Jumlah Kelas dan Mahasiswa tetap, tanpa persentase kehadiran; `isHeld` di `GET /meeting/:classId` untuk dosen dan laboran, termasuk presensi mahasiswa yang sudah keluar kelas, mahasiswa tetap menerima bentuk lama; angka berubah saat presensi dibuka, ditutup tanpa presensi, dan diisi laboran | 13 |
 | `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan (Jumat SBTI): 4 sesi bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; 3 permintaan untuk Senin–Rabu sekaligus dengan urutan hari berbeda (3 kali), tepat satu berhasil tanpa deadlock; Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan, keduanya berhasil bergantian dan hasilnya sama di kedua hari; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 33 |
 | `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `alsoDays` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
@@ -1405,7 +1411,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–32, web 51–69 dan 71–77,
+- Setiap file tes punya blok 2 angka sendiri (API 11–33, web 51–69 dan 71–78,
   uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan

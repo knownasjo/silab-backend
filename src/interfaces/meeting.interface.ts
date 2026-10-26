@@ -13,6 +13,7 @@ export interface IGetAllClassMeetingResponseBody {
   id: string;
   meetingName: string;
   isOpen: boolean;
+  isHeld?: boolean;
   students?: IMeetingParticipants[];
   submittedAt?: string | null;
   isAttended?: boolean;
