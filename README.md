@@ -21,9 +21,11 @@ npm run dev        # nodemon + ts-node, port 3000
 npm test           # tes otomatis, lihat Pengujian otomatis
 ```
 
-**Wajib Node.js 22 LTS.** Node 24+ tidak bisa — dependensi
-`buffer-equal-constant-time` memakai `SlowBuffer` yang sudah dihapus dari Node.
-Gejalanya: `TypeError: Cannot read properties of undefined (reading 'prototype')`.
+**Memakai Node.js 26 LTS** (didukung sampai April 2029). Paket
+`buffer-equal-constant-time` (bagian dari `jsonwebtoken`) memang tidak bisa
+dimuat di Node 25 ke atas karena `SlowBuffer` sudah dihapus dari Node, tetapi
+`jwa` 2.0.1 hanya memuatnya bila `crypto.timingSafeEqual` tidak ada, jadi paket
+itu tidak pernah terpakai.
 
 ### Environment
 
