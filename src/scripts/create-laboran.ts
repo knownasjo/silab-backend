@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config({ quiet: true });
+import "./load-env";
 
 import { UserRole } from "@prisma/client";
 import db from "../prisma/client.prisma";

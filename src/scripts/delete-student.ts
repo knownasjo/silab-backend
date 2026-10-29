@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config({ quiet: true });
+import "./load-env";
 
 import readline from "readline/promises";
 import { UserRole } from "@prisma/client";

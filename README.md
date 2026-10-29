@@ -8,7 +8,7 @@ Repo pasangannya: `silab-admin` (frontend web Next.js).
 
 ## Stack
 
-- Express 5 + TypeScript
+- Express 5 + TypeScript 7 (kode dijalankan `tsx`, tipe diperiksa `tsc`)
 - Prisma 7 dengan adapter `@prisma/adapter-pg`, PostgreSQL di Supabase
 - JWT (accessToken 15 menit, refreshToken 24 jam)
 - bcryptjs, 10 salt rounds
@@ -17,9 +17,19 @@ Repo pasangannya: `silab-admin` (frontend web Next.js).
 
 ```bash
 npm install
-npm run dev        # nodemon + ts-node, port 3000
+npm run dev        # nodemon: cek tipe dengan tsc, lalu jalan dengan tsx, port 3000
 npm test           # tes otomatis, lihat Pengujian otomatis
 ```
+
+`tsx` menjalankan TypeScript tanpa memeriksa tipe, jadi `npm run dev` dan
+keempat skrip terminal (`hapus-akun`, `hapus-periode`, `ganti-password`,
+`buat-laboran`) menjalankan `tsc --noEmit` lebih dulu. Bila ada kesalahan tipe,
+server atau skrip tidak dijalankan dan `tsc` menyebut file serta barisnya;
+nodemon lalu menunggu file diubah, sama seperti saat masih memakai `ts-node`.
+`ts-node` diganti sejak 29 Oktober 2026 karena TypeScript 7 tidak punya API
+JavaScript yang dibutuhkannya. `tsconfig.json` tidak berubah: TypeScript 7
+otomatis memakai resolusi modul `Bundler` (TypeScript 5 memakai `Node10`) dan
+hasil pemeriksaannya sama, 0 error.
 
 **Memakai Node.js 26 LTS** (didukung sampai April 2029). Paket
 `buffer-equal-constant-time` (bagian dari `jsonwebtoken`) memang tidak bisa
@@ -49,9 +59,18 @@ MAIL_FROM_NAME=SILAB         # opsional
 `DATABASE_URL` dipakai aplikasi untuk semua query, lewat adapter `pg` di
 `src/prisma/client.prisma.ts`. `DIRECT_URL` hanya dipakai perintah Prisma di
 terminal (misalnya `prisma migrate diff`), lewat `prisma.config.ts`.
-`src/app.ts` dan keempat skrip terminal memanggil `dotenv.config()` di baris
-paling atas — ini wajib, karena `client.prisma.ts` membaca `DATABASE_URL` saat
-modulnya di-import. `prisma.config.ts` memuat `.env` sendiri; bila
+`.env` harus sudah dimuat sebelum modul lain, karena `client.prisma.ts`
+membaca `DATABASE_URL` dan `src/config/env.config.ts` membaca `JWT_SECRET` dan
+lainnya saat modulnya di-import. Karena itu baris pertama `src/app.ts` adalah
+`import "dotenv/config"` dan baris pertama keempat skrip terminal adalah
+`import "./load-env"` (`src/scripts/load-env.ts`, versi tanpa pesan). Keduanya
+harus berupa `import`, bukan panggilan `dotenv.config()` di antara import:
+`tsx` mengikuti aturan modul ES, jadi semua import dijalankan lebih dulu
+sebelum kode lain di file itu. Panggilan seperti itu baru berjalan setelah
+koneksi database dibuat tanpa `DATABASE_URL` (login dibalas 500) dan rahasia JWT
+jatuh ke nilai cadangan. Saat masih memakai `ts-node`, urutan baris
+dipertahankan sehingga cara lama itu berhasil. `prisma.config.ts` memuat `.env`
+sendiri; bila
 `DIRECT_URL` belum ada, `npm install` dan `prisma generate` tetap berjalan,
 hanya perintah yang menyentuh database yang gagal.
 
@@ -1591,10 +1610,17 @@ jaringan yang sama; Prisma 6 diukur pagi harinya):
 Semua cek kebenaran tetap lulus (23/23) dan tidak ada error 500. Satu query
 sederhana lewat Prisma (`SELECT 1`) turun dari median 169 ms menjadi 34 ms di
 jaringan yang sama. Gantinya, Prisma 7 memakai memori lebih banyak: setelah
-127 permintaan yang sama dan tanpa pemeriksaan tipe saat berjalan
-(`TS_NODE_TRANSPILE_ONLY=true`, mendekati server produksi), backend memakai
-159 MB dengan Prisma 6 dan 269 MB dengan Prisma 7. Dengan `npm run dev` biasa
-puncaknya sekitar 355 MB dan 590 MB.
+127 permintaan yang sama, dengan `ts-node` tanpa pemeriksaan tipe saat
+berjalan (`TS_NODE_TRANSPILE_ONLY=true`, mendekati server produksi), backend
+memakai 159 MB dengan Prisma 6 dan 269 MB dengan Prisma 7. Dengan
+`npm run dev` yang waktu itu masih `ts-node` biasa, puncaknya sekitar 355 MB
+dan 590 MB.
+
+Sejak `npm run dev` memakai `tsx` (29 Oktober 2026), pemeriksaan tipe berjalan
+di proses `tsc` terpisah yang langsung selesai, jadi server dev memakai 232 MB
+setelah 127 permintaan yang sama (dengan `ts-node` 524 MB). Uji beban dengan
+`tsx`: waktu tunggu sama, CPU puncak 24–32% (dengan `ts-node` 39–64%), dan
+memori puncak 279–385 MB (dengan `ts-node` 393–590 MB).
 
 ```bash
 STUDENTS=240 LABEL=dua-angkatan npm run uji-beban

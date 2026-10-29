@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config({ quiet: true });
+import "./load-env";
 
 import bcrypt from "bcryptjs";
 import { UserRole } from "@prisma/client";
