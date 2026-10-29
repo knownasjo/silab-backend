@@ -15,10 +15,16 @@ if (process.env.NODE_ENV === "production" && process.env.IZINKAN_UJI !== "ya") {
 }
 
 const { PrismaClient } = require("@prisma/client");
+const { PrismaPg } = require("@prisma/adapter-pg");
 const bcrypt = require("bcryptjs");
 
 export const jwt = require("jsonwebtoken");
-export const db = new PrismaClient();
+export const db = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  }),
+});
 
 export const TEST_NIM_PREFIX = "29999";
 export const TEST_CODE_PREFIX = "999";

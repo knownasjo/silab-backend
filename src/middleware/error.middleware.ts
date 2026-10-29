@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { BaseError } from "../utils/BaseErrors/BaseErrors";
 
 const DATABASE_BUSY_CODES = ["P2024", "P2028"];
+const POOL_TIMEOUT_MESSAGE = "timeout exceeded when trying to connect";
 
 const BODY_ERROR_MESSAGES: Record<string, string> = {
   "entity.parse.failed": "Format JSON tidak valid!",
@@ -10,8 +11,9 @@ const BODY_ERROR_MESSAGES: Record<string, string> = {
 };
 
 const isDatabaseBusy = (err: Error) =>
-  err instanceof Prisma.PrismaClientKnownRequestError &&
-  DATABASE_BUSY_CODES.includes(err.code);
+  (err instanceof Prisma.PrismaClientKnownRequestError &&
+    DATABASE_BUSY_CODES.includes(err.code)) ||
+  err.message?.includes(POOL_TIMEOUT_MESSAGE);
 
 export const errorHandler = (
   err: Error,

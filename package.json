@@ -14,9 +14,6 @@
     "test": "node tests/jalankan.mjs",
     "uji-beban": "node tests/beban/uji-beban.mjs"
   },
-  "prisma": {
-    "schema": "src/prisma/schema.prisma"
-  },
   "nodemonConfig": {
     "ignore": [
       "tests/**"
@@ -37,13 +34,14 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@prisma/client": "^6.7.0",
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^18.0.9",
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^10.2.1",
-    "prisma": "^6.7.0"
+    "prisma": "^7.10.1"
   }
 }

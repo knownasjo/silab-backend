@@ -9,7 +9,7 @@ Repo pasangannya: `silab-admin` (frontend web Next.js).
 ## Stack
 
 - Express 5 + TypeScript
-- Prisma 6, PostgreSQL di Supabase
+- Prisma 7 dengan adapter `@prisma/adapter-pg`, PostgreSQL di Supabase
 - JWT (accessToken 15 menit, refreshToken 24 jam)
 - bcryptjs, 10 salt rounds
 
@@ -46,12 +46,30 @@ SMTP_PASS=...                # App Password Google (16 huruf, spasi diabaikan)
 MAIL_FROM_NAME=SILAB         # opsional
 ```
 
-`DATABASE_URL` dan `DIRECT_URL` dibaca Prisma lewat `schema.prisma`, bukan oleh
-kode aplikasi. `src/app.ts` memanggil `dotenv.config()` di baris paling atas —
-ini wajib, karena `client.prisma.ts` membuat `PrismaClient` saat modulnya
-di-import.
+`DATABASE_URL` dipakai aplikasi untuk semua query, lewat adapter `pg` di
+`src/prisma/client.prisma.ts`. `DIRECT_URL` hanya dipakai perintah Prisma di
+terminal (misalnya `prisma migrate diff`), lewat `prisma.config.ts`.
+`src/app.ts` dan keempat skrip terminal memanggil `dotenv.config()` di baris
+paling atas — ini wajib, karena `client.prisma.ts` membaca `DATABASE_URL` saat
+modulnya di-import. `prisma.config.ts` memuat `.env` sendiri; bila
+`DIRECT_URL` belum ada, `npm install` dan `prisma generate` tetap berjalan,
+hanya perintah yang menyentuh database yang gagal.
 
-Yang dibaca langsung oleh kode (lewat `src/config/env.config.ts`) hanya
+Pengaturan koneksi di `client.prisma.ts` meniru bawaan Prisma 6, supaya
+perilaku saat ramai tetap sama:
+
+- paling banyak (jumlah inti CPU × 2 + 1) koneksi, yaitu 21 di laptop 10 inti.
+  Prisma 6 menghitung inti fisik, sedangkan `availableParallelism()` menghitung
+  inti logis, jadi di server dengan hyper-threading jumlahnya bisa dua kali
+  lipat;
+- menunggu koneksi kosong paling lama 10 detik, sesudah itu permintaan dibalas
+  503 (lihat "Database sibuk dibalas 503");
+- koneksi yang menganggur 5 menit ditutup;
+- koneksi terenkripsi (SSL) tanpa memeriksa sertifikat Supabase
+  (`rejectUnauthorized: false`), sama seperti Prisma 6. Tanpa opsi `ssl`,
+  adapter `pg` tersambung tanpa enkripsi.
+
+Variabel lain dibaca kode lewat `src/config/env.config.ts`, yaitu
 `JWT_SECRET`, `JWT_REFRESH_SECRET`, `QR_TOKEN_PERIOD_SECONDS`, dan variabel
 `SMTP_*`/`MAIL_FROM_NAME`. Selama `SMTP_USER`/`SMTP_PASS` kosong dan
 `NODE_ENV` bukan `production`, kode verifikasi pendaftaran dan kode reset
@@ -1208,8 +1226,10 @@ kuliahnya.
   `rethrowIfSubjectDeleted` (`src/utils/SubjectRules/subject.rules.ts`)
   mengubah penolakan itu menjadi 404 "Mata kuliah tidak ditemukan!";
   sebaliknya bila pendaftaran atau kelas lebih dulu tersimpan, penghapusan
-  dibalas 409. Prisma 6 menaruh nama constraint di `meta.constraint`, bukan
-  `meta.field_name`. Tanpa penanganan ini, pendaftaran dan tambah kelas yang
+  dibalas 409. Sejak Prisma 7 nama constraint ada di
+  `meta.driverAdapterError.cause.constraint` (`index` atau `fields`), bukan
+  lagi `meta.constraint` seperti di Prisma 6. Tanpa penanganan ini, pendaftaran
+  dan tambah kelas yang
   kalah cepat dibalas 500 di 9 dari 9 putaran uji (jeda 0–400 ms) untuk
   keduanya.
 
@@ -1352,11 +1372,14 @@ kelas web berbeda urutan dengan Rekap Presensi yang urut NIM.
   - Alamat yang tidak dikenal dibalas 404 JSON "Alamat tidak ditemukan!"
     (dulu halaman HTML Express), dan body di atas 100 KB dibalas 413 "Isi
     permintaan terlalu besar!" (dulu 500).
-- **Database sibuk dibalas 503.** Saat antrean koneksi database penuh (Prisma
-  `P2024`) atau transaksi tidak sempat dimulai atau keburu habis waktu
+- **Database sibuk dibalas 503.** Saat antrean koneksi database penuh lebih
+  dari 10 detik, atau transaksi tidak sempat dimulai atau keburu habis waktu
   (`P2028`), misalnya ratusan mahasiswa memilih kelas di detik yang sama,
   backend membalas 503 "Server sedang sibuk, silakan coba lagi sebentar lagi."
-  Transaksinya sudah dibatalkan, jadi aman diulang. Sebelumnya pendaftaran
+  Transaksinya sudah dibatalkan, jadi aman diulang. Antrean penuh dikenali
+  `isDatabaseBusy` (`src/middleware/error.middleware.ts`) dari error `pg`
+  "timeout exceeded when trying to connect"; di Prisma 6 kodenya `P2024`, yang
+  juga masih dikenali. Sebelumnya pendaftaran
   kelas dibalas 500 tanpa petunjuk, dan middleware login membalas 400 berisi
   pesan mentah Prisma beserta path file di server. Kini middleware login hanya
   membalas 400 untuk masalah token; error database diteruskan ke error handler.
@@ -1392,7 +1415,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 12 menit
+npm test                    # terminal 2: semua tes API, sekitar 4 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1406,7 +1429,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS asisten-kelas                24/24
 LULUS batal-bayar                  16/16
 ...
-Total: 577/577 cek lulus dari 24 tes, 698 detik
+Total: 577/577 cek lulus dari 24 tes, 236 detik
 Data uji sudah bersih.
 ```
 
@@ -1554,6 +1577,25 @@ pertemuan, keanggotaan kelas, dan daftar HP akun dibaca bersamaan, lalu
 "sudah presensi" dan "HP sudah dipakai" dijaga unique database, bukan
 diperiksa dengan query terpisah.
 
+Setelah pindah ke Prisma 7 (29 Oktober 2026, 120 mahasiswa, laptop dan
+jaringan yang sama; Prisma 6 diukur pagi harinya):
+
+| Skenario | Prisma 6 | Prisma 7 |
+|---|---|---|
+| Buka aplikasi | login median 1,85 detik; layar pilih kelas median 8,1 detik | login median 0,46 detik; layar pilih kelas median 2,3 detik |
+| Rebutan | 29 berhasil, 91 dibalas sibuk; terlama 24 detik | 30 berhasil, 4 kelas penuh, 86 dibalas sibuk; terlama 17,5 detik |
+| Tersebar | 70 berhasil, 50 dibalas sibuk; terlama 15,4 detik | 88 berhasil, 32 dibalas sibuk; terlama 12,7 detik |
+| Bertahap | 120 dari 120 dapat kelas; median 6,6 detik, terlama 15,6 detik | 120 dari 120 dapat kelas; median 1,45 detik, terlama 7,6 detik |
+| Scan QR | 60 presensi tercatat; median 2,33 detik | 60 presensi tercatat; median 0,44 detik |
+
+Semua cek kebenaran tetap lulus (23/23) dan tidak ada error 500. Satu query
+sederhana lewat Prisma (`SELECT 1`) turun dari median 169 ms menjadi 34 ms di
+jaringan yang sama. Gantinya, Prisma 7 memakai memori lebih banyak: setelah
+127 permintaan yang sama dan tanpa pemeriksaan tipe saat berjalan
+(`TS_NODE_TRANSPILE_ONLY=true`, mendekati server produksi), backend memakai
+159 MB dengan Prisma 6 dan 269 MB dengan Prisma 7. Dengan `npm run dev` biasa
+puncaknya sekitar 355 MB dan 590 MB.
+
 ```bash
 STUDENTS=240 LABEL=dua-angkatan npm run uji-beban
 SCENARIOS=rebutan,scan npm run uji-beban
@@ -1562,8 +1604,9 @@ SILAB_API=http://<ip-server-lab>:3000 IZINKAN_UJI=ya npm run uji-beban
 
 Hasil lengkapnya disimpan sebagai JSON di `tests/hasil/` (tidak ikut git).
 Waktu tunggu sangat bergantung pada jarak ke database: dari laptop ke Supabase
-satu bolak-balik sekitar 190 ms, dan setiap pendaftaran kelas butuh beberapa
-bolak-balik di dalam transaksi. Karena itu angka yang paling berguna untuk bab
+satu query sederhana sekitar 35 ms dengan Prisma 7 (sekitar 170 ms dengan
+Prisma 6), dan setiap pendaftaran kelas butuh beberapa query di dalam
+transaksi. Karena itu angka yang paling berguna untuk bab
 pengujian adalah hasil yang dijalankan dari server lab sendiri.
 
 ## Akun uji
