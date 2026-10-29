@@ -128,6 +128,49 @@ await runTest(
       `${meetings.code} ${JSON.stringify(meetings.json.data?.[0])}`
     );
 
+    section("Urutan daftar kelas");
+    const gamma = await data.subject("Uji Asisten Kelas Gamma");
+    for (const cls of [
+      await data.classOf(gamma, "B", "THURSDAY", 1),
+      await data.classOf(alfa, "C", "WEDNESDAY", 2),
+      await data.classOf(gamma, "A", "FRIDAY", 1),
+    ])
+      await db.trn_class_collaborator.create({
+        data: { userId: otherAssistant.id, classId: cls.id },
+      });
+    const listed = async (token) =>
+      ((await call("GET", "/class", { token })).json.data ?? []).map(
+        (cls) => `${cls.subjectName} ${cls.name}`
+      );
+    const assisted = await listed(
+      (await login(otherAssistant, data.password)).token
+    );
+    check(
+      "asisten: kelas yang ia pegang urut A→Z (mata kuliah lalu kelas) walau dibuat acak",
+      JSON.stringify(assisted) ===
+        JSON.stringify([
+          "Uji Asisten Kelas Alfa B",
+          "Uji Asisten Kelas Alfa C",
+          "Uji Asisten Kelas Gamma A",
+          "Uji Asisten Kelas Gamma B",
+        ]),
+      JSON.stringify(assisted)
+    );
+    const lectured = await listed(tokens.lecturer);
+    check(
+      "dosen: daftar kelasnya juga urut A→Z",
+      JSON.stringify(lectured) ===
+        JSON.stringify([
+          "Uji Asisten Kelas Alfa A",
+          "Uji Asisten Kelas Alfa B",
+          "Uji Asisten Kelas Alfa C",
+          "Uji Asisten Kelas Beta A",
+          "Uji Asisten Kelas Gamma A",
+          "Uji Asisten Kelas Gamma B",
+        ]),
+      JSON.stringify(lectured)
+    );
+
     section("Satu presensi terbuka per kelas");
     const setStatus = (token, meeting, status) =>
       call("PUT", `/meeting/${meeting.id}/status`, {

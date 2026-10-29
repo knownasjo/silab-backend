@@ -708,6 +708,12 @@ lagi dan `POST /user` tidak menerimanya. Seleksi asisten tetap di luar sistem.
 - `GET /class` untuk MAHASISWA hanya berisi kelas yang ia pegang. Web memakainya
   untuk halaman Praktikum asisten dan untuk menolak login mahasiswa yang tidak
   memegang kelas; mobile memakainya untuk bagian "Asisten Praktikum" di Profil.
+- `GET /class` untuk semua role diurutkan berdasarkan nama mata kuliah lalu
+  nama kelas (A→Z), sama seperti `GET /class/registration` dan halaman
+  Praktikum web. Sebelum 29 Oktober 2026 urutannya mengikuti database, jadi
+  bagian "Asisten Praktikum" di HP bisa menampilkan Kelas D di atas Kelas C,
+  dan urutan itu bisa bergeser sendiri, misalnya setelah kelas diedit atau
+  Prisma diperbarui.
 - `GET /class/:id` (detail kelas) dan `GET /collaborator/:id` (daftar asisten)
   untuk MAHASISWA hanya melayani kelas yang ia pegang, termasuk kelas semester
   lama; selain itu 403 "Anda bukan asisten kelas ini." (`assertAssistantOfClass`
@@ -1397,10 +1403,10 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 
 ```
 == Ringkasan
-LULUS asisten-kelas                22/22
+LULUS asisten-kelas                24/24
 LULUS batal-bayar                  16/16
 ...
-Total: 575/575 cek lulus dari 24 tes, 698 detik
+Total: 577/577 cek lulus dari 24 tes, 698 detik
 Data uji sudah bersih.
 ```
 
@@ -1428,7 +1434,7 @@ Data uji sudah bersih.
 | `dashboard-dosen` | `GET /dashboard/dosen` menghitung Jumlah Pertemuan hanya dari pertemuan yang sedang dibuka atau sudah punya presensi (pertemuan terhapus, kelas terhapus, dan kelas dosen lain tidak dihitung), Jumlah Kelas dan Mahasiswa tetap, tanpa persentase kehadiran; `isHeld` di `GET /meeting/:classId` untuk dosen dan laboran, termasuk presensi mahasiswa yang sudah keluar kelas, mahasiswa tetap menerima bentuk lama; angka berubah saat presensi dibuka, ditutup tanpa presensi, dan diisi laboran | 13 |
 | `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan (Jumat SBTI): 4 sesi bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; 3 permintaan untuk Senin–Rabu sekaligus dengan urutan hari berbeda (3 kali), tepat satu berhasil tanpa deadlock; Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan, keduanya berhasil bergantian dan hasilnya sama di kedua hari; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 33 |
 | `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `alsoDays` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
-| `asisten-kelas` | detail kelas dan daftar asisten untuk akun mahasiswa: asisten melihat kelas yang ia pegang (juga di semester lama), ditolak 403 "Anda bukan asisten kelas ini." untuk kelas lain dan kelas tempat ia ikut praktikum, mahasiswa biasa tidak bisa membaca NIM asisten, laboran dan dosen pengampu tetap bisa, `GET /meeting/:classId` untuk HP tidak berubah; satu sesi terbuka per kelas: membuka pertemuan kedua ditolak 409 dengan nama kedua pertemuan (asisten dan laboran), membuka ulang sesi yang sama dan kelas lain tetap boleh, sesudah ditutup bisa membuka yang lain, dua pertemuan dibuka bersamaan oleh asisten dan laboran (5 kali) selalu hanya satu yang berhasil; asisten yang dicabut langsung ditolak | 22 |
+| `asisten-kelas` | detail kelas dan daftar asisten untuk akun mahasiswa: asisten melihat kelas yang ia pegang (juga di semester lama), ditolak 403 "Anda bukan asisten kelas ini." untuk kelas lain dan kelas tempat ia ikut praktikum, mahasiswa biasa tidak bisa membaca NIM asisten, laboran dan dosen pengampu tetap bisa, `GET /meeting/:classId` untuk HP tidak berubah; urutan daftar kelas (`GET /class`) A→Z untuk asisten dan dosen walau kelas dibuat acak; satu sesi terbuka per kelas: membuka pertemuan kedua ditolak 409 dengan nama kedua pertemuan (asisten dan laboran), membuka ulang sesi yang sama dan kelas lain tetap boleh, sesudah ditutup bisa membuka yang lain, dua pertemuan dibuka bersamaan oleh asisten dan laboran (5 kali) selalu hanya satu yang berhasil; asisten yang dicabut langsung ditolak | 24 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli

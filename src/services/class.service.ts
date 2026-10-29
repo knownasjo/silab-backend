@@ -455,6 +455,7 @@ export const SGetAllClasses = async (
           },
         },
       },
+      orderBy: [{ subject: { subjectName: "asc" } }, { name: "asc" }],
     });
 
     const data: IGetClassResponseBody[] = classesData.map((classData) => ({
