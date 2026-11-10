@@ -1909,6 +1909,19 @@ Akun laboran Budi Santoso berhasil dibuat. Login di web dengan NIY 60010003.
 
 - [ ] Pastikan jam sesi tiap ruangan dan hari lewat web (Master Data → Jam
       Sesi) setelah lab menetapkannya
+- [ ] Sejak 31 Oktober 2026 `npm audit` melaporkan 2 celah tingkat sedang.
+      Keduanya satu celah yang sama di `minimatch` 10.2.6
+      (GHSA-g3hv-75wg-m249), dihitung sekali untuk `minimatch` dan sekali
+      untuk nodemon yang bergantung padanya. nodemon hanya dipakai
+      `npm run dev`, untuk memulai ulang backend saat file diubah. Celahnya
+      juga tidak terbuka di sini: hanya terjadi bila `minimatch` diberi
+      `optimizationLevel` 2 ke atas, sedangkan nodemon memakai level bawaan
+      dengan pola yang sudah tetap (bawaan nodemon dan `nodemonConfig` di
+      `package.json`). Saran `npm audit fix` dari npm justru menurunkan
+      nodemon dari 3.1.14 ke 3.1.11 (November 2025), versi terakhir yang
+      masih memakai `minimatch` 3, jadi sengaja tidak dijalankan. nodemon
+      terbaru masih 3.1.14; celah ini tertutup setelah ada versi nodemon
+      yang memakai `minimatch` 11
 
 ## Catatan lain
 
