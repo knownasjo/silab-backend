@@ -53,6 +53,8 @@ app.use(errorHandler);
 
 const PORT = Number(process.env.PORT) || 3000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`SILAB API listening on port ${PORT}`);
 });
+
+server.keepAliveTimeout = 30_000;

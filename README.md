@@ -513,6 +513,20 @@ dengan web; yang ditambahkan hanya data "milik saya":
 yang sama bisa memanggil `http://<IP-laptop>:3000` (izinkan port 3000 di
 firewall bila perlu).
 
+Server menahan sambungan yang sedang menganggur selama 30 detik
+(`server.keepAliveTimeout = 30_000` di `src/app.ts`). Aplikasi HP memakai ulang
+sambungannya sampai 15 detik (bawaan `HttpClient` Dart), jadi HP selalu menutup
+sambungan lebih dulu. Sampai 11 November 2026 server memakai bawaan Node.js,
+yaitu 5 detik ditambah 1 detik cadangan. Bila HP mengirim permintaan tepat saat
+server menutup sambungan di detik ke-6, permintaan itu hilang di jalan dan HP
+menampilkan "Tidak dapat terhubung ke server. Periksa koneksi internet."
+walaupun jaringannya baik. Di emulator, ketukan di sekitar detik ke-6 gagal 5
+dari 102 kali dengan aturan lama dan 0 dari 51 kali dengan aturan baru. Tes
+`sambungan` menjaga aturan ini. Bila nanti backend dipasang di belakang reverse
+proxy, proxy itulah yang memakai ulang sambungan ke backend, jadi waktu tunggu
+sambungan menganggur di proxy harus di bawah 30 detik. Pada Caddy, bawaannya 2
+menit (pengaturan `keepalive` di `transport http`).
+
 ### Sesi login dan refresh token
 
 Login mengembalikan `accessToken` (15 menit) dan `refreshToken` (1 hari).
@@ -1448,7 +1462,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS asisten-kelas                24/24
 LULUS batal-bayar                  16/16
 ...
-Total: 577/577 cek lulus dari 24 tes, 236 detik
+Total: 581/581 cek lulus dari 25 tes, 239 detik
 Data uji sudah bersih.
 ```
 
@@ -1478,6 +1492,7 @@ Data uji sudah bersih.
 | `sesi-ruang` | jam sesi per ruangan dan per hari: nomor sama dengan jam tumpang tindih boleh di PSI dan SBTI tetapi ditolak di ruangan yang sama; saringan `room` dan `day` (kosong berarti tanpa saringan, nilai salah 400) dan urutan `GET /session`; isian keliru (tanpa ruangan, huruf kecil, Sabtu, `alsoDays` bukan daftar hari); tambah ke beberapa hari sekaligus (hari ganda diabaikan), semua ditolak bila satu hari bentrok; ubah juga di hari lain, 404 bila hari itu tidak punya nomor sesinya, semua ditolak bila satu hari bentrok, ganti nomor di tiga hari; kelas harus memakai sesi hari dan ruangannya (tambah kelas dan pindah ruangan); jam baru yang membuat peserta dan asisten bentrok tetap disimpan dengan `warnings` yang menyebut nama dan kelasnya, tanpa peringatan bila tidak bentrok atau hanya menonaktifkan; tanpa error server | 32 |
 | `asisten-kelas` | detail kelas dan daftar asisten untuk akun mahasiswa: asisten melihat kelas yang ia pegang (juga di semester lama), ditolak 403 "Anda bukan asisten kelas ini." untuk kelas lain dan kelas tempat ia ikut praktikum, mahasiswa biasa tidak bisa membaca NIM asisten, laboran dan dosen pengampu tetap bisa, `GET /meeting/:classId` untuk HP tidak berubah; urutan daftar kelas (`GET /class`) A→Z untuk asisten dan dosen walau kelas dibuat acak; satu sesi terbuka per kelas: membuka pertemuan kedua ditolak 409 dengan nama kedua pertemuan (asisten dan laboran), membuka ulang sesi yang sama dan kelas lain tetap boleh, sesudah ditutup bisa membuka yang lain, dua pertemuan dibuka bersamaan oleh asisten dan laboran (5 kali) selalu hanya satu yang berhasil; asisten yang dicabut langsung ditolak | 24 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
+| `sambungan` | satu sambungan yang menganggur 16 detik, lebih lama dari 15 detik aplikasi HP, masih bisa dipakai lagi dan dijawab 200 (dulu server menutupnya di detik ke-6) | 4 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
