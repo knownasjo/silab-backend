@@ -8,6 +8,8 @@ const POOL_TIMEOUT_MESSAGE = "timeout exceeded when trying to connect";
 const BODY_ERROR_MESSAGES: Record<string, string> = {
   "entity.parse.failed": "Format JSON tidak valid!",
   "entity.too.large": "Isi permintaan terlalu besar!",
+  "charset.unsupported": "Charset tidak didukung!",
+  "encoding.unsupported": "Kompresi tidak didukung!",
 };
 
 const isDatabaseBusy = (err: Error) =>
@@ -32,10 +34,11 @@ export const errorHandler = (
 
   const { type, status } = err as { type?: string; status?: number };
 
-  if (type && BODY_ERROR_MESSAGES[type]) {
-    res
-      .status(status ?? 400)
-      .json({ status: false, message: BODY_ERROR_MESSAGES[type] });
+  if (status !== undefined && status >= 400 && status < 500) {
+    res.status(status).json({
+      status: false,
+      message: (type && BODY_ERROR_MESSAGES[type]) || "Permintaan tidak valid!",
+    });
     return;
   }
 

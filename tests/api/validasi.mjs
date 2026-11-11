@@ -1,5 +1,7 @@
+import { gzipSync } from "node:zlib";
 import { db, MISSING_ID, TestData } from "../bantuan/data.mjs";
 import {
+  API,
   call,
   check,
   expect,
@@ -287,5 +289,52 @@ await runTest("Input keliru ditolak dengan pesan jelas", data, async () => {
     }),
     400,
     "Format JSON tidak valid!"
+  );
+  expect(
+    "charset yang tidak didukung",
+    await call("POST", "/auth/login", {
+      raw: JSON.stringify({ nim: "1", password: "2" }),
+      contentType: "application/json; charset=iso-8859-1",
+    }),
+    415,
+    "Charset tidak didukung!"
+  );
+  expect(
+    "kompresi yang tidak didukung",
+    await call("POST", "/auth/login", {
+      raw: JSON.stringify({ nim: "1", password: "2" }),
+      contentType: "application/json",
+      headers: { "Content-Encoding": "compress" },
+    }),
+    415,
+    "Kompresi tidak didukung!"
+  );
+  expect(
+    "isi gzip yang rusak",
+    await call("POST", "/auth/login", {
+      raw: Buffer.concat([gzipSync("{}"), Buffer.from("sisa")]),
+      contentType: "application/json",
+      headers: { "Content-Encoding": "gzip" },
+    }),
+    400,
+    "Permintaan tidak valid!"
+  );
+  expect(
+    "ID di alamat dengan kode persen yang rusak",
+    await call("GET", "/class/%E0", { token: laboran }),
+    400,
+    "Permintaan tidak valid!"
+  );
+  const rejected = await fetch(`${API}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{nim:",
+  });
+  await rejected.text();
+  const allowOrigin = rejected.headers.get("access-control-allow-origin");
+  check(
+    "penolakan body membawa header CORS, jadi pesannya terbaca di browser",
+    allowOrigin === "*",
+    `${rejected.status} ${allowOrigin ?? "tanpa header CORS"}`
   );
 });

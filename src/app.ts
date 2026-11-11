@@ -19,12 +19,12 @@ import cors from "cors";
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 app.use((req, _res, next) => {
   req.body ??= {};
   next();
 });
-app.use(cors());
 
 app.get("/", (_req, res) => {
   res.json({ status: true, message: "SILAB API is running" });

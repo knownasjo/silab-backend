@@ -1419,6 +1419,25 @@ kelas web berbeda urutan dengan Rekap Presensi yang urut NIM.
   - Alamat yang tidak dikenal dibalas 404 JSON "Alamat tidak ditemukan!"
     (dulu halaman HTML Express), dan body di atas 100 KB dibalas 413 "Isi
     permintaan terlalu besar!" (dulu 500).
+  - Kiriman yang tidak bisa dibaca dibalas 4xx dengan kode yang sudah diberikan
+    Express, bukan 500 (`src/middleware/error.middleware.ts`). Charset yang
+    tidak didukung (misalnya `charset=iso-8859-1`) dibalas 415 "Charset tidak
+    didukung!", dan kompresi selain gzip, deflate, br, atau zstd dibalas 415
+    "Kompresi tidak didukung!". Isi kompresi yang rusak dan ID di alamat dengan
+    kode persen yang rusak (misalnya `/class/%E0`) dibalas 400 "Permintaan tidak
+    valid!". Error dengan kode 4xx tidak dicetak di terminal backend, termasuk
+    kiriman yang diputus klien di tengah jalan. Sampai 12 November 2026 semua
+    kiriman itu dibalas 500 "Terjadi kesalahan pada server." dan masing-masing
+    mencetak 8 sampai 16 baris error di terminal, juga untuk permintaan tanpa
+    login, karena error handler hanya mengenali JSON rusak dan body terlalu
+    besar.
+  - `app.use(cors())` dipasang sebelum `express.json()` (`src/app.ts`), jadi
+    penolakan body (400, 413, 415) juga membawa header
+    `Access-Control-Allow-Origin: *`. Sampai 12 November 2026 urutannya
+    terbalik, sehingga penolakan itu keluar tanpa header CORS. Browser lalu
+    memblokirnya, dan web menampilkan "Tidak dapat terhubung ke server, coba
+    lagi!", bukan pesan dari backend. Aplikasi HP tidak terpengaruh karena CORS
+    hanya berlaku di browser.
 - **Database sibuk dibalas 503.** Saat antrean koneksi database penuh lebih
   dari 10 detik, atau transaksi tidak sempat dimulai atau keburu habis waktu
   (`P2028`), misalnya ratusan mahasiswa memilih kelas di detik yang sama,
@@ -1476,7 +1495,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS asisten-kelas                24/24
 LULUS batal-bayar                  16/16
 ...
-Total: 581/581 cek lulus dari 25 tes, 239 detik
+Total: 586/586 cek lulus dari 25 tes, 238 detik
 Data uji sudah bersih.
 ```
 
@@ -1484,7 +1503,7 @@ Data uji sudah bersih.
 |---|---|---|
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
-| `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak | 35 |
+| `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak, charset dan kompresi yang tidak didukung (415), isi gzip rusak, ID berkode persen rusak, header CORS pada penolakan | 40 |
 | `input-salah` | 444 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; urutan pilihan kelas A→Z; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 34 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
