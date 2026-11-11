@@ -19,6 +19,8 @@ Repo pasangannya: `silab-admin` (frontend web Next.js).
 npm install
 npm run dev        # nodemon: cek tipe dengan tsc, lalu jalan dengan tsx, port 3000
 npm test           # tes otomatis, lihat Pengujian otomatis
+npm run build      # prisma generate, lalu tsc menulis JavaScript ke dist/
+npm start          # menjalankan hasil build, dist/src/app.js
 ```
 
 `tsx` menjalankan TypeScript tanpa memeriksa tipe, jadi `npm run dev` dan
@@ -27,9 +29,21 @@ keempat skrip terminal (`hapus-akun`, `hapus-periode`, `ganti-password`,
 server atau skrip tidak dijalankan dan `tsc` menyebut file serta barisnya;
 nodemon lalu menunggu file diubah, sama seperti saat masih memakai `ts-node`.
 `ts-node` diganti sejak 29 Oktober 2026 karena TypeScript 7 tidak punya API
-JavaScript yang dibutuhkannya. `tsconfig.json` tidak berubah: TypeScript 7
-otomatis memakai resolusi modul `Bundler` (TypeScript 5 memakai `Node10`) dan
-hasil pemeriksaannya sama, 0 error.
+JavaScript yang dibutuhkannya. Untuk itu `tsconfig.json` tidak perlu diubah:
+TypeScript 7 otomatis memakai resolusi modul `Bundler` (TypeScript 5 memakai
+`Node10`) dan hasil pemeriksaannya sama, 0 error.
+
+`npm run build` menjalankan `prisma generate` lalu `tsc`, yang menulis hasil
+JavaScript ke `dist/` (sudah ada di `.gitignore`). TypeScript 7 menyusun isi
+`dist/` mengikuti folder proyek, jadi titik masuknya `dist/src/app.js`, dan
+itulah yang dijalankan `npm start`. Build butuh paket dev, terutama tipe
+`@types/*`; tanpa itu `tsc` menolak impor `express`, `cors`, dan `jsonwebtoken`.
+Jadi pasang paket dengan `npm install` atau `npm ci` biasa, tanpa `--omit=dev`.
+Sampai 11 November 2026 `tsconfig.json` belum punya `outDir`: `npm run build`
+menulis 83 file `.js` di sebelah file `.ts` di `src/` (dan `prisma.config.js` di
+akar repo), `npm start` gagal karena `dist/app.js` tidak ada, dan sesudah itu
+`npm run dev` ikut memakai file `.js` lama tersebut, sehingga perubahan di file
+`.ts` tidak berpengaruh sampai file `.js` itu dihapus.
 
 **Memakai Node.js 26 LTS** (didukung sampai April 2029). Paket
 `buffer-equal-constant-time` (bagian dari `jsonwebtoken`) memang tidak bisa

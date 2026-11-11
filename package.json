@@ -6,7 +6,7 @@
     "dev": "nodemon --exec \"tsc --noEmit && tsx\" src/app.ts",
     "build": "prisma generate && tsc",
     "postinstall": "prisma generate",
-    "start": "node ./dist/app.js",
+    "start": "node ./dist/src/app.js",
     "hapus-akun": "tsc --noEmit && tsx src/scripts/delete-student.ts",
     "hapus-periode": "tsc --noEmit && tsx src/scripts/delete-period.ts",
     "ganti-password": "tsc --noEmit && tsx src/scripts/change-password.ts",
