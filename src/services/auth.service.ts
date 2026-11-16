@@ -1,4 +1,4 @@
-import { UserRole, mst_user } from "@prisma/client";
+import { ActivityAction, UserRole, mst_user } from "@prisma/client";
 import {
   CreateRefreshToken,
   CreateToken,
@@ -45,6 +45,15 @@ import {
 import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
 import { readDeviceId, rememberDevice } from "../utils/DeviceRules/device.rules";
 import { assertNewPassword } from "../utils/PasswordRules/password.rules";
+import {
+  accountLabel,
+  activePeriodId,
+  activityData,
+  isStaff,
+  recordActivity,
+  recordFailedLogin,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 import bcrypt from "bcryptjs";
 
 const CAMPUS_EMAIL = /^[a-z]+(\d{10})@webmail\.uad\.ac\.id$/;
@@ -131,12 +140,23 @@ export const SUserLogin = async (
 
     const isPassSame = await bcrypt.compare(password, userData.password);
 
-    if (!isPassSame) throw new UnauthorizedError("NIM/NIY atau password salah!");
+    if (!isPassSame) {
+      if (isStaff(userData)) await recordFailedLogin(userData);
+
+      throw new UnauthorizedError("NIM/NIY atau password salah!");
+    }
 
     const deviceId = readDeviceId(body?.deviceId);
 
     if (deviceId && userData.role === UserRole.MAHASISWA)
       await rememberDevice(userData.id, deviceId);
+
+    if (isStaff(userData))
+      await recordActivity(db, {
+        action: ActivityAction.LOGIN_SUCCESS,
+        actor: staffActor(userData),
+        description: accountLabel(userData),
+      });
 
     return {
       status: true,
@@ -506,9 +526,22 @@ export const SUpdateProfile = async (
 ): Promise<IBaseResponse<IUserProfileResponseBody>> => {
   const fullname = readFullname(body?.fullname);
 
-  const user = await db.mst_user.update({
-    where: { id: userId },
-    data: { fullname },
+  const user = await db.$transaction(async (tx) => {
+    const current = await tx.mst_user.findUnique({ where: { id: userId } });
+    const updated = await tx.mst_user.update({
+      where: { id: userId },
+      data: { fullname },
+    });
+
+    if (current && isStaff(current) && current.fullname !== fullname)
+      await recordActivity(tx, {
+        action: ActivityAction.OWN_NAME_CHANGED,
+        actor: staffActor(updated),
+        description: accountLabel(updated),
+        change: `${current.fullname} → ${fullname}`,
+      });
+
+    return updated;
   });
 
   return {
@@ -543,6 +576,21 @@ export const SChangePassword = async (
       "Password baru harus berbeda dari password lama."
     );
 
+  const log = isStaff(user)
+    ? [
+        db.trn_activity_logs.create({
+          data: activityData(
+            {
+              action: ActivityAction.OWN_PASSWORD_CHANGED,
+              actor: staffActor(user),
+              description: accountLabel(user),
+            },
+            await activePeriodId()
+          ),
+        }),
+      ]
+    : [];
+
   await db.$transaction([
     db.mst_user.update({
       where: { id: user.id },
@@ -552,6 +600,7 @@ export const SChangePassword = async (
       },
     }),
     db.trn_password_resets.deleteMany({ where: { userId: user.id } }),
+    ...log,
   ]);
 
   closeUserStreams(user.id);

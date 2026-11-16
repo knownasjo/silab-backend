@@ -2956,6 +2956,110 @@
 			]
 		},
 		{
+			"name": "Riwayat Aktivitas",
+			"description": "Catatan aktivitas staf: siapa mengubah apa dan kapan, termasuk skrip terminal, serta login laboran dan dosen. Hanya LABORAN yang bisa membaca, dan tidak ada request untuk mengubah atau menghapus catatan. Aturan lengkapnya ada di README bagian Riwayat aktivitas staf.",
+			"item": [
+				{
+					"name": "Riwayat Aktivitas",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activity?page=1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activity"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Halaman 1 sampai 999999, 50 catatan per halaman"
+								}
+							]
+						},
+						"description": "Hanya LABORAN. 50 catatan per halaman, terbaru di atas:\n\n`{ items: [{ id, action, actionLabel, group, actor: { id, name, nim, role }, description, change, attempts, periodId, createdAt, updatedAt }], page, pageSize, total, totalPages }`\n\nSaringan opsional: `periodId` (semester), `group` (`LOGIN`, `PAYMENT`, `ATTENDANCE`, `MEETING`, `CLASS`, `SESSION`, `SUBJECT`, `ANNOUNCEMENT`, `ASSISTANT`, `ACCOUNT`, `PERIOD`), `from` dan `to` (`YYYY-MM-DD`, waktu WIB), dan `q` (kata kunci di nama atau NIM pelaku, data, dan perubahan; paling banyak 100 karakter).\n\n`actor.role` berisi `LABORAN`, `DOSEN`, `ASISTEN`, atau `TERMINAL` (skrip terminal, nama \"Lewat terminal\"). Untuk login gagal, `attempts` menghitung password salah beruntun dalam 10 menit dan `updatedAt` waktu percobaan terakhir.\n\nIsian salah dibalas 400 (misalnya \"Jenis aktivitas tidak dikenal!\", \"Tanggal harus berformat YYYY-MM-DD!\", \"Nomor halaman tidak valid!\"), periode yang tidak ada 404 \"Periode tidak ditemukan!\"."
+					},
+					"response": []
+				},
+				{
+					"name": "Riwayat Login",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenLaboran}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activity?group=LOGIN",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activity"
+							],
+							"query": [
+								{
+									"key": "group",
+									"value": "LOGIN",
+									"description": "Hanya Login berhasil dan Login gagal"
+								}
+							]
+						},
+						"description": "Hanya login laboran dan dosen. Login mahasiswa dan asisten tidak dicatat. Password salah beruntun ke akun yang sama digabung menjadi satu baris per 10 menit (`attempts`)."
+					},
+					"response": []
+				},
+				{
+					"name": "Riwayat Aktivitas - Dosen (ditolak)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{accessTokenDosen}}",
+									"type": "string"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/activity",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"activity"
+							]
+						},
+						"description": "Contoh penolakan: selain LABORAN dibalas 403 \"Hanya laboran yang dapat melihat riwayat aktivitas!\"."
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Realtime",
 			"description": "",
 			"item": [

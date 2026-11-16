@@ -1,9 +1,14 @@
 import "./load-env";
 
 import bcrypt from "bcryptjs";
-import { UserRole } from "@prisma/client";
+import { ActivityAction, UserRole } from "@prisma/client";
 import db from "../prisma/client.prisma";
 import { passwordChangeTime } from "../helper/jwt.helper";
+import {
+  accountLabel,
+  recordActivity,
+  TERMINAL_ACTOR,
+} from "../utils/ActivityLog/activity.log";
 import { ask, askNewPassword } from "./terminal-input";
 
 const CANCELLED = "Dibatalkan, password tidak diganti.";
@@ -47,12 +52,23 @@ const changePassword = async (nim: string) => {
     return 1;
   }
 
-  await db.mst_user.update({
-    where: { id: user.id },
-    data: {
-      password: await bcrypt.hash(password, 10),
-      passwordChangedAt: passwordChangeTime(),
-    },
+  const hash = await bcrypt.hash(password, 10);
+
+  await db.$transaction(async (tx) => {
+    await tx.mst_user.update({
+      where: { id: user.id },
+      data: {
+        password: hash,
+        passwordChangedAt: passwordChangeTime(),
+      },
+    });
+
+    await recordActivity(tx, {
+      action: ActivityAction.PASSWORD_RESET,
+      actor: TERMINAL_ACTOR,
+      description: accountLabel(user),
+      targetNim: user.nim,
+    });
   });
 
   console.log(

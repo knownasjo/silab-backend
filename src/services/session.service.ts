@@ -1,5 +1,11 @@
 import { Request } from "express";
-import { ClassRoom, DaysOfWeek, mst_session, Prisma } from "@prisma/client";
+import {
+  ActivityAction,
+  ClassRoom,
+  DaysOfWeek,
+  mst_session,
+  Prisma,
+} from "@prisma/client";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
   ISessionRequestBody,
@@ -25,6 +31,12 @@ import {
   findActivePeriod,
   getActivePeriod,
 } from "../utils/PeriodRules/period.rules";
+import {
+  changeText,
+  fromTo,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 type SessionWithCount = mst_session & { _count: { classes: number } };
 
@@ -247,6 +259,16 @@ export const SAddSession = async (
           })
         );
 
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.SESSION_CREATED,
+          actor: staffActor(req.user!),
+          description: `${sessionsLabel(created)} · ${startAt} - ${endAt}`,
+        },
+        period.id
+      );
+
       return created;
     },
     { maxWait: 10000, timeout: 20000 }
@@ -369,6 +391,28 @@ export const SUpdateSession = async (
         classes.push(...moved);
       }
 
+      const isActive = body.isActive ?? session.isActive;
+      const change = changeText([
+        fromTo("nomor", session.number, number),
+        (session.startAt !== startAt || session.endAt !== endAt) &&
+          `jam ${session.startAt} - ${session.endAt} → ${startAt} - ${endAt}`,
+        isActive !== session.isActive &&
+          (isActive ? "nonaktif → aktif" : "aktif → nonaktif"),
+        classes.length > 0 && `jam ${classes.length} kelas ikut berubah`,
+      ]);
+
+      if (change)
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.SESSION_UPDATED,
+            actor: staffActor(req.user!),
+            description: sessionsLabel(targets),
+            change,
+          },
+          session.periodId
+        );
+
       const warnings = new Set<string>();
 
       for (const item of classes) {
@@ -432,7 +476,19 @@ export const SDeleteSession = async (req: Request): Promise<IBaseResponse> => {
       `${sessionLabel(session)} dipakai ${session._count.classes} kelas. Nonaktifkan saja agar tidak muncul di pilihan kelas baru.`
     );
 
-  await db.mst_session.delete({ where: { id: session.id } });
+  await db.$transaction(async (tx) => {
+    await tx.mst_session.delete({ where: { id: session.id } });
+
+    await recordActivity(
+      tx,
+      {
+        action: ActivityAction.SESSION_DELETED,
+        actor: staffActor(req.user!),
+        description: `${sessionLabel(session)} · ${session.startAt} - ${session.endAt}`,
+      },
+      session.periodId
+    );
+  });
 
   publishRealtimeEvent("session", { sessionId: session.id });
 

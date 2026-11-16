@@ -44,6 +44,20 @@ const notTestUser = { nim: { not: { startsWith: TEST_NIM_PREFIX } } };
 const notTestSubject = {
   subjectCode: { not: { startsWith: TEST_CODE_PREFIX } },
 };
+const testActivity = (nimPrefix) => ({
+  OR: [
+    { actorNim: { startsWith: nimPrefix } },
+    { targetNim: { startsWith: nimPrefix } },
+  ],
+});
+const notTestActivity = {
+  AND: ["actorNim", "targetNim"].map((field) => ({
+    OR: [
+      { [field]: null },
+      { [field]: { not: { startsWith: TEST_NIM_PREFIX } } },
+    ],
+  })),
+};
 
 const realDataQueries = {
   mst_user: () =>
@@ -102,6 +116,11 @@ const realDataQueries = {
     }),
   mst_academic_period: () =>
     db.mst_academic_period.findMany({ orderBy: { id: "asc" } }),
+  trn_activity_logs: () =>
+    db.trn_activity_logs.findMany({
+      where: notTestActivity,
+      orderBy: { id: "asc" },
+    }),
 };
 
 export const newDeviceId = () => randomBytes(32).toString("hex");
@@ -149,6 +168,7 @@ const countTestData = (nimPrefix, codePrefix, sessionFrom, sessionTo) =>
         where: { number: { gte: sessionFrom, lte: sessionTo } },
       }),
       db.trn_registrations.count({ where: { nim: { startsWith: nimPrefix } } }),
+      db.trn_activity_logs.count({ where: testActivity(nimPrefix) }),
     ]);
     return counts.reduce((sum, count) => sum + count, 0);
   });
@@ -394,6 +414,9 @@ export class TestData {
       });
       await db.trn_registrations.deleteMany({
         where: { nim: { startsWith: this.nimPrefix } },
+      });
+      await db.trn_activity_logs.deleteMany({
+        where: testActivity(this.nimPrefix),
       });
       await db.mst_user.deleteMany({ where: { id: { in: users } } });
     });

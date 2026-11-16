@@ -8,6 +8,7 @@ import {
   createAccount,
   readAccount,
 } from "../utils/AccountRules/account.rules";
+import { TERMINAL_ACTOR } from "../utils/ActivityLog/activity.log";
 import { ask, askNewPassword } from "./terminal-input";
 
 const CANCELLED = "Dibatalkan, akun tidak dibuat.";
@@ -40,7 +41,7 @@ const createLaboran = async () => {
     return 1;
   }
 
-  const user = await createAccount({ ...input, password });
+  const user = await createAccount({ ...input, password }, TERMINAL_ACTOR);
 
   console.log(
     `Akun laboran ${user.fullname} berhasil dibuat. Login di web dengan NIY ${user.nim}.`

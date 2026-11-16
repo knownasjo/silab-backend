@@ -31,6 +31,25 @@ const runScript = (args, input = "") =>
 
 await runTest("Skrip hapus-periode", data, async () => {
   const active = data.period;
+  const since = new Date(Date.now() - 60 * 1000);
+  await db.trn_activity_logs.deleteMany({
+    where: {
+      action: "PERIOD_DELETED",
+      actorRole: "TERMINAL",
+      description: `Semester ${OLD_NAME}`,
+    },
+  });
+  const takeDeletionLogs = async (name) => {
+    const where = {
+      action: "PERIOD_DELETED",
+      actorRole: "TERMINAL",
+      description: `Semester ${name}`,
+      createdAt: { gte: since },
+    };
+    const found = await db.trn_activity_logs.findMany({ where });
+    await db.trn_activity_logs.deleteMany({ where });
+    return found;
+  };
   const oldPeriod = await db.mst_academic_period.create({
     data: { ...OLD, createdBy: data.laboran.id },
   });
@@ -169,6 +188,17 @@ await runTest("Skrip hapus-periode", data, async () => {
     (await oldData()) === "0,0,0,0,0,0,0",
     await oldData()
   );
+  const oldLogs = await takeDeletionLogs(OLD_NAME);
+  check(
+    "  riwayat aktivitas mencatat penghapusan lewat terminal beserta jumlah datanya",
+    oldLogs.length === 1 &&
+      oldLogs[0].actorName === "Lewat terminal" &&
+      oldLogs[0].actorId === null &&
+      oldLogs[0].periodId === active.id &&
+      oldLogs[0].change ===
+        "ikut terhapus: 1 kelas, 2 pertemuan, 2 presensi, 1 peserta kelas, 1 asisten kelas, 2 pendaftaran mata kuliah, 6 jam sesi, 1 pengumuman mata kuliah",
+    JSON.stringify(oldLogs)
+  );
   const announcementExists = async (announcement) =>
     (await db.mst_announcement.count({ where: { id: announcement.id } })) === 1;
   check(
@@ -287,6 +317,15 @@ await runTest("Skrip hapus-periode", data, async () => {
   check(
     "  periode sebelumnya aktif kembali",
     (await findActivePeriod())?.id === active.id
+  );
+  const accidentalLogs = await takeDeletionLogs(accidentalName);
+  check(
+    "  riwayat aktivitas mencatat penghapusan dan periode yang aktif kembali",
+    accidentalLogs.length === 1 &&
+      accidentalLogs[0].periodId === active.id &&
+      accidentalLogs[0].change ===
+        `ikut terhapus: 6 jam sesi; periode aktif kembali ${label(active)}`,
+    JSON.stringify(accidentalLogs)
   );
   check(
     "  jam sesi semester itu ikut terhapus, jam sesi periode sebelumnya utuh",

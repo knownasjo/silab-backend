@@ -1,9 +1,15 @@
 import bcrypt from "bcryptjs";
-import { UserRole } from "@prisma/client";
+import { ActivityAction, UserRole } from "@prisma/client";
 import db from "../../prisma/client.prisma";
 import { ICreateUserRequestBody } from "../../interfaces/user.interface";
 import { BadRequestError, ConflictError } from "../HttpErrors/HttptErrors";
 import { assertNewPassword } from "../PasswordRules/password.rules";
+import {
+  accountLabel,
+  activePeriodId,
+  activityData,
+  IActivityActor,
+} from "../ActivityLog/activity.log";
 
 const ROLES: string[] = [UserRole.MAHASISWA, UserRole.LABORAN, UserRole.DOSEN];
 
@@ -61,7 +67,10 @@ export const assertAccountFree = async ({
     );
 };
 
-export const createAccount = async (body: Partial<ICreateUserRequestBody>) => {
+export const createAccount = async (
+  body: Partial<ICreateUserRequestBody>,
+  actor: IActivityActor
+) => {
   const account = readAccount(body);
   const password = typeof body.password === "string" ? body.password : "";
 
@@ -81,6 +90,17 @@ export const createAccount = async (body: Partial<ICreateUserRequestBody>) => {
         password: await bcrypt.hash(password, 10),
         role,
       },
+    }),
+    db.trn_activity_logs.create({
+      data: activityData(
+        {
+          action: ActivityAction.ACCOUNT_CREATED,
+          actor,
+          description: accountLabel({ fullname, nim, role }),
+          targetNim: nim,
+        },
+        await activePeriodId()
+      ),
     }),
   ]);
 

@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { Prisma } from "@prisma/client";
+import { ActivityAction, Prisma } from "@prisma/client";
 import {
   AnnouncementTypeEnum,
   IAddAnnouncementRequestBody,
@@ -19,6 +19,36 @@ import {
   periodLabel,
 } from "../utils/PeriodRules/period.rules";
 import { rethrowIfSubjectDeleted } from "../utils/SubjectRules/subject.rules";
+import {
+  changeText,
+  fromTo,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
+
+const TYPE_LABELS: Record<string, string> = {
+  BASIC: "Pengumuman",
+  PRACTICUM: "Pendaftaran Praktikum",
+  INHALL: "Pendaftaran Inhal",
+  ASSISTANT: "Pendaftaran Asisten Praktikum",
+};
+
+const typeLabel = (type: string) => TYPE_LABELS[type] ?? type;
+
+const audienceText = async (
+  tx: Prisma.TransactionClient,
+  subjectIds: string[]
+) => {
+  if (subjectIds.length === 0) return "untuk semua mahasiswa";
+
+  const subjects = await tx.mst_subject.findMany({
+    where: { id: { in: subjectIds } },
+    select: { subjectName: true },
+    orderBy: { subjectName: "asc" },
+  });
+
+  return `untuk ${subjects.map((subject) => subject.subjectName).join(", ")}`;
+};
 
 const MAX_BODY_LENGTH = 1000;
 const MAX_TITLE_LENGTH = 150;
@@ -171,19 +201,33 @@ export const SAddAnnouncement = async (
     const subjectIds = await readTargetSubjects(type, body.subjectIds);
     const period = subjectIds.length > 0 ? await getActivePeriod() : null;
 
-    const announcement = await db.mst_announcement
-      .create({
-        data: {
-          type: type,
-          title: cleanTitle,
-          body: cleanBody,
-          author: user.id,
-          forAll: subjectIds.length === 0,
-          periodId: period?.id ?? null,
-          subjects: {
-            create: subjectIds.map((subjectId) => ({ subjectId })),
+    const announcement = await db
+      .$transaction(async (tx) => {
+        const created = await tx.mst_announcement.create({
+          data: {
+            type: type,
+            title: cleanTitle,
+            body: cleanBody,
+            author: user.id,
+            forAll: subjectIds.length === 0,
+            periodId: period?.id ?? null,
+            subjects: {
+              create: subjectIds.map((subjectId) => ({ subjectId })),
+            },
           },
-        },
+        });
+
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.ANNOUNCEMENT_CREATED,
+            actor: staffActor(user),
+            description: `${cleanTitle} · ${typeLabel(type)} · ${await audienceText(tx, subjectIds)}`,
+          },
+          period?.id
+        );
+
+        return created;
       })
       .catch(rethrowIfSubjectDeleted);
 
@@ -315,21 +359,46 @@ export const SUpdateAnnouncement = async (
           ? announcement.periodId
           : (await getActivePeriod()).id;
 
-    await db.mst_announcement
-      .update({
-        where: { id },
-        data: {
-          type: type,
-          title: cleanTitle,
-          body: cleanBody,
-          updatedAt: new Date(),
-          forAll: targetIds.length === 0,
-          periodId,
-          subjects: {
-            deleteMany: {},
-            create: targetIds.map((subjectId) => ({ subjectId })),
+    await db
+      .$transaction(async (tx) => {
+        await tx.mst_announcement.update({
+          where: { id },
+          data: {
+            type: type,
+            title: cleanTitle,
+            body: cleanBody,
+            updatedAt: new Date(),
+            forAll: targetIds.length === 0,
+            periodId,
+            subjects: {
+              deleteMany: {},
+              create: targetIds.map((subjectId) => ({ subjectId })),
+            },
           },
-        },
+        });
+
+        const change = changeText([
+          fromTo("judul", announcement.title, cleanTitle),
+          announcement.body !== cleanBody && "isi diubah",
+          fromTo("jenis", typeLabel(announcement.type), typeLabel(type)),
+          fromTo(
+            "tujuan",
+            await audienceText(tx, currentIds),
+            await audienceText(tx, targetIds)
+          ),
+        ]);
+
+        if (change)
+          await recordActivity(
+            tx,
+            {
+              action: ActivityAction.ANNOUNCEMENT_UPDATED,
+              actor: staffActor(user),
+              description: cleanTitle,
+              change,
+            },
+            periodId ?? undefined
+          );
       })
       .catch(rethrowIfSubjectDeleted);
 
@@ -366,11 +435,23 @@ export const SDeleteAnnouncement = async (
 
     if (!announcement) throw new NotFoundError("Pengumuman tidak ditemukan!");
 
-    await db.mst_announcement.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-      },
+    await db.$transaction(async (tx) => {
+      await tx.mst_announcement.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.ANNOUNCEMENT_DELETED,
+          actor: staffActor(user),
+          description: announcement.title,
+        },
+        announcement.periodId ?? undefined
+      );
     });
 
     publishRealtimeEvent("announcement", {

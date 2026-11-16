@@ -13,11 +13,16 @@ import {
 } from "../interfaces/user.interface";
 import bcrypt from "bcryptjs";
 import db from "../prisma/client.prisma";
-import { UserRole } from "@prisma/client";
+import { ActivityAction, UserRole } from "@prisma/client";
 import { passwordChangeTime } from "../helper/jwt.helper";
 import { closeUserStreams } from "../utils/RealtimeEvents/realtime.events";
 import { assertNewPassword } from "../utils/PasswordRules/password.rules";
 import { createAccount } from "../utils/AccountRules/account.rules";
+import {
+  accountLabel,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 export const SGetUser = async (
   req: Request,
@@ -70,7 +75,7 @@ export const SCreateUser = async (
   if (req.user?.role !== "LABORAN")
     throw new ForbiddenError("Hanya laboran yang dapat membuat akun!");
 
-  const user = await createAccount(req.body ?? {});
+  const user = await createAccount(req.body ?? {}, staffActor(req.user!));
 
   return {
     status: true,
@@ -113,12 +118,23 @@ export const SResetUserPassword = async (
       "Password mahasiswa tidak bisa diganti laboran. Mahasiswa memakai Lupa password di aplikasi SILAB."
     );
 
-  await db.mst_user.update({
-    where: { id: target.id },
-    data: {
-      password: await bcrypt.hash(password, 10),
-      passwordChangedAt: passwordChangeTime(),
-    },
+  const hash = await bcrypt.hash(password, 10);
+
+  await db.$transaction(async (tx) => {
+    await tx.mst_user.update({
+      where: { id: target.id },
+      data: {
+        password: hash,
+        passwordChangedAt: passwordChangeTime(),
+      },
+    });
+
+    await recordActivity(tx, {
+      action: ActivityAction.PASSWORD_RESET,
+      actor: staffActor(req.user!),
+      description: accountLabel(target),
+      targetNim: target.nim,
+    });
   });
 
   closeUserStreams(target.id);

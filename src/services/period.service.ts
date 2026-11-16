@@ -1,4 +1,9 @@
-import { AcademicTerm, mst_academic_period, Prisma } from "@prisma/client";
+import {
+  AcademicTerm,
+  ActivityAction,
+  mst_academic_period,
+  Prisma,
+} from "@prisma/client";
 import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
@@ -18,6 +23,11 @@ import {
   periodLabel,
 } from "../utils/PeriodRules/period.rules";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import {
+  changeText,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 type PeriodName = Pick<mst_academic_period, "year" | "term">;
 
@@ -139,6 +149,21 @@ export const SStartPeriod = async (
             data: { status: false, updatedAt: new Date() },
           })
         : { count: 0 };
+
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.PERIOD_STARTED,
+          actor: staffActor(req.user!),
+          description: `Semester ${periodLabel(period)}`,
+          change: changeText([
+            previous && `${periodLabel(previous)} → ${periodLabel(period)}`,
+            sessions.length > 0 && `${sessions.length} jam sesi disalin`,
+            closed.count > 0 && `${closed.count} sesi presensi ditutup`,
+          ]),
+        },
+        period.id
+      );
 
       return { previous, period, closedMeetings: closed.count };
     }

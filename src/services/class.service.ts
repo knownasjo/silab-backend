@@ -1,4 +1,4 @@
-import { ClassRoom, DaysOfWeek, Prisma } from "@prisma/client";
+import { ActivityAction, ClassRoom, DaysOfWeek, Prisma } from "@prisma/client";
 import {
   IAddClassRequestBody,
   IClassRegistrationRequestBody,
@@ -51,6 +51,14 @@ import {
   periodLabel,
   resolveViewPeriod,
 } from "../utils/PeriodRules/period.rules";
+import {
+  activityData,
+  changeText,
+  countsText,
+  fromTo,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
@@ -218,7 +226,7 @@ export const SAddClass = async (
           period.id
         );
 
-        return tx.mst_class.create({
+        const created = await tx.mst_class.create({
           data: {
             subjectId,
             periodId: period.id,
@@ -228,6 +236,18 @@ export const SAddClass = async (
             createdBy: req.user!.id,
           },
         });
+
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.CLASS_CREATED,
+            actor: staffActor(req.user!),
+            description: `${subject.subjectName} kelas ${fields.name} · ${formatSchedule({ day: fields.day, startAt: session.startAt, endAt: session.endAt })} ${fields.room} · kuota ${fields.quota}`,
+          },
+          period.id
+        );
+
+        return created;
       },
       { maxWait: 10000, timeout: 20000 }
     )
@@ -335,6 +355,23 @@ export const SUpdateClass = async (
         updatedAt: new Date(),
       },
     });
+
+    await recordActivity(
+      tx,
+      {
+        action: ActivityAction.CLASS_UPDATED,
+        actor: staffActor(req.user!),
+        description: `${current.subject.subjectName} kelas ${fields.name}`,
+        change: changeText([
+          fromTo("nama", current.name, fields.name),
+          isMoved &&
+            `jadwal ${formatSchedule(current)} ${current.room} → ${formatSchedule(schedule)} ${schedule.room}`,
+          fromTo("kuota", current.quota, fields.quota),
+          !isMoved && fields.sessionId !== current.sessionId && "sesi diganti",
+        ]),
+      },
+      current.periodId
+    );
   });
 
   publishRealtimeEvent("class", { classId: id, action: "updated" });
@@ -387,6 +424,21 @@ export const SDeleteClass = async (
       db.trn_class_participants.deleteMany({ where: { classId: id } }),
       db.trn_class_collaborator.deleteMany({ where: { classId: id } }),
       db.mst_class.delete({ where: { id } }),
+      db.trn_activity_logs.create({
+        data: activityData(
+          {
+            action: ActivityAction.CLASS_DELETED,
+            actor: staffActor(req.user!),
+            description: `${classData.subject.subjectName} kelas ${classData.name}`,
+            change: countsText([
+              [classData.meetings.length, "pertemuan"],
+              [classData.participants.length, "peserta"],
+              [classData.collaborators.length, "asisten"],
+            ]),
+          },
+          classData.periodId
+        ),
+      }),
     ]);
   } catch (error) {
     if (

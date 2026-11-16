@@ -361,10 +361,11 @@ kolomnya); di `mst_user` menjadi `meetingParticipants`, `announcements`,
 | GET | `/dashboard/dosen?periodId=` | DOSEN (angka dashboard, lihat "Akses dosen"; periode aktif kecuali `periodId` diisi) |
 | GET | `/period` | login (daftar periode akademik, lihat "Periode akademik") |
 | POST | `/period` | LABORAN (mulai semester baru; body `{ year, term }` wajib berisi semester berikutnya) |
+| GET | `/activity?periodId=&group=&from=&to=&q=&page=` | LABORAN (riwayat aktivitas staf, 50 per halaman, lihat "Riwayat aktivitas staf") |
 
 ### Koleksi Postman
 
-`docs/SILABV2.postman_collection.json` berisi 65 request untuk semua endpoint
+`docs/SILABV2.postman_collection.json` berisi 77 request untuk semua endpoint
 di atas, dikelompokkan per fitur, masing-masing dengan keterangan peran dan
 balasan yang diharapkan. Import ke Postman, lalu:
 
@@ -391,6 +392,8 @@ balasan yang diharapkan. Import ke Postman, lalu:
    memakai keduanya. Request itu mengganti semester untuk semua pengguna. Bila
    terkirim lagi tanpa menjalankan "Semua Periode", request itu dibalas 409
    "Semester … sudah dimulai.".
+8. Folder **Riwayat Aktivitas** membaca catatan aktivitas staf dengan token
+   laboran, menyaring login saja, dan berisi contoh penolakan untuk dosen.
 
 POST/PUT/DELETE mengubah data sungguhan. Akun mahasiswa hasil uji bisa dihapus
 dengan `npm run hapus-akun <NIM>`.
@@ -1370,6 +1373,97 @@ diurutkan menurut NIM sejak 22 Oktober 2026
 urutannya mengikuti urutan masuk kelas, sehingga daftar presensi di detail
 kelas web berbeda urutan dengan Rekap Presensi yang urut NIM.
 
+### Riwayat aktivitas staf
+
+Setiap perubahan data oleh laboran, asisten, atau skrip terminal dicatat di
+tabel `trn_activity_logs`, begitu juga login laboran dan dosen. Tujuannya
+menjawab "siapa mengubah apa dan kapan", misalnya bila mahasiswa protes
+presensinya berubah atau status bayarnya tiba-tiba Sudah Bayar. Pencatatannya
+ada di `src/utils/ActivityLog/activity.log.ts`, dan catatannya dibaca lewat
+`GET /activity`.
+
+- **Ditulis bersamaan dengan perubahannya.** Baris catatan ditulis di
+  transaksi database yang sama dengan perubahannya, jadi tidak ada perubahan
+  tanpa catatan dan tidak ada catatan tanpa perubahan. Permintaan yang ditolak
+  tidak dicatat, begitu juga permintaan yang tidak mengubah apa pun, misalnya
+  menyimpan judul pertemuan yang sama, menandai hadir mahasiswa yang sudah
+  hadir, atau membuka sesi yang sudah terbuka.
+- **Isinya teks yang disimpan saat kejadian**: pelaku (`actorName`,
+  `actorNim`, dan `actorRole` berisi `LABORAN`, `DOSEN`, `ASISTEN`, atau
+  `TERMINAL`), data yang terkena (`description`, misalnya `Dewi (2000016100)
+  · Basis Data kelas A · Pertemuan 3`), dan perubahannya (`change`, misalnya
+  `Hadir → Tidak Hadir`). Hapus kelas, mata kuliah, dan akun bersifat
+  permanen, jadi tabel ini sengaja tanpa foreign key: catatannya tetap
+  terbaca walaupun datanya sudah dihapus. `periodId` berisi periode data itu,
+  atau periode aktif saat kejadian untuk login, akun, mata kuliah, dan
+  pengumuman untuk semua.
+- **Login.** Login berhasil dan gagal hanya dicatat untuk akun LABORAN dan
+  DOSEN. Login mahasiswa, termasuk asisten, tidak dicatat, tetapi semua aksi
+  asisten di kelasnya tetap dicatat. Password salah beruntun ke akun yang
+  sama digabung menjadi satu baris `LOGIN_FAILED` per 10 menit: `attempts`
+  menghitung percobaannya dan `updatedAt` menyimpan waktu percobaan terakhir,
+  supaya tabel tidak membengkak bila ada yang mencoba-coba. Kunci
+  `pg_advisory_xact_lock` per akun menjaga percobaan bersamaan tetap satu
+  baris. NIM/NIY yang tidak terdaftar tidak dicatat. Alamat IP dan jenis
+  browser sengaja tidak disimpan.
+- **Skrip terminal** (`buat-laboran`, `ganti-password`, `hapus-akun`,
+  `hapus-periode`) dicatat dengan pelaku "Lewat terminal" (`TERMINAL`, tanpa
+  `actorId`).
+- **Hanya laboran yang bisa membaca**, dan tidak ada endpoint untuk mengubah
+  atau menghapus catatan. Catatan disimpan selamanya; `npm run hapus-periode`
+  juga tidak menghapusnya. RLS tabel ini menyala, jadi isinya tidak bisa
+  dibaca lewat API Supabase.
+
+| `action` | Label | Pelaku |
+|---|---|---|
+| `LOGIN_SUCCESS`, `LOGIN_FAILED` | Login berhasil, Login gagal | laboran, dosen |
+| `PAYMENT_STATUS_CHANGED` | Ubah status bayar, termasuk masuk atau keluar kelas | laboran |
+| `STUDENT_CLASS_MOVED` | Pindah kelas mahasiswa | laboran |
+| `ACTIVATION_DELETED` | Hapus pendaftaran (pembatalan oleh mahasiswa sendiri tidak dicatat) | laboran |
+| `MEETING_CREATED`, `MEETING_RENAMED`, `MEETING_DELETED` | Tambah pertemuan, Ubah judul pertemuan, Hapus pertemuan | laboran, asisten |
+| `MEETING_OPENED`, `MEETING_CLOSED` | Buka sesi presensi, Tutup sesi presensi | laboran, asisten |
+| `ATTENDANCE_SET` | Ubah presensi (manual) | laboran, asisten |
+| `DEVICE_CHECKED` | Cek HP tidak biasa (Ada / Tidak ada) | laboran, asisten |
+| `ATTENDANCE_RESET` | Hapus presensi | laboran, asisten |
+| `CLASS_CREATED`, `CLASS_UPDATED`, `CLASS_DELETED` | Tambah, Ubah, Hapus kelas | laboran |
+| `SESSION_CREATED`, `SESSION_UPDATED`, `SESSION_DELETED` | Tambah, Ubah, Hapus jam sesi | laboran |
+| `SUBJECT_CREATED`, `SUBJECT_UPDATED`, `SUBJECT_DELETED` | Tambah, Ubah, Hapus mata kuliah | laboran |
+| `ANNOUNCEMENT_CREATED`, `ANNOUNCEMENT_UPDATED`, `ANNOUNCEMENT_DELETED` | Buat, Ubah, Hapus pengumuman | laboran |
+| `ASSISTANT_ADDED`, `ASSISTANT_REMOVED` | Tambah asisten, Hapus asisten | laboran |
+| `ACCOUNT_CREATED` | Buat akun | laboran, terminal (`buat-laboran`) |
+| `PASSWORD_RESET` | Ganti password akun | laboran (akun LABORAN/DOSEN), terminal (`ganti-password`) |
+| `OWN_NAME_CHANGED`, `OWN_PASSWORD_CHANGED` | Ganti nama sendiri, Ganti password sendiri | laboran, dosen |
+| `ACCOUNT_DELETED`, `REGISTRATION_DELETED` | Hapus akun, Hapus pendaftaran akun | terminal (`hapus-akun`) |
+| `PERIOD_STARTED` | Mulai semester | laboran |
+| `PERIOD_DELETED` | Hapus periode | terminal (`hapus-periode`) |
+
+`GET /activity` mengembalikan 50 catatan per halaman, terbaru di atas:
+
+```
+GET /activity?periodId=&group=&from=&to=&q=&page=
+-> { "items": [ { "id", "action", "actionLabel", "group",
+                  "actor": { "id", "name", "nim", "role" },
+                  "description", "change", "attempts", "periodId",
+                  "createdAt", "updatedAt" } ],
+     "page", "pageSize": 50, "total", "totalPages" }
+```
+
+- `periodId`: hanya catatan semester itu; 404 "Periode tidak ditemukan!" bila
+  periodenya tidak ada. Kosong berarti semua semester.
+- `group`: `LOGIN`, `PAYMENT`, `ATTENDANCE`, `MEETING`, `CLASS`, `SESSION`,
+  `SUBJECT`, `ANNOUNCEMENT`, `ASSISTANT`, `ACCOUNT`, atau `PERIOD`; selain
+  itu 400 "Jenis aktivitas tidak dikenal!".
+- `from`, `to`: tanggal `YYYY-MM-DD` menurut waktu WIB, keduanya ikut
+  dihitung. Tanggal yang salah format atau tidak ada di kalender dibalas 400
+  "Tanggal harus berformat YYYY-MM-DD!", dan `from` setelah `to` dibalas 400
+  "Tanggal awal tidak boleh setelah tanggal akhir!".
+- `q`: kata kunci di nama atau NIM pelaku, data, dan perubahan, tanpa
+  membedakan huruf besar-kecil; paling banyak 100 karakter.
+- `page`: 1 sampai 999999; selain itu 400 "Nomor halaman tidak valid!".
+- Parameter yang dikirim lebih dari sekali ditolak 400.
+- Selain laboran dibalas 403 "Hanya laboran yang dapat melihat riwayat
+  aktivitas!".
+
 ### Aturan lain yang sudah diberlakukan
 
 - **Password baru tidak boleh mengandung spasi** (sejak 1 Oktober 2026), baik
@@ -1481,7 +1575,7 @@ seperti web dan aplikasi HP, lalu memeriksa balasan dan isi database.
 
 ```bash
 npm run dev                 # terminal 1: backend harus sudah jalan
-npm test                    # terminal 2: semua tes API, sekitar 4 menit
+npm test                    # terminal 2: semua tes API, sekitar 5 menit
 npm test -- validasi        # hanya tes yang namanya mengandung "validasi"
 node tests/api/pesan.mjs    # satu tes saja
 npm run uji-beban           # uji beban 120 mahasiswa, terpisah karena berat
@@ -1492,10 +1586,10 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 
 ```
 == Ringkasan
+LULUS aktivitas                    88/88
 LULUS asisten-kelas                24/24
-LULUS batal-bayar                  16/16
 ...
-Total: 586/586 cek lulus dari 25 tes, 238 detik
+Total: 680/680 cek lulus dari 26 tes, 301 detik
 Data uji sudah bersih.
 ```
 
@@ -1504,7 +1598,7 @@ Data uji sudah bersih.
 | `login-token` | login benar/salah, refresh token, token rusak, kedaluwarsa (`jwt expired`), tanda tangan salah, akun dihapus saat masih login, SSE tanpa token | 20 |
 | `pesan` | pesan balasan berbahasa Indonesia untuk login tiap peran, data berhasil dimuat, data tidak ditemukan, dan akses yang ditolak | 21 |
 | `validasi` | input keliru ditolak 4xx dengan pesan jelas: pilih mata kuliah, status pembayaran wajib, pindah kelas, status sesi presensi, pengumuman (termasuk batas isi 1000 karakter), 404, 413, JSON rusak, charset dan kompresi yang tidak didukung (415), isi gzip rusak, ID berkode persen rusak, header CORS pada penolakan | 40 |
-| `input-salah` | 444 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
+| `input-salah` | 454 permintaan acak ke semua endpoint (isian kosong, tipe salah, teks 5000 huruf, ID tidak ada, peran salah): tidak boleh ada 500, semua dijawab JSON dalam 30 detik | 6 |
 | `pilih-kelas` | bentrok jadwal saat memilih, konfirmasi bayar, pindah kelas, ubah jadwal; urutan pilihan kelas A→Z; rebutan 8 mahasiswa ke kuota 3; pilihan ganda bersamaan | 34 |
 | `batal-bayar` | batal bayar mengeluarkan dari kelas, ditolak bila sudah ada presensi, kursi bisa diambil lagi, bersamaan dengan pilih kelas | 16 |
 | `pengumuman-matkul` | pengumuman untuk semua dan untuk mata kuliah tertentu; jenis pendaftaran dengan mata kuliah ditolak, `subjectIds` rusak atau tidak ada ditolak; yang melihat: mahasiswa tanpa mata kuliah, mahasiswa X belum bayar dan lunas, mahasiswa Y, asisten kelas X, laboran, dosen; pengumuman semester lalu tidak tampil; 404 lewat alamat langsung; mendaftar lalu batal memunculkan lalu menghilangkan pengumuman; mengubah tujuan dan jenis; mata kuliah yang dipakai pengumuman tidak bisa dihapus | 47 |
@@ -1515,10 +1609,10 @@ Data uji sudah bersih.
 | `kelas-bersamaan` | tambah dan ubah kelas bersamaan: 4 kelas bernama sama (3 kali), 4 kelas dari 2 mata kuliah di ruang dan jam yang sama (2 kali), dua kelas diganti ke nama yang sama, dua kelas dipindah ke ruang dan jam yang sama, kelas baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan nama atau ruang, tersimpan tepat satu, tanpa error server | 24 |
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
-| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup); semester tujuan wajib disebut: tanpa semester, Ganjil/Genap salah, melompat satu semester, dan semester yang sedang aktif ditolak; dua permintaan bersamaan untuk semester yang sama: satu 201, satu 409 "sudah dimulai", hanya satu periode baru; semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus | 47 |
-| `buat-laboran` | skrip `npm run buat-laboran`: akun LABORAN tersimpan dengan nama dan email dirapikan, password tidak tampil di layar, langsung bisa login; NIY bukan 8 angka, nama terlalu pendek, email salah, NIY atau email sudah terdaftar, password pendek atau berspasi, ulangan password berbeda, dan jawaban selain `ya` membatalkan tanpa membuat akun | 16 |
-| `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima | 33 |
-| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap | 23 |
+| `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup); semester tujuan wajib disebut: tanpa semester, Ganjil/Genap salah, melompat satu semester, dan semester yang sedang aktif ditolak; dua permintaan bersamaan untuk semester yang sama: satu 201, satu 409 "sudah dimulai", hanya satu periode baru; semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus; satu Mulai semester tercatat di riwayat aktivitas | 48 |
+| `buat-laboran` | skrip `npm run buat-laboran`: akun LABORAN tersimpan dengan nama dan email dirapikan, password tidak tampil di layar, langsung bisa login; NIY bukan 8 angka, nama terlalu pendek, email salah, NIY atau email sudah terdaftar, password pendek atau berspasi, ulangan password berbeda, dan jawaban selain `ya` membatalkan tanpa membuat akun; akun yang dibuat tercatat di riwayat aktivitas lewat terminal, yang batal tidak | 18 |
+| `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima; hanya penggantian yang berhasil tercatat di riwayat aktivitas | 34 |
+| `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap; kedua penghapusan tercatat di riwayat aktivitas lewat terminal beserta jumlah datanya dan periode yang aktif kembali | 25 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
 | `dashboard-dosen` | `GET /dashboard/dosen` menghitung Jumlah Pertemuan hanya dari pertemuan yang sedang dibuka atau sudah punya presensi (pertemuan terhapus, kelas terhapus, dan kelas dosen lain tidak dihitung), Jumlah Kelas dan Mahasiswa tetap, tanpa persentase kehadiran; `isHeld` di `GET /meeting/:classId` untuk dosen dan laboran, termasuk presensi mahasiswa yang sudah keluar kelas, mahasiswa tetap menerima bentuk lama; angka berubah saat presensi dibuka, ditutup tanpa presensi, dan diisi laboran | 13 |
 | `sesi-bersamaan` | tambah dan ubah jam sesi bersamaan (Jumat SBTI): 4 sesi bernomor sama (3 kali) dan 4 sesi yang jamnya bertabrakan (3 kali), tiap kali tepat satu berhasil dan sisanya 409 "sudah ada" atau "bertabrakan"; dua sesi diperpanjang bersamaan sampai bertabrakan dan diganti ke nomor yang sama, tepat satu berhasil dan tidak ada sesi tumpang tindih; 3 permintaan untuk Senin–Rabu sekaligus dengan urutan hari berbeda (3 kali), tepat satu berhasil tanpa deadlock; Senin (ikut Selasa) dan Selasa (ikut Senin) diubah bersamaan, keduanya berhasil bergantian dan hasilnya sama di kedua hari; kelas terhapus: jumlah kelas di `GET /session`, sesi yang kelasnya sudah dihapus semua bisa dihapus dan kelasnya tetap menyimpan jamnya, sesi berisi kelas aktif tetap ditolak, ubah jam hanya mengubah dan menghitung kelas aktif; tanpa error server | 33 |
@@ -1526,6 +1620,7 @@ Data uji sudah bersih.
 | `asisten-kelas` | detail kelas dan daftar asisten untuk akun mahasiswa: asisten melihat kelas yang ia pegang (juga di semester lama), ditolak 403 "Anda bukan asisten kelas ini." untuk kelas lain dan kelas tempat ia ikut praktikum, mahasiswa biasa tidak bisa membaca NIM asisten, laboran dan dosen pengampu tetap bisa, `GET /meeting/:classId` untuk HP tidak berubah; urutan daftar kelas (`GET /class`) A→Z untuk asisten dan dosen walau kelas dibuat acak; satu sesi terbuka per kelas: membuka pertemuan kedua ditolak 409 dengan nama kedua pertemuan (asisten dan laboran), membuka ulang sesi yang sama dan kelas lain tetap boleh, sesudah ditutup bisa membuka yang lain, dua pertemuan dibuka bersamaan oleh asisten dan laboran (5 kali) selalu hanya satu yang berhasil; asisten yang dicabut langsung ditolak | 24 |
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 | `sambungan` | satu sambungan yang menganggur 16 detik, lebih lama dari 15 detik aplikasi HP, masih bisa dipakai lagi dan dijawab 200 (dulu server menutupnya di detik ke-6) | 4 |
+| `aktivitas` | riwayat aktivitas staf: login laboran dan dosen tercatat, login mahasiswa dan NIM yang tidak terdaftar tidak; password salah beruntun digabung satu baris per akun per 10 menit, juga 5 percobaan bersamaan, dan baris baru setelah lewat 10 menit; tiap aksi staf (status bayar, pindah kelas, hapus pendaftaran, asisten, pertemuan, buka dan tutup sesi, presensi manual, cek HP Ada / Tidak ada, hapus presensi, jam sesi, kelas, mata kuliah, pengumuman, buat akun, ganti password akun, nama dan password sendiri) menulis tepat satu catatan dengan pelaku, data, perubahan, dan semester yang benar, termasuk pelaku asisten; aksi yang ditolak atau tanpa perubahan tidak dicatat; skrip `hapus-akun` tercatat lewat terminal, yang dibatalkan tidak; `GET /activity` hanya untuk laboran, terbaru di atas, 50 per halaman, saringan jenis, semester, tanggal WIB, dan kata kunci, isian salah ditolak 400/404, membaca tidak menambah catatan | 88 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -1537,7 +1632,7 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–34, web 51–69 dan 71–79,
+- Setiap file tes punya blok 2 angka sendiri (API 11–36, web 51–69 dan 71–79,
   uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
   sesi nomor 9131–9136, email `uji-<nim>@example.test`.
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
@@ -1559,6 +1654,9 @@ server lab.
   real-time yang dikirim.
 - Data blok itu dihapus sebelum tes (sisa tes yang terhenti di tengah) dan
   sesudahnya, termasuk semua yang dibuat lewat API oleh akun uji.
+- Catatan riwayat aktivitas yang pelaku atau sasarannya ber-NIM uji ikut
+  dihapus dan dihitung sebagai data uji. Catatan skrip `hapus-periode` tidak
+  punya NIM uji, jadi tes `hapus-periode` memeriksa lalu menghapusnya sendiri.
 - Sebelum dan sesudah tes, isi tabel utama di luar data uji dibandingkan.
   Cek ini bisa gagal bila ada orang lain yang sedang memakai aplikasi saat tes
   berjalan, walaupun tesnya sendiri benar.
@@ -1952,6 +2050,16 @@ Akun laboran Budi Santoso berhasil dibuat. Login di web dengan NIY 60010003.
     data saat ia mengampu, termasuk kelas di periode lama. Menyimpan riwayat
     butuh tabel dosen pengampu per periode; periodenya sudah ada, tetapi
     dosen pengampu masih satu per mata kuliah.
+
+14. **Riwayat aktivitas hanya mencatat perubahan lewat aplikasi dan skrip
+    terminal.** Perubahan langsung di database, misalnya lewat dashboard
+    Supabase, tidak tercatat, dan siapa pun yang punya akses database bisa
+    mengubah atau menghapus catatannya. Login mahasiswa dan asisten tidak
+    dicatat, alamat IP dan browser tidak disimpan, dan password salah
+    beruntun digabung per 10 menit, jadi waktu tiap percobaan tidak terlihat.
+    Login dosen atau laboran dari aplikasi HP tetap tercatat berhasil,
+    walaupun aplikasi lalu menolak akun staf, karena password-nya memang
+    benar.
 
 ## Pekerjaan yang masih tersisa
 

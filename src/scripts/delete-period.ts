@@ -1,13 +1,24 @@
 import "./load-env";
 
 import readline from "readline/promises";
-import { AcademicTerm, mst_academic_period, Prisma } from "@prisma/client";
+import {
+  AcademicTerm,
+  ActivityAction,
+  mst_academic_period,
+  Prisma,
+} from "@prisma/client";
 import db from "../prisma/client.prisma";
 import {
   findActivePeriod,
   LATEST_PERIOD_FIRST,
   periodLabel,
 } from "../utils/PeriodRules/period.rules";
+import {
+  changeText,
+  countsText,
+  recordActivity,
+  TERMINAL_ACTOR,
+} from "../utils/ActivityLog/activity.log";
 
 const CONFIRM_WORD = "HAPUS";
 const USAGE = 'Cara pakai: npm run hapus-periode "2026/2027 Ganjil"';
@@ -103,7 +114,10 @@ const countPeriodData = async (period: mst_academic_period) => {
   };
 };
 
-const deletePeriodData = (period: mst_academic_period) =>
+const deletePeriodData = (
+  period: mst_academic_period,
+  counts: Awaited<ReturnType<typeof countPeriodData>>
+) =>
   db.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('academic-period'))`;
@@ -128,6 +142,22 @@ const deletePeriodData = (period: mst_academic_period) =>
       await tx.trn_activations.deleteMany({ where: inPeriod });
       await tx.mst_announcement.deleteMany({ where: inPeriod });
       await tx.mst_academic_period.delete({ where: { id: period.id } });
+
+      await recordActivity(tx, {
+        action: ActivityAction.PERIOD_DELETED,
+        actor: TERMINAL_ACTOR,
+        description: `Semester ${periodLabel(period)}`,
+        change: countsText([
+          [counts.classes, "kelas"],
+          [counts.meetings, "pertemuan"],
+          [counts.attendances, "presensi"],
+          [counts.participants, "peserta kelas"],
+          [counts.assistants, "asisten kelas"],
+          [counts.activations, "pendaftaran mata kuliah"],
+          [counts.sessions, "jam sesi"],
+          [counts.announcements, "pengumuman mata kuliah"],
+        ]),
+      });
     },
     { maxWait: 10_000, timeout: 120_000 }
   );
@@ -178,7 +208,22 @@ const deleteActivePeriod = async (
   if (!(await confirmDeletion())) return 1;
 
   try {
-    await db.mst_academic_period.delete({ where: { id: period.id } });
+    await db.$transaction(async (tx) => {
+      await tx.mst_academic_period.delete({ where: { id: period.id } });
+
+      await recordActivity(tx, {
+        action: ActivityAction.PERIOD_DELETED,
+        actor: TERMINAL_ACTOR,
+        description: `Semester ${periodLabel(period)}`,
+        change: changeText([
+          countsText([
+            [counts.sessions, "jam sesi"],
+            [counts.announcements, "pengumuman mata kuliah"],
+          ]),
+          previous && `periode aktif kembali ${periodLabel(previous)}`,
+        ]),
+      });
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -252,7 +297,7 @@ const deletePeriod = async (name: string) => {
 
   if (!(await confirmDeletion())) return 1;
 
-  await deletePeriodData(period);
+  await deletePeriodData(period, counts);
 
   console.log(
     `\nPeriode ${periodLabel(period)} dan seluruh datanya sudah dihapus.`

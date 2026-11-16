@@ -154,6 +154,18 @@ await runTest("Periode akademik dan pergantian semester", data, async () => {
       false
   );
   const newPeriodId = started.json.data?.id;
+  const startedLogs = await db.trn_activity_logs.findMany({
+    where: { action: "PERIOD_STARTED", actorId: data.laboran.id },
+  });
+  check(
+    "  riwayat aktivitas mencatat satu Mulai semester",
+    startedLogs.length === 1 &&
+      startedLogs[0].description === `Semester ${nextName}` &&
+      startedLogs[0].periodId === newPeriodId &&
+      startedLogs[0].change?.startsWith(`${oldName} → ${nextName}; `) &&
+      startedLogs[0].change.endsWith("; 1 sesi presensi ditutup"),
+    JSON.stringify(startedLogs)
+  );
 
   section("Periode lama hanya bisa dilihat");
   for (const [labelText, method, path, body] of [

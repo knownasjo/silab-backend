@@ -1,4 +1,4 @@
-import { DeviceCheck, Prisma } from "@prisma/client";
+import { ActivityAction, DeviceCheck, Prisma } from "@prisma/client";
 import { Request } from "express";
 import { IBaseResponse } from "../interfaces/global.interface";
 import {
@@ -23,6 +23,12 @@ import {
   assertLecturerOfClass,
   isClassAssistant,
 } from "../utils/ClassAccess/class.access";
+import {
+  CLASS_LOG_SELECT,
+  classLabel,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 const MEETING_NAME_MAX = 50;
 
@@ -102,7 +108,10 @@ const assertNoOtherOpenMeeting = async (
 const findManagedMeeting = async (meetingId: string, req: Request) => {
   const meeting = await db.trn_meetings.findFirst({
     where: { id: meetingId, deletedAt: null },
-    include: { _count: { select: { participants: true } } },
+    include: {
+      _count: { select: { participants: true } },
+      class: { select: CLASS_LOG_SELECT },
+    },
   });
 
   if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
@@ -126,6 +135,7 @@ export const SAddClassMeeting = async (
     where: {
       id: classId,
     },
+    include: { subject: { select: { subjectName: true } } },
   });
 
   if (!isClassExist) throw new NotFoundError("Kelas tidak ditemukan!");
@@ -138,14 +148,27 @@ export const SAddClassMeeting = async (
     isClassExist.id,
     meetingName,
     null,
-    (tx) =>
-      tx.trn_meetings.create({
+    async (tx) => {
+      const created = await tx.trn_meetings.create({
         data: {
           classId: isClassExist.id,
           name: meetingName,
           token: generateToken(),
         },
-      })
+      });
+
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.MEETING_CREATED,
+          actor: staffActor(user!),
+          description: `${classLabel(isClassExist)} · ${meetingName}`,
+        },
+        isClassExist.periodId
+      );
+
+      return created;
+    }
   );
 
   void publishClassMembersEvent(meeting.classId, "meeting", {
@@ -172,11 +195,27 @@ export const SUpdateMeeting = async (
   if (meetingName === meeting.name)
     return { status: true, message: "Tidak ada perubahan pada pertemuan" };
 
-  await saveMeetingName(meeting.classId, meetingName, meeting.id, (tx) =>
-    tx.trn_meetings.update({
-      where: { id: meeting.id },
-      data: { name: meetingName, updatedAt: new Date() },
-    })
+  await saveMeetingName(
+    meeting.classId,
+    meetingName,
+    meeting.id,
+    async (tx) => {
+      await tx.trn_meetings.update({
+        where: { id: meeting.id },
+        data: { name: meetingName, updatedAt: new Date() },
+      });
+
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.MEETING_RENAMED,
+          actor: staffActor(req.user!),
+          description: classLabel(meeting.class),
+          change: `${meeting.name} → ${meetingName}`,
+        },
+        meeting.class.periodId
+      );
+    }
   );
 
   void publishClassMembersEvent(meeting.classId, "meeting", {
@@ -212,8 +251,23 @@ export const SDeleteMeeting = async (
   assertDeletable(meeting);
 
   try {
-    const { count } = await db.trn_meetings.deleteMany({
-      where: { id: meeting.id, status: false },
+    const { count } = await db.$transaction(async (tx) => {
+      const deleted = await tx.trn_meetings.deleteMany({
+        where: { id: meeting.id, status: false },
+      });
+
+      if (deleted.count > 0)
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.MEETING_DELETED,
+            actor: staffActor(req.user!),
+            description: `${classLabel(meeting.class)} · ${meeting.name}`,
+          },
+          meeting.class.periodId
+        );
+
+      return deleted;
     });
 
     if (count === 0) {
@@ -430,6 +484,7 @@ export const SUpdateMeetingStatus = async (
         id: meetingId,
         deletedAt: null,
       },
+      include: { class: { select: CLASS_LOG_SELECT } },
     });
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
@@ -441,6 +496,11 @@ export const SUpdateMeetingStatus = async (
 
       if (status) await assertNoOtherOpenMeeting(tx, meeting);
 
+      const before = await tx.trn_meetings.findUnique({
+        where: { id: meetingId },
+        select: { status: true },
+      });
+
       await tx.trn_meetings.update({
         where: {
           id: meetingId,
@@ -450,6 +510,19 @@ export const SUpdateMeetingStatus = async (
           updatedAt: new Date(),
         },
       });
+
+      if (before && before.status !== status)
+        await recordActivity(
+          tx,
+          {
+            action: status
+              ? ActivityAction.MEETING_OPENED
+              : ActivityAction.MEETING_CLOSED,
+            actor: staffActor(user!),
+            description: `${classLabel(meeting.class)} · ${meeting.name}`,
+          },
+          meeting.class.periodId
+        );
     });
 
     void publishClassMembersEvent(meeting.classId, "meeting", {

@@ -44,6 +44,51 @@ enum AnnouncementTypes {
     BASIC
 }
 
+enum ActivityActorRole {
+    LABORAN
+    DOSEN
+    ASISTEN
+    TERMINAL
+}
+
+enum ActivityAction {
+    LOGIN_SUCCESS
+    LOGIN_FAILED
+    PAYMENT_STATUS_CHANGED
+    STUDENT_CLASS_MOVED
+    ACTIVATION_DELETED
+    MEETING_CREATED
+    MEETING_RENAMED
+    MEETING_DELETED
+    MEETING_OPENED
+    MEETING_CLOSED
+    ATTENDANCE_SET
+    DEVICE_CHECKED
+    ATTENDANCE_RESET
+    CLASS_CREATED
+    CLASS_UPDATED
+    CLASS_DELETED
+    SESSION_CREATED
+    SESSION_UPDATED
+    SESSION_DELETED
+    SUBJECT_CREATED
+    SUBJECT_UPDATED
+    SUBJECT_DELETED
+    ANNOUNCEMENT_CREATED
+    ANNOUNCEMENT_UPDATED
+    ANNOUNCEMENT_DELETED
+    ASSISTANT_ADDED
+    ASSISTANT_REMOVED
+    ACCOUNT_CREATED
+    ACCOUNT_DELETED
+    REGISTRATION_DELETED
+    PASSWORD_RESET
+    OWN_NAME_CHANGED
+    OWN_PASSWORD_CHANGED
+    PERIOD_STARTED
+    PERIOD_DELETED
+}
+
 model mst_user {
     id                String    @id @default(uuid())
     fullname          String
@@ -301,4 +346,24 @@ model trn_password_resets {
     createdAt DateTime @default(now())
 
     user mst_user @relation(name: "UserPasswordReset", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model trn_activity_logs {
+    id          String            @id @default(uuid())
+    action      ActivityAction
+    actorId     String?
+    actorName   String
+    actorNim    String?
+    actorRole   ActivityActorRole
+    targetNim   String?
+    periodId    String?
+    description String
+    change      String?
+    attempts    Int               @default(1)
+    createdAt   DateTime          @default(now())
+    updatedAt   DateTime?
+
+    @@index([createdAt])
+    @@index([periodId, createdAt])
+    @@index([actorId, action, createdAt])
 }

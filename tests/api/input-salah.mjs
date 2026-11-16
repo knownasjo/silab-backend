@@ -130,6 +130,8 @@ const ROUTES = [
   ["GET", "/user/dosen", "laboran"],
   ["GET", "/user/mahasiswa", "laboran"],
   ["PUT", "/user/:nim/password", "laboran", ["password"]],
+  ["GET", "/activity", "laboran"],
+  ["GET", "/activity", "student"],
 ];
 
 const variantsFor = (fields) => {
@@ -230,6 +232,23 @@ await runTest("Input acak dan keliru ke semua endpoint", data, async () => {
         body: {},
       });
   }
+  for (const [label, query] of [
+    ["query kosong", "?periodId=&group=&from=&to=&q=&page="],
+    ["query ganda", "?q=a&q=b&page=1&page=2"],
+    ["query bersarang", "?q[a]=1&group[]=LOGIN&page[x]=2"],
+    ["tanggal di luar kalender", "?from=9999-99-99&to=0000-00-00"],
+    ["halaman sangat besar", `?page=${"9".repeat(40)}`],
+    ["periode bukan id", "?periodId=bukan-id"],
+    ["kata kunci sangat panjang", `?q=${"x".repeat(5000)}`],
+    ["kata kunci karakter khusus", `?q=${encodeURIComponent("%_\\'\"<b>")}`],
+  ])
+    jobs.push({
+      method: "GET",
+      route: "/activity",
+      label,
+      path: `/activity${query}`,
+      token: tokens.laboran,
+    });
   jobs.push({
     method: "GET",
     route: "/tidak-ada",

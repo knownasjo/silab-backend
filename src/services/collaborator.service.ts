@@ -21,6 +21,14 @@ import {
   assertClassInActivePeriod,
   assertPeriodActive,
 } from "../utils/PeriodRules/period.rules";
+import { ActivityAction } from "@prisma/client";
+import {
+  activityData,
+  classLabel,
+  personLabel,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 const classSchedule = {
   select: {
@@ -66,7 +74,7 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
 
   const users = await db.mst_user.findMany({
     where: { id: { in: userIds } },
-    select: { id: true, fullname: true, role: true },
+    select: { id: true, fullname: true, nim: true, role: true },
   });
 
   if (users.length !== userIds.length)
@@ -147,6 +155,19 @@ export const SAddCollaborator = async (req: Request): Promise<IBaseResponse> => 
       data: newUserIds.map((userId) => ({ userId, classId })),
       skipDuplicates: true,
     }),
+    db.trn_activity_logs.createMany({
+      data: newUsers.map((user) =>
+        activityData(
+          {
+            action: ActivityAction.ASSISTANT_ADDED,
+            actor: staffActor(req.user!),
+            description: `${personLabel(user)} · ${classLabel(targetClass)}`,
+            targetNim: user.nim,
+          },
+          targetClass.periodId
+        )
+      ),
+    }),
   ]);
 
   publishRealtimeEvent("class", { classId: classId, action: "assistants" });
@@ -170,8 +191,39 @@ export const SRemoveCollaborator = async (
 
   await assertClassInActivePeriod(classId);
 
-  const { count } = await db.trn_class_collaborator.deleteMany({
-    where: { classId, userId },
+  const { count } = await db.$transaction(async (tx) => {
+    const removed = await tx.trn_class_collaborator.deleteMany({
+      where: { classId, userId },
+    });
+
+    if (removed.count > 0) {
+      const student = await tx.mst_user.findUnique({
+        where: { id: userId },
+        select: { fullname: true, nim: true },
+      });
+      const assistedClass = await tx.mst_class.findUnique({
+        where: { id: classId },
+        select: {
+          name: true,
+          periodId: true,
+          subject: { select: { subjectName: true } },
+        },
+      });
+
+      if (student && assistedClass)
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.ASSISTANT_REMOVED,
+            actor: staffActor(req.user!),
+            description: `${personLabel(student)} · ${classLabel(assistedClass)}`,
+            targetNim: student.nim,
+          },
+          assistedClass.periodId
+        );
+    }
+
+    return removed;
   });
 
   if (count === 0)

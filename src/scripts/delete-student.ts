@@ -1,8 +1,17 @@
 import "./load-env";
 
 import readline from "readline/promises";
-import { UserRole } from "@prisma/client";
+import { ActivityAction, UserRole } from "@prisma/client";
 import db from "../prisma/client.prisma";
+import {
+  accountLabel,
+  activePeriodId,
+  activityData,
+  countsText,
+  personLabel,
+  recordActivity,
+  TERMINAL_ACTOR,
+} from "../utils/ActivityLog/activity.log";
 
 const CONFIRM_WORD = "HAPUS";
 
@@ -63,7 +72,16 @@ const deletePendingRegistration = async (keyword: string) => {
 
   if (!(await confirmDeletion())) return 1;
 
-  await db.trn_registrations.delete({ where: { id: registration.id } });
+  await db.$transaction(async (tx) => {
+    await tx.trn_registrations.delete({ where: { id: registration.id } });
+
+    await recordActivity(tx, {
+      action: ActivityAction.REGISTRATION_DELETED,
+      actor: TERMINAL_ACTOR,
+      description: `${personLabel(registration)} · pendaftaran belum diverifikasi`,
+      targetNim: registration.nim,
+    });
+  });
   console.log(
     `\nPendaftaran ${registration.nim} yang belum diverifikasi sudah dihapus.`
   );
@@ -165,6 +183,23 @@ const deleteStudent = async (keyword: string) => {
       where: { OR: [{ email: user.email.toLowerCase() }, { nim: user.nim }] },
     }),
     db.mst_user.delete({ where: { id: user.id } }),
+    db.trn_activity_logs.create({
+      data: activityData(
+        {
+          action: ActivityAction.ACCOUNT_DELETED,
+          actor: TERMINAL_ACTOR,
+          description: accountLabel(user),
+          change: countsText([
+            [activations.length, "pendaftaran mata kuliah"],
+            [classes.length, "kelas"],
+            [attendances, "presensi"],
+            [assistedClasses.length, "kelas asisten"],
+          ]),
+          targetNim: user.nim,
+        },
+        await activePeriodId()
+      ),
+    }),
   ]);
 
   console.log(`\nAkun ${user.nim} dan seluruh datanya sudah dihapus.`);

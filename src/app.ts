@@ -15,6 +15,7 @@ import EventRoute from "../src/routes/event.route";
 import DashboardRoute from "../src/routes/dashboard.route";
 import SessionRoute from "../src/routes/session.route";
 import PeriodRoute from "../src/routes/period.route";
+import ActivityRoute from "../src/routes/activity.route";
 import cors from "cors";
 
 const app = express();
@@ -44,6 +45,7 @@ app.use("/events", EventRoute);
 app.use("/dashboard", DashboardRoute);
 app.use("/session", SessionRoute);
 app.use("/period", PeriodRoute);
+app.use("/activity", ActivityRoute);
 
 app.use((_req, res) => {
   res.status(404).json({ status: false, message: "Alamat tidak ditemukan!" });

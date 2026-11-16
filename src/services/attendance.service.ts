@@ -26,7 +26,16 @@ import {
   rememberDevice,
   requireDeviceId,
 } from "../utils/DeviceRules/device.rules";
-import { Prisma } from "@prisma/client";
+import { ActivityAction, Prisma } from "@prisma/client";
+import {
+  CLASS_LOG_SELECT,
+  attendanceLabel,
+  changeText,
+  classLabel,
+  personLabel,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 const ALREADY_ATTENDED = "Anda sudah melakukan presensi untuk pertemuan ini!";
 const ALREADY_CHECKED = "Presensi ini sudah dicek.";
@@ -164,6 +173,7 @@ export const SUpdateAttendanceManually = async (
         id: meetingId,
         deletedAt: null,
       },
+      include: { class: { select: CLASS_LOG_SELECT } },
     });
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
@@ -189,21 +199,48 @@ export const SUpdateAttendanceManually = async (
     if (!isClassParticipant)
       throw new ForbiddenError("Mahasiswa tidak terdaftar di kelas ini!");
 
-    const attendance = await db.trn_meeting_participants.upsert({
-      where: {
-        meetingId_userId: {
+    const attendance = await db.$transaction(async (tx) => {
+      const previous = await tx.trn_meeting_participants.findUnique({
+        where: {
+          meetingId_userId: {
+            meetingId: meetingId,
+            userId: userId,
+          },
+        },
+        select: { status: true },
+      });
+
+      const saved = await tx.trn_meeting_participants.upsert({
+        where: {
+          meetingId_userId: {
+            meetingId: meetingId,
+            userId: userId,
+          },
+        },
+        update: {
+          status: status,
+        },
+        create: {
           meetingId: meetingId,
           userId: userId,
+          status: status,
         },
-      },
-      update: {
-        status: status,
-      },
-      create: {
-        meetingId: meetingId,
-        userId: userId,
-        status: status,
-      },
+      });
+
+      if (previous?.status !== status)
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.ATTENDANCE_SET,
+            actor: staffActor(user!),
+            description: `${personLabel(student)} · ${classLabel(meeting.class)} · ${meeting.name}`,
+            change: `${attendanceLabel(previous?.status)} → ${attendanceLabel(status)}`,
+            targetNim: student.nim,
+          },
+          meeting.class.periodId
+        );
+
+      return saved;
     });
 
     void publishClassAssistantsEvent(
@@ -251,6 +288,7 @@ export const SCheckAttendanceDevice = async (
         id: meetingId,
         deletedAt: null,
       },
+      include: { class: { select: CLASS_LOG_SELECT } },
     });
 
     if (!meeting) throw new NotFoundError("Pertemuan tidak ditemukan!");
@@ -295,6 +333,24 @@ export const SCheckAttendanceDevice = async (
       if (count === 0) throw new ConflictError(ALREADY_CHECKED);
 
       if (present) await makeUsualDevice(userId, deviceId, tx);
+
+      const statusChange =
+        attendance.status !== present &&
+        `${attendanceLabel(attendance.status)} → ${attendanceLabel(present)}`;
+
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.DEVICE_CHECKED,
+          actor: staffActor(user!),
+          description: `${personLabel(attendance.user)} · ${classLabel(meeting.class)} · ${meeting.name}`,
+          change: present
+            ? changeText(["Ada", statusChange, "HP ini menjadi HP biasanya"])
+            : changeText(["Tidak ada", statusChange]),
+          targetNim: attendance.user.nim,
+        },
+        meeting.class.periodId
+      );
     });
 
     void publishClassAssistantsEvent(
@@ -340,7 +396,14 @@ export const SResetAttendance = async (
         },
       },
       include: {
-        meeting: { select: { classId: true } },
+        meeting: {
+          select: {
+            classId: true,
+            name: true,
+            class: { select: CLASS_LOG_SELECT },
+          },
+        },
+        user: { select: { fullname: true, nim: true } },
       },
     });
 
@@ -348,13 +411,27 @@ export const SResetAttendance = async (
 
     await assertCanManageClass(user, attendance.meeting.classId);
 
-    await db.trn_meeting_participants.delete({
-      where: {
-        meetingId_userId: {
-          meetingId: meetingId,
-          userId: userId,
+    await db.$transaction(async (tx) => {
+      await tx.trn_meeting_participants.delete({
+        where: {
+          meetingId_userId: {
+            meetingId: meetingId,
+            userId: userId,
+          },
         },
-      },
+      });
+
+      await recordActivity(
+        tx,
+        {
+          action: ActivityAction.ATTENDANCE_RESET,
+          actor: staffActor(user!),
+          description: `${personLabel(attendance.user)} · ${classLabel(attendance.meeting.class)} · ${attendance.meeting.name}`,
+          change: `${attendanceLabel(attendance.status)} → ${attendanceLabel(null)}`,
+          targetNim: attendance.user.nim,
+        },
+        attendance.meeting.class.periodId
+      );
     });
 
     void publishClassAssistantsEvent(

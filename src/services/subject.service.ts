@@ -6,7 +6,7 @@ import {
   IUpdateSubjectRequestBody,
 } from "../interfaces/subject.interface";
 import db from "../prisma/client.prisma";
-import { Prisma } from "@prisma/client";
+import { ActivityAction, Prisma } from "@prisma/client";
 import {
   BadRequestError,
   ConflictError,
@@ -18,6 +18,12 @@ import {
   assertLecturerOfSubject,
   lecturerSubjectScope,
 } from "../utils/ClassAccess/class.access";
+import {
+  changeText,
+  fromTo,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 
 const readText = (value: unknown) =>
   typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
@@ -128,9 +134,17 @@ export const SAddSubject = async (
       await lockSubjects(tx);
       await assertSubjectUnique(tx, fields);
 
-      return tx.mst_subject.create({
+      const created = await tx.mst_subject.create({
         data: { ...fields, createdBy: req.user!.id },
       });
+
+      await recordActivity(tx, {
+        action: ActivityAction.SUBJECT_CREATED,
+        actor: staffActor(req.user!),
+        description: `${fields.subjectCode} ${fields.subjectName} · semester ${fields.semester} · dosen ${lecturerName}`,
+      });
+
+      return created;
     },
     { maxWait: 10000, timeout: 20000 }
   );
@@ -274,6 +288,26 @@ export const SUpdateSubject = async (
           updatedAt: new Date(),
         },
       });
+
+      const oldLecturer = isLecturerChanged
+        ? await tx.mst_user.findUnique({
+            where: { id: current.lecturerId },
+            select: { fullname: true },
+          })
+        : null;
+
+      await recordActivity(tx, {
+        action: ActivityAction.SUBJECT_UPDATED,
+        actor: staffActor(req.user!),
+        description: `${subjectCode} ${subjectName}`,
+        change: changeText([
+          fromTo("kode", current.subjectCode, subjectCode),
+          fromTo("nama", current.subjectName, subjectName),
+          fromTo("semester", current.semester, semester),
+          isLecturerChanged &&
+            `dosen ${oldLecturer?.fullname ?? "-"} → ${lecturerName}`,
+        ]),
+      });
     },
     { maxWait: 10000, timeout: 20000 }
   );
@@ -349,7 +383,15 @@ export const SDeleteSubject = async (
   if (blocker) throw new ConflictError(blocker);
 
   try {
-    await db.mst_subject.delete({ where: { id } });
+    await db.$transaction(async (tx) => {
+      await tx.mst_subject.delete({ where: { id } });
+
+      await recordActivity(tx, {
+        action: ActivityAction.SUBJECT_DELETED,
+        actor: staffActor(req.user!),
+        description: `${subject.subjectCode} ${subject.subjectName}`,
+      });
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

@@ -198,4 +198,12 @@ await runTest("Password baru tanpa spasi", data, async () => {
     "  dosen bisa login dengan password baru",
     await canLogin(data.lecturer, fresh)
   );
+  const resets = await db.trn_activity_logs.findMany({
+    where: { action: "PASSWORD_RESET", targetNim: data.lecturer.nim },
+  });
+  check(
+    "  riwayat aktivitas hanya mencatat penggantian yang berhasil, lewat terminal",
+    resets.length === 1 && resets[0].actorRole === "TERMINAL",
+    JSON.stringify(resets)
+  );
 });

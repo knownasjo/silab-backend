@@ -14,8 +14,15 @@ import {
   IGetActivationResponseBody,
   IUpdateActivationRequestBody,
 } from "../interfaces/activation.interface";
-import { Prisma } from "@prisma/client";
+import { ActivityAction, mst_user, Prisma } from "@prisma/client";
 import { publishRealtimeEvent } from "../utils/RealtimeEvents/realtime.events";
+import {
+  changeText,
+  paymentLabel,
+  personLabel,
+  recordActivity,
+  staffActor,
+} from "../utils/ActivityLog/activity.log";
 import {
   assertNoAssistantScheduleClash,
   assertNotAssistantOfSubjects,
@@ -44,6 +51,46 @@ const setPaymentStatus = async (
   });
 
   if (count === 0) throw new NotFoundError("Data aktivasi tidak ditemukan!");
+};
+
+const activationForLog = (tx: Prisma.TransactionClient, id: string) =>
+  tx.trn_activations.findUnique({
+    where: { id },
+    include: {
+      user: { select: { fullname: true, nim: true } },
+      subject: { select: { subjectName: true } },
+    },
+  });
+
+const recordPaymentChange = async (
+  tx: Prisma.TransactionClient,
+  actor: mst_user,
+  activation: Awaited<ReturnType<typeof activationForLog>>,
+  paid: boolean,
+  classChange: { joined?: string; left?: string } = {}
+) => {
+  if (!activation) return;
+
+  const change = changeText([
+    activation.status !== paid &&
+      `${paymentLabel(activation.status)} → ${paymentLabel(paid)}`,
+    classChange.joined && `masuk kelas ${classChange.joined}`,
+    classChange.left && `keluar dari kelas ${classChange.left}`,
+  ]);
+
+  if (!change) return;
+
+  await recordActivity(
+    tx,
+    {
+      action: ActivityAction.PAYMENT_STATUS_CHANGED,
+      actor: staffActor(actor),
+      description: `${personLabel(activation.user)} · ${activation.subject.subjectName}`,
+      change,
+      targetNim: activation.user.nim,
+    },
+    activation.periodId
+  );
 };
 
 export const SAddStudentActivation = async (
@@ -308,7 +355,12 @@ export const SUpdateActivationPaymentStatus = async (
             });
           }
 
+          const current = await activationForLog(tx, id);
+
           await setPaymentStatus(tx, id, false);
+          await recordPaymentChange(tx, user, current, false, {
+            left: enrollment?.class.name,
+          });
 
           return enrollment;
         }
@@ -327,7 +379,12 @@ export const SUpdateActivationPaymentStatus = async (
     }
 
     if (!classId) {
-      await setPaymentStatus(db, id, true);
+      await db.$transaction(async (tx) => {
+        const current = await activationForLog(tx, id);
+
+        await setPaymentStatus(tx, id, true);
+        await recordPaymentChange(tx, user, current, true);
+      });
 
       publishRealtimeEvent("activation", {}, [isActivationExist.userId]);
 
@@ -399,6 +456,8 @@ export const SUpdateActivationPaymentStatus = async (
           "diikuti mahasiswa ini"
         );
 
+        const current = await activationForLog(tx, id);
+
         await setPaymentStatus(tx, id, true);
 
         await tx.trn_class_participants.create({
@@ -406,6 +465,10 @@ export const SUpdateActivationPaymentStatus = async (
             classId: classId,
             userId: isActivationExist.userId,
           },
+        });
+
+        await recordPaymentChange(tx, user, current, true, {
+          joined: classData.name,
         });
 
         return classData;
@@ -440,6 +503,10 @@ export const SUpdateStudentClass = async (
 
     const activation = await db.trn_activations.findUnique({
       where: { id },
+      include: {
+        user: { select: { fullname: true, nim: true } },
+        subject: { select: { subjectName: true } },
+      },
     });
 
     if (!activation) throw new NotFoundError("Data aktivasi tidak ditemukan!");
@@ -546,6 +613,18 @@ export const SUpdateStudentClass = async (
           },
         });
 
+        await recordActivity(
+          tx,
+          {
+            action: ActivityAction.STUDENT_CLASS_MOVED,
+            actor: staffActor(user),
+            description: `${personLabel(activation.user)} · ${activation.subject.subjectName}`,
+            change: `kelas ${currentEnrollment.class.name} → kelas ${targetClass.name}`,
+            targetNim: activation.user.nim,
+          },
+          activation.periodId
+        );
+
         return { currentEnrollment, targetClass };
       }
     );
@@ -580,7 +659,7 @@ export const SDeleteActivation = async (
     const activation = await db.trn_activations.findUnique({
       where: { id },
       include: {
-        user: { select: { fullname: true } },
+        user: { select: { fullname: true, nim: true } },
         subject: { select: { subjectName: true } },
       },
     });
@@ -612,9 +691,23 @@ export const SDeleteActivation = async (
             `Pendaftaran ini masih punya kelas ${enrollment.class.name}, jadi tidak bisa dihapus.`
           );
 
-        return tx.trn_activations.deleteMany({
+        const deleted = await tx.trn_activations.deleteMany({
           where: { id, status: false },
         });
+
+        if (deleted.count > 0 && !isStudent)
+          await recordActivity(
+            tx,
+            {
+              action: ActivityAction.ACTIVATION_DELETED,
+              actor: staffActor(user),
+              description: `${personLabel(activation.user)} · ${activation.subject.subjectName}`,
+              targetNim: activation.user.nim,
+            },
+            activation.periodId
+          );
+
+        return deleted;
       }
     );
 

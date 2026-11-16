@@ -64,6 +64,18 @@ await runTest("Membuat akun laboran lewat terminal", data, async () => {
     login.code === 200 && !!login.json.data?.accessToken,
     `${login.code} ${login.message}`
   );
+  const createdLogs = await db.trn_activity_logs.findMany({
+    where: { action: "ACCOUNT_CREATED", targetNim: niy(1) },
+  });
+  check(
+    "  riwayat aktivitas mencatat akun dibuat lewat terminal",
+    createdLogs.length === 1 &&
+      createdLogs[0].actorRole === "TERMINAL" &&
+      createdLogs[0].actorName === "Lewat terminal" &&
+      createdLogs[0].actorId === null &&
+      createdLogs[0].description === `Laboran Baru (${niy(1)}) · Laboran`,
+    JSON.stringify(createdLogs)
+  );
 
   section("Isian ditolak, akun tidak dibuat");
   for (const [label, lines, message] of [
@@ -121,4 +133,13 @@ await runTest("Membuat akun laboran lewat terminal", data, async () => {
     );
   }
   check("  tidak ada akun yang ikut dibuat", (await account(niy(2))) === null);
+  check(
+    "  tidak ada catatan aktivitas untuk akun yang batal dibuat",
+    (await db.trn_activity_logs.count({
+      where: {
+        action: "ACCOUNT_CREATED",
+        targetNim: { startsWith: data.nimPrefix },
+      },
+    })) === 1
+  );
 });
