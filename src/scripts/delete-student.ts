@@ -180,7 +180,9 @@ const deleteStudent = async (keyword: string) => {
     db.trn_activations.deleteMany({ where }),
     db.trn_class_collaborator.deleteMany({ where }),
     db.trn_registrations.deleteMany({
-      where: { OR: [{ email: user.email.toLowerCase() }, { nim: user.nim }] },
+      where: user.email
+        ? { OR: [{ email: user.email.toLowerCase() }, { nim: user.nim }] }
+        : { nim: user.nim },
     }),
     db.mst_user.delete({ where: { id: user.id } }),
     db.trn_activity_logs.create({

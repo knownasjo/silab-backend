@@ -100,8 +100,8 @@ const findRegisteredUser = (email: string, nim: string) =>
 
 const resetCodeKey = (userId: string) => `password-reset:${userId}`;
 
-const conflictMessage = (registeredEmail: string, email: string) =>
-  registeredEmail.toLowerCase() === email
+const conflictMessage = (registeredEmail: string | null, email: string) =>
+  registeredEmail?.toLowerCase() === email
     ? "Email sudah terdaftar, silakan login."
     : "NIM sudah terdaftar, silakan login.";
 
@@ -403,7 +403,7 @@ export const SForgotPassword = async (
     throw new NotFoundError("Email ini belum terdaftar di SILAB.");
   }
 
-  if (user.role !== UserRole.MAHASISWA)
+  if (user.role !== UserRole.MAHASISWA || !user.email)
     throw new ForbiddenError(
       "Reset password akun laboran dan dosen dilakukan oleh laboran."
     );

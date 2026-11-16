@@ -271,7 +271,7 @@
 								"me"
 							]
 						},
-						"description": "Data akun pemilik token: `{ id, nim, name, email, role }`. Access token yang kedaluwarsa atau dicabut dibalas 400 `jwt expired`."
+						"description": "Data akun pemilik token: `{ id, nim, name, email, role }`; `email` bernilai `null` untuk laboran dan dosen. Access token yang kedaluwarsa atau dicabut dibalas 400 `jwt expired`."
 					},
 					"response": []
 				}
@@ -484,7 +484,7 @@
 								"me"
 							]
 						},
-						"description": "Hanya nama yang bisa diubah (3–100 karakter, spasi berlebih dirapikan). NIM, email, dan role di body diabaikan.\n\n- 200 \"Nama berhasil diperbarui\" `{ id, nim, name, email, role }`\n- 400 \"Nama lengkap harus 3 sampai 100 karakter!\""
+						"description": "Hanya nama yang bisa diubah (3–100 karakter, spasi berlebih dirapikan). NIM, email, dan role di body diabaikan.\n\n- 200 \"Nama berhasil diperbarui\" `{ id, nim, name, email, role }` (`email` null untuk laboran dan dosen)\n- 400 \"Nama lengkap harus 3 sampai 100 karakter!\""
 					},
 					"response": []
 				},
@@ -673,7 +673,7 @@
 		},
 		{
 			"name": "User",
-			"description": "Pengelolaan akun oleh laboran. Akun laboran dan dosen dibuat di sini dengan email asli yang aktif.",
+			"description": "Pengelolaan akun oleh laboran. Akun laboran dan dosen dibuat di sini tanpa email.",
 			"item": [
 				{
 					"name": "Buat Akun",
@@ -697,7 +697,7 @@
 						},
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"{{newStaffEmail}}\",\n  \"nim\": \"{{newStaffNiy}}\",\n  \"fullname\": \"Dosen Postman\",\n  \"password\": \"{{newStaffPassword}}\",\n  \"role\": \"DOSEN\"\n}",
+							"raw": "{\n  \"nim\": \"{{newStaffNiy}}\",\n  \"fullname\": \"Dosen Postman\",\n  \"password\": \"{{newStaffPassword}}\",\n  \"role\": \"DOSEN\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -713,7 +713,7 @@
 								"user"
 							]
 						},
-						"description": "Hanya LABORAN. Membuat akun yang langsung aktif. `role`: MAHASISWA, LABORAN, atau DOSEN. Field `nim` diisi NIM (angka) untuk MAHASISWA atau NIY tepat 8 angka untuk LABORAN/DOSEN. Email bebas (tidak harus webmail), password min. 8.\n\n- 201 \"Akun berhasil dibuat\" `{ id, email, nim, fullname, role }`\n- 400 isian tidak valid, termasuk \"NIY harus 8 angka!\"\n- 403 bukan laboran\n- 409 \"Email sudah terdaftar!\" / \"NIY sudah terdaftar!\" / \"NIM sudah terdaftar!\""
+						"description": "Hanya LABORAN. Membuat akun yang langsung aktif. `role`: MAHASISWA, LABORAN, atau DOSEN. Field `nim` diisi NIM (angka) untuk MAHASISWA atau NIY tepat 8 angka untuk LABORAN/DOSEN. `email` hanya untuk MAHASISWA (wajib, boleh selain webmail); untuk LABORAN/DOSEN tidak disimpan dan diabaikan bila tetap dikirim. Password min. 8.\n\n- 201 \"Akun berhasil dibuat\" `{ id, email, nim, fullname, role }` (`email` null untuk LABORAN/DOSEN)\n- 400 isian tidak valid, termasuk \"NIY harus 8 angka!\"\n- 403 bukan laboran\n- 409 \"Email sudah terdaftar!\" (mahasiswa) / \"NIY sudah terdaftar!\" / \"NIM sudah terdaftar!\""
 					},
 					"response": []
 				},
@@ -3190,12 +3190,6 @@
 			"value": "",
 			"type": "string",
 			"description": "Terisi otomatis oleh Data Akun Baru"
-		},
-		{
-			"key": "newStaffEmail",
-			"value": "dosen.postman@uad.ac.id",
-			"type": "string",
-			"description": "Email akun dosen yang dibuat laboran"
 		},
 		{
 			"key": "newStaffNiy",

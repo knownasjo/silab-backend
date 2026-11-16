@@ -612,10 +612,19 @@ POST /auth/register/resend  { email }         -> 200 { email, nim, expiresIn, re
   kedaluwarsa".
 
 Akun staf dan akun uji dibuat laboran lewat `POST /user` (`Authorization`
-laboran) dengan body `{ email, nim, fullname, password, role }`: email bebas,
-password min. 8, role MAHASISWA, LABORAN, atau DOSEN. Akun langsung aktif dan
-menggantikan pendaftaran belum terverifikasi dengan email/nomor yang sama.
-Gunakan email asli yang aktif untuk akun laboran dan dosen.
+laboran) dengan body `{ nim, fullname, password, role }`, ditambah `email`
+untuk mahasiswa: password min. 8, role MAHASISWA, LABORAN, atau DOSEN. Akun
+langsung aktif dan menggantikan pendaftaran belum terverifikasi dengan
+email/nomor yang sama.
+
+- **Akun laboran dan dosen tidak menyimpan email** (sejak 17 November 2026).
+  Mereka login dengan NIY dan password-nya diganti laboran, jadi email tidak
+  dipakai. `email` yang tetap dikirim untuk kedua role itu diabaikan tanpa
+  diperiksa, dan `email` di balasan `POST /user`, `GET /auth/me`, serta
+  `PUT /auth/me` bernilai `null`. Kolom `mst_user.email` boleh kosong; indeks
+  uniknya tetap ada, dan PostgreSQL mengizinkan banyak baris tanpa email.
+- **Akun mahasiswa tetap wajib `email`** (format benar dan belum terdaftar,
+  boleh selain webmail), karena Lupa password mengirim kode ke email itu.
 
 **NIM dan NIY.** Kolom `nim` di database dan field `nim` di API adalah nomor
 induk untuk login. Mahasiswa mengisinya dengan NIM (angka), sedangkan dosen dan
@@ -636,8 +645,10 @@ POST /auth/password/reset   { email, code, password, confirmPassword }
   -> 200 "Password berhasil diubah, silakan masuk."
 ```
 
-- Hanya akun **MAHASISWA**. Akun LABORAN/DOSEN dibalas 403 "Reset password akun
-  laboran dan dosen dilakukan oleh laboran."
+- Hanya akun **MAHASISWA**. Akun LABORAN/DOSEN tidak punya email, jadi email
+  lama mereka dibalas 404 seperti email yang belum terdaftar. Bila akun staf
+  ternyata masih punya email, permintaannya tetap ditolak 403 "Reset password
+  akun laboran dan dosen dilakukan oleh laboran."
 - Email belum terdaftar: 404 "Email ini belum terdaftar di SILAB." Pesan ini
   sengaja jujur, karena halaman Daftar pun sudah memberi tahu email yang
   terdaftar. Email yang masih menunggu verifikasi: 403 "Akun ini belum
@@ -684,7 +695,8 @@ PUT /auth/me/password   { oldPassword, password, confirmPassword }
 ```
 
 - Hanya nama yang bisa diubah (3–100 karakter, spasi berlebih dirapikan). NIM,
-  email, dan role di body diabaikan. Ganti nama tidak mengeluarkan sesi dan
+  email, dan role di body diabaikan. `email` di balasan bernilai `null` untuk
+  laboran dan dosen. Ganti nama tidak mengeluarkan sesi dan
   tidak mengirim event real-time; layar lain melihat nama baru setelah memuat
   ulang.
 - Ganti password: 400 "Password lama wajib diisi!", "Password minimal 8
@@ -1589,7 +1601,7 @@ ringkasan per tes dan keluar dengan status gagal bila ada satu saja yang gagal:
 LULUS aktivitas                    88/88
 LULUS asisten-kelas                24/24
 ...
-Total: 680/680 cek lulus dari 26 tes, 301 detik
+Total: 705/705 cek lulus dari 27 tes, 306 detik
 Data uji sudah bersih.
 ```
 
@@ -1610,7 +1622,7 @@ Data uji sudah bersih.
 | `perangkat` | login mencatat HP mahasiswa (bukan staf), HP pertama menjadi perangkat biasa, kode HP wajib dan harus 64 heksadesimal saat scan, satu HP untuk dua akun di pertemuan yang sama ditolak (termasuk 4 scan bersamaan), HP yang sama di pertemuan lain boleh tetapi tercatat `TIDAK_BIASA`, presensi manual tanpa kode HP; status HP tampil untuk asisten dan dosen tetapi tidak untuk mahasiswa, tombol Ada / Tidak ada (hak akses, pilihan salah, presensi yang tidak perlu dicek, HP menggantikan perangkat biasa lama, dua staf menekan bersamaan) | 51 |
 | `event-asisten` | tambah dan hapus asisten mengirim event real-time `class` dengan `action: "assistants"` | 6 |
 | `periode` | mulai semester baru (hanya laboran, sesi terbuka ditutup); semester tujuan wajib disebut: tanpa semester, Ganjil/Genap salah, melompat satu semester, dan semester yang sedang aktif ditolak; dua permintaan bersamaan untuk semester yang sama: satu 201, satu 409 "sudah dimulai", hanya satu periode baru; semua perubahan di periode lama ditolak, data lama tetap bisa dilihat, HP hanya melihat periode aktif, kelas dan ruang yang sama dipakai lagi, mengulang mata kuliah, senior jadi asisten, jam sesi hanya mengubah periode aktif, jam sesi disalin ke semester baru dan hanya jam sesi semester aktif yang tampil, kelas baru tidak boleh memakai jam sesi semester lama, jam sesi semester lama tidak bisa diubah atau dihapus, pendaftaran semester lama tidak bisa dihapus; satu Mulai semester tercatat di riwayat aktivitas | 48 |
-| `buat-laboran` | skrip `npm run buat-laboran`: akun LABORAN tersimpan dengan nama dan email dirapikan, password tidak tampil di layar, langsung bisa login; NIY bukan 8 angka, nama terlalu pendek, email salah, NIY atau email sudah terdaftar, password pendek atau berspasi, ulangan password berbeda, dan jawaban selain `ya` membatalkan tanpa membuat akun; akun yang dibuat tercatat di riwayat aktivitas lewat terminal, yang batal tidak | 18 |
+| `buat-laboran` | skrip `npm run buat-laboran`: tidak menanyakan email dan konfirmasinya hanya menyebut nama dan NIY, akun LABORAN tersimpan tanpa email dengan nama dirapikan, password tidak tampil di layar, langsung bisa login; NIY bukan 8 angka, nama terlalu pendek, NIY sudah terdaftar, password pendek atau berspasi, ulangan password berbeda, dan jawaban selain `ya` membatalkan tanpa membuat akun; akun yang dibuat tercatat di riwayat aktivitas lewat terminal, yang batal tidak | 17 |
 | `password-spasi` | password baru berspasi (di tengah, awal, akhir, tab) ditolak di daftar akun, lupa password, ganti password sendiri, laboran membuat akun, laboran mengganti password dosen, dan skrip `npm run ganti-password`; tidak ada pendaftaran atau akun yang tersimpan, password lama tetap berlaku; password tanpa spasi tetap diterima; hanya penggantian yang berhasil tercatat di riwayat aktivitas | 34 |
 | `hapus-periode` | skrip `npm run hapus-periode`: nama salah ditolak, ringkasan jumlah data, selain `HAPUS` dibatalkan, `HAPUS` menghapus semua data periode lama tanpa menyentuh akun, mata kuliah, dan periode aktif; semester yang terlanjur dimulai ditolak bila sudah berisi kelas dan bisa dihapus bila masih kosong, lalu periode sebelumnya aktif kembali; jam sesi periode yang dihapus ikut hilang, jam sesi periode lain utuh; pengumuman mata kuliah periode itu ikut terhapus, pengumuman untuk semua tetap; kedua penghapusan tercatat di riwayat aktivitas lewat terminal beserta jumlah datanya dan periode yang aktif kembali | 25 |
 | `urutan-nim` | mahasiswa di setiap pertemuan `GET /meeting/:classId` urut NIM untuk laboran dan dosen pengampu, walau masuk kelas dengan urutan acak | 4 |
@@ -1621,6 +1633,7 @@ Data uji sudah bersih.
 | `matkul-bersamaan` | tambah dan ubah mata kuliah bersamaan: 4 mata kuliah berkode sama (3 kali), 4 bernama sama dengan huruf besar-kecil berbeda (2 kali), dua mata kuliah diganti ke nama yang sama dan ke kode yang sama, mata kuliah baru dan ganti nama ke nama yang sama; tiap kali tepat satu berhasil, sisanya 409 dengan pesan kode atau nama, tersimpan tepat satu, tanpa error server | 24 |
 | `sambungan` | satu sambungan yang menganggur 16 detik, lebih lama dari 15 detik aplikasi HP, masih bisa dipakai lagi dan dijawab 200 (dulu server menutupnya di detik ke-6) | 4 |
 | `aktivitas` | riwayat aktivitas staf: login laboran dan dosen tercatat, login mahasiswa dan NIM yang tidak terdaftar tidak; password salah beruntun digabung satu baris per akun per 10 menit, juga 5 percobaan bersamaan, dan baris baru setelah lewat 10 menit; tiap aksi staf (status bayar, pindah kelas, hapus pendaftaran, asisten, pertemuan, buka dan tutup sesi, presensi manual, cek HP Ada / Tidak ada, hapus presensi, jam sesi, kelas, mata kuliah, pengumuman, buat akun, ganti password akun, nama dan password sendiri) menulis tepat satu catatan dengan pelaku, data, perubahan, dan semester yang benar, termasuk pelaku asisten; aksi yang ditolak atau tanpa perubahan tidak dicatat; skrip `hapus-akun` tercatat lewat terminal, yang dibatalkan tidak; `GET /activity` hanya untuk laboran, terbaru di atas, 50 per halaman, saringan jenis, semester, tanggal WIB, dan kata kunci, isian salah ditolak 400/404, membaca tidak menambah catatan | 88 |
+| `email-staf` | akun laboran dan dosen tanpa email: `POST /user` tanpa email untuk DOSEN dan LABORAN berhasil dengan balasan `email: null`, beberapa akun staf tanpa email tersimpan bersama, dan dosen baru langsung bisa login; email yang tetap dikirim untuk staf (biasa, berformat salah, atau milik mahasiswa) diabaikan dan tidak disimpan; NIY ganda tetap 409; akun mahasiswa tetap wajib email (tanpa email 400, email terpakai 409, NIM yang sama dengan NIY staf 409) dan emailnya disimpan dalam huruf kecil; `GET /auth/me` dan `PUT /auth/me` mengirim `email: null` untuk staf dan email asli untuk mahasiswa; email yang diabaikan tidak bisa dipakai Lupa password (404, tanpa kode reset), dan daftar dengan NIM milik dosen tanpa email dibalas 409, bukan error server | 26 |
 
 Setiap tes juga berisi dua cek penutup: data uji terhapus semua, dan data asli
 tidak berubah.
@@ -1632,9 +1645,10 @@ mahasiswa, mata kuliah, kelas, dan jam sesinya sendiri langsung lewat Prisma,
 lalu menghapusnya lagi, jadi tes tetap jalan di database kosong seperti di
 server lab.
 
-- Setiap file tes punya blok 2 angka sendiri (API 11–36, web 51–79,
+- Setiap file tes punya blok 2 angka sendiri (API 11–37, web 51–79,
   uji beban 90). Contoh blok 13: NIM `2999913xxx`, kode mata kuliah `99913xxxx`, jam
-  sesi nomor 9131–9136, email `uji-<nim>@example.test`.
+  sesi nomor 9131–9136, email `uji-<nim>@example.test` untuk mahasiswa uji
+  (laboran dan dosen uji tanpa email, sama seperti akun asli).
 - Jam sesi uji berada di 18.00–22.25 supaya ruang kelas uji tidak bertabrakan
   dengan jadwal kelas asli.
 - Password akun uji dibuat acak setiap kali tes jalan dan tidak disimpan.
@@ -1948,22 +1962,21 @@ npm run buat-laboran
 Membuat akun LABORAN baru.
 NIY (8 angka): 60010003
 Nama lengkap: Budi Santoso
-Email: budi@uad.ac.id
 Password baru: ********
 Ulangi password baru: ********
-Buat akun laboran Budi Santoso (NIY 60010003, budi@uad.ac.id)? (ya/tidak): ya
+Buat akun laboran Budi Santoso (NIY 60010003)? (ya/tidak): ya
 Akun laboran Budi Santoso berhasil dibuat. Login di web dengan NIY 60010003.
 ```
 
 - **Aturannya sama persis dengan `POST /user`**, karena keduanya memakai
   `src/utils/AccountRules/account.rules.ts`:
-  - NIY 8 angka;
+  - NIY 8 angka dan belum terdaftar;
   - nama 3–100 karakter, spasi berlebih dirapikan;
-  - format email benar;
-  - email dan NIY belum terdaftar;
   - password minimal 8 karakter tanpa spasi.
-- NIY, nama, dan email diperiksa sebelum password diminta. Pesan error sama
-  dengan API, ditambah "Dibatalkan, akun tidak dibuat.".
+- Email tidak ditanyakan, karena akun laboran dan dosen tidak menyimpan email
+  (lihat "Pendaftaran akun mahasiswa").
+- NIY dan nama diperiksa sebelum password diminta. Pesan error sama dengan
+  API, ditambah "Dibatalkan, akun tidak dibuat.".
 - Password diketik saat diminta dan tampil sebagai bintang, sama seperti
   `npm run ganti-password`. Jawaban selain `ya` membatalkan.
 - Skrip ini bisa dipakai kapan saja, tidak hanya untuk laboran pertama.

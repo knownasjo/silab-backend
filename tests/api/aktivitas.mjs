@@ -700,7 +700,6 @@ await runTest("Riwayat aktivitas staf", data, async () => {
       call("POST", "/user", {
         token: laboranToken,
         body: {
-          email: `uji-${niy}@example.test`,
           nim: niy,
           fullname: "Dosen Riwayat",
           password: "dosenriwayat1",

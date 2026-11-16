@@ -22,7 +22,6 @@ const createLaboran = (lines) =>
 
 await runTest("Membuat akun laboran lewat terminal", data, async () => {
   const niy = (n) => `${data.nimPrefix}${n}`;
-  const email = (n) => `uji-laboran-${niy(n)}@example.test`;
   const password = "laboranbaru1";
   const account = (nim) => db.mst_user.findUnique({ where: { nim } });
 
@@ -30,7 +29,6 @@ await runTest("Membuat akun laboran lewat terminal", data, async () => {
   const created = await createLaboran([
     niy(1),
     "  Laboran   Baru  ",
-    email(1).toUpperCase(),
     password,
     password,
     "ya",
@@ -43,12 +41,20 @@ await runTest("Membuat akun laboran lewat terminal", data, async () => {
       ),
     created.output
   );
+  check(
+    "  tidak menanyakan email, konfirmasi hanya menyebut nama dan NIY",
+    !/email/i.test(created.output) &&
+      created.output.includes(
+        `Buat akun laboran Laboran Baru (NIY ${niy(1)})? (ya/tidak): `
+      ),
+    created.output
+  );
   const user = await account(niy(1));
   check(
-    "  tersimpan sebagai LABORAN, nama dan email dirapikan",
+    "  tersimpan sebagai LABORAN tanpa email, nama dirapikan",
     user?.role === "LABORAN" &&
       user.fullname === "Laboran Baru" &&
-      user.email === email(1),
+      user.email === null,
     JSON.stringify(user && { ...user, password: undefined })
   );
   check(
@@ -81,47 +87,33 @@ await runTest("Membuat akun laboran lewat terminal", data, async () => {
   for (const [label, lines, message] of [
     [
       "NIY bukan 8 angka",
-      [data.nimPrefix, "Laboran Dua", email(2)],
+      [data.nimPrefix, "Laboran Dua"],
       "NIY harus 8 angka!",
     ],
     [
       "nama kurang dari 3 huruf",
-      [niy(2), "Lb", email(2)],
+      [niy(2), "Lb"],
       "Nama lengkap harus 3 sampai 100 karakter!",
     ],
-    [
-      "email tidak valid",
-      [niy(2), "Laboran Dua", "laboran-dua"],
-      "Format email tidak valid!",
-    ],
-    [
-      "NIY sudah terdaftar",
-      [niy(1), "Laboran Dua", email(2)],
-      "NIY sudah terdaftar!",
-    ],
-    [
-      "email sudah terdaftar",
-      [niy(2), "Laboran Dua", email(1)],
-      "Email sudah terdaftar!",
-    ],
+    ["NIY sudah terdaftar", [niy(1), "Laboran Dua"], "NIY sudah terdaftar!"],
     [
       "password kurang dari 8 karakter",
-      [niy(2), "Laboran Dua", email(2), "pendek"],
+      [niy(2), "Laboran Dua", "pendek"],
       "Password minimal 8 karakter.",
     ],
     [
       "password berspasi",
-      [niy(2), "Laboran Dua", email(2), "laboran dua"],
+      [niy(2), "Laboran Dua", "laboran dua"],
       "Password tidak boleh mengandung spasi.",
     ],
     [
       "ulangan password berbeda",
-      [niy(2), "Laboran Dua", email(2), password, "laboranlain1"],
+      [niy(2), "Laboran Dua", password, "laboranlain1"],
       "Password tidak sama.",
     ],
     [
       "konfirmasi bukan ya",
-      [niy(2), "Laboran Dua", email(2), password, password, "tidak"],
+      [niy(2), "Laboran Dua", password, password, "tidak"],
       "",
     ],
   ]) {

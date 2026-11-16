@@ -19,7 +19,6 @@ const createLaboran = async () => {
   const input = {
     nim: await ask("NIY (8 angka): "),
     fullname: await ask("Nama lengkap: "),
-    email: await ask("Email: "),
     role: UserRole.LABORAN,
   };
   const account = readAccount(input);
@@ -33,7 +32,7 @@ const createLaboran = async () => {
   if (
     (
       await ask(
-        `Buat akun laboran ${account.fullname} (NIY ${account.nim}, ${account.email})? (ya/tidak): `
+        `Buat akun laboran ${account.fullname} (NIY ${account.nim})? (ya/tidak): `
       )
     ).toLowerCase() !== "ya"
   ) {

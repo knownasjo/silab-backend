@@ -93,7 +93,7 @@ model mst_user {
     id                String    @id @default(uuid())
     fullname          String
     nim               String    @unique
-    email             String    @unique
+    email             String?   @unique
     password          String
     role              UserRole
     passwordChangedAt DateTime?

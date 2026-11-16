@@ -55,7 +55,7 @@ export interface IUserProfileResponseBody {
   id: string;
   nim: string;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
 }
 

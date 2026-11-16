@@ -17,18 +17,18 @@ const readText = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
 export const readAccount = (body: Partial<ICreateUserRequestBody>) => {
-  const email = readText(body.email).toLowerCase();
   const nim = readText(body.nim);
   const fullname = readText(body.fullname).replace(/\s+/g, " ");
   const role = readText(body.role).toUpperCase();
   const isStaff = role === UserRole.LABORAN || role === UserRole.DOSEN;
+  const email = isStaff ? null : readText(body.email).toLowerCase();
 
   if (!ROLES.includes(role))
     throw new BadRequestError(
       `Role harus salah satu dari ${ROLES.join(", ")}!`
     );
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+  if (email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     throw new BadRequestError("Format email tidak valid!");
 
   if (isStaff && !/^\d{8}$/.test(nim))
@@ -48,20 +48,22 @@ export const assertAccountFree = async ({
   nim,
   isStaff,
 }: {
-  email: string;
+  email: string | null;
   nim: string;
   isStaff: boolean;
 }) => {
   const registeredUser = await db.mst_user.findFirst({
     where: {
-      OR: [{ email: { equals: email, mode: "insensitive" } }, { nim }],
+      OR: email
+        ? [{ email: { equals: email, mode: "insensitive" } }, { nim }]
+        : [{ nim }],
     },
     select: { email: true },
   });
 
   if (registeredUser)
     throw new ConflictError(
-      registeredUser.email.toLowerCase() === email
+      registeredUser.email?.toLowerCase() === email
         ? "Email sudah terdaftar!"
         : `${isStaff ? "NIY" : "NIM"} sudah terdaftar!`
     );
@@ -80,7 +82,7 @@ export const createAccount = async (
   const { email, nim, fullname, role } = account;
   const [, user] = await db.$transaction([
     db.trn_registrations.deleteMany({
-      where: { OR: [{ email }, { nim }] },
+      where: { OR: email ? [{ email }, { nim }] : [{ nim }] },
     }),
     db.mst_user.create({
       data: {

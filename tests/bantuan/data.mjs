@@ -217,7 +217,7 @@ export class TestData {
       data: {
         fullname: fullname ?? `Mahasiswa Uji ${nim.slice(-3)}`,
         nim,
-        email: `uji-${nim}@example.test`,
+        email: role === "MAHASISWA" ? `uji-${nim}@example.test` : null,
         password: this.passwordHash,
         role,
       },

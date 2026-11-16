@@ -11,7 +11,7 @@ export interface IGetUserResponseBody {
 }
 
 export interface ICreateUserRequestBody {
-  email: string;
+  email?: string;
   nim: string;
   fullname: string;
   password: string;
@@ -20,7 +20,7 @@ export interface ICreateUserRequestBody {
 
 export interface ICreateUserResponseBody {
   id: string;
-  email: string;
+  email: string | null;
   nim: string;
   fullname: string;
   role: string;
